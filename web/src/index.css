@@ -1,0 +1,73 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+:root {
+  color-scheme: light;
+  --bg: #f5f7fb;
+  --panel: #ffffff;
+  --panel-2: #f1f4f9;
+  --border: #e3e8f0;
+  --text: #0f172a;
+  --muted: #64748b;
+}
+.dark {
+  color-scheme: dark;
+  --bg: #080b14;
+  --panel: #0f1422;
+  --panel-2: #151b2c;
+  --border: #1e2638;
+  --text: #e6eaf2;
+  --muted: #8591a8;
+}
+
+html, body, #root { height: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+.panel { background: var(--panel); border: 1px solid var(--border); }
+.panel-2 { background: var(--panel-2); }
+.border-app { border-color: var(--border); }
+.text-muted { color: var(--muted); }
+.bg-app { background: var(--bg); }
+
+.input {
+  width: 100%;
+  border-radius: 0.6rem;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  padding: 0.55rem 0.8rem;
+  font-size: 0.875rem;
+  color: var(--text);
+  outline: none;
+  transition: border-color .15s, box-shadow .15s;
+}
+.input:focus { border-color: #6366f1; box-shadow: 0 0 0 3px rgb(99 102 241 / .2); }
+.input::placeholder { color: var(--muted); opacity: .7; }
+textarea.input { font-family: var(--font-mono); font-size: .8rem; }
+
+.scroll-thin::-webkit-scrollbar { width: 8px; height: 8px; }
+.scroll-thin::-webkit-scrollbar-thumb { background: var(--border); border-radius: 8px; }
+.scroll-thin::-webkit-scrollbar-track { background: transparent; }
+
+.grad-text {
+  background: linear-gradient(135deg, #818cf8, #22d3ee);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+@keyframes fadein { from { opacity: 0; transform: translateY(4px) } to { opacity: 1; transform: none } }
+.fade-in { animation: fadein .25s ease-out; }
+@keyframes pulse-dot { 0%,100% { opacity: 1 } 50% { opacity: .35 } }
+.pulse-dot { animation: pulse-dot 1.4s infinite; }
