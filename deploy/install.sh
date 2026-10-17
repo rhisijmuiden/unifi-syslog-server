@@ -67,7 +67,26 @@ fi
 TOTAL_MB=$(awk '/MemTotal/ {print int($2/1024)}' /proc/meminfo)
 (( TOTAL_MB >= 1800 )) || warn "Maar ${TOTAL_MB} MB RAM. 4 GB of meer is aangeraden."
 
-# Finish a package install that an earlier run left half-done.
+# ClickHouse 26.8 and later need AVX2 (Intel Haswell / AMD Zen or newer) and die with
+# "Illegal instruction" on older CPUs such as the Xeon E5 v1/v2. 26.3 LTS still runs there.
+CH_PIN="${USS_CH_VERSION:-}"
+if [[ -z "$CH_PIN" && "$ARCH" == amd64 ]] && ! grep -qw avx2 /proc/cpuinfo; then
+  CH_PIN="26.3.*"
+  warn "CPU zonder AVX2 gevonden: ClickHouse wordt vastgezet op 26.3 LTS."
+fi
+install -d /etc/apt/preferences.d
+if [[ -n "$CH_PIN" ]]; then
+  printf 'Package: clickhouse-server clickhouse-client clickhouse-common-static clickhouse-keeper\nPin: version %s\nPin-Priority: 1001\n' "$CH_PIN" > /etc/apt/preferences.d/clickhouse
+else
+  rm -f /etc/apt/preferences.d/clickhouse
+fi
+
+# A ClickHouse package left half-configured by an earlier failed run blocks apt; remove it
+# (data and config stay) so it is reinstalled below.
+if dpkg -s clickhouse-server >/dev/null 2>&1 && ! dpkg -s clickhouse-server | grep -q 'Status: install ok installed'; then
+  warn "Half geïnstalleerde ClickHouse van een eerdere poging gevonden, wordt opnieuw geïnstalleerd."
+  dpkg --remove --force-remove-reinstreq clickhouse-server >>"$LOG" 2>&1 || true
+fi
 dpkg --configure -a >>"$LOG" 2>&1 || true
 
 info "Systeempakketten installeren"
@@ -76,16 +95,22 @@ run apt-get install -y curl ca-certificates gnupg apt-transport-https tar openss
 ok "Basispakketten geïnstalleerd"
 
 # ---------------------------------------------------------------- ClickHouse
-if ! command -v clickhouse-server >/dev/null 2>&1; then
-  info "ClickHouse installeren (officiële repository)"
+ch_works() { dpkg -s clickhouse-server 2>/dev/null | grep -q 'Status: install ok installed' && clickhouse local -q 'SELECT 1' >/dev/null 2>&1; }
+if ! ch_works; then
+  info "ClickHouse installeren (officiële repository${CH_PIN:+, versie $CH_PIN})"
   install -d -m 0755 /usr/share/keyrings
   curl -fsSL 'https://packages.clickhouse.com/rpm/lts/repodata/repomd.xml.key' | gpg --dearmor --yes -o /usr/share/keyrings/clickhouse-keyring.gpg
   echo "deb [signed-by=/usr/share/keyrings/clickhouse-keyring.gpg arch=${ARCH}] https://packages.clickhouse.com/deb lts main" > /etc/apt/sources.list.d/clickhouse.list
   run apt-get update || die "apt-get update mislukt"
-  if ! run apt-get install -y clickhouse-server clickhouse-client; then
+  if ! run apt-get install -y --allow-downgrades clickhouse-common-static clickhouse-server clickhouse-client; then
     run apt-get install -y -f || true
-    command -v clickhouse-server >/dev/null 2>&1 && dpkg -s clickhouse-server 2>/dev/null | grep -q 'Status: install ok installed' \
-      || die "ClickHouse installeren mislukt. Het volledige log staat in $LOG"
+  fi
+  if ! ch_works; then
+    rc=0; clickhouse local -q 'SELECT 1' >/dev/null 2>&1 || rc=$?
+    if (( rc == 132 )); then  # SIGILL
+      die "ClickHouse draait niet op deze CPU. Probeer opnieuw met USS_CH_VERSION='26.3.*' of zet bij een VM het CPU-type op 'host'."
+    fi
+    die "ClickHouse installeren mislukt. Het volledige log staat in $LOG"
   fi
   ok "ClickHouse geïnstalleerd"
 else

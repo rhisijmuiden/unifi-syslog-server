@@ -14,6 +14,10 @@ jobs:
   lxc:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario: [fresh, repair]
     steps:
       - uses: actions/checkout@v4
       - name: Install Incus
@@ -31,6 +35,13 @@ jobs:
           sudo incus file push deploy/install.sh ct/root/install.sh
       - name: Run installer
         run: sudo incus exec ct --env USS_NONINTERACTIVE=1 -- bash /root/install.sh 2>&1 | tee install-out.txt; exit ${PIPESTATUS[0]}
+      - name: Repair a half-configured install with a pinned older ClickHouse
+        if: matrix.scenario == 'repair'
+        run: |
+          # Mimic a postinst that died (as with "Illegal instruction" on CPUs without AVX2).
+          sudo incus exec ct -- sed -i '/^Package: clickhouse-server$/,/^$/s/^Status: install ok installed/Status: install ok half-configured/' /var/lib/dpkg/status
+          sudo incus exec ct --env USS_NONINTERACTIVE=1 --env USS_CH_VERSION='26.3.*' -- bash /root/install.sh 2>&1 | tee -a install-out.txt
+          sudo incus exec ct -- clickhouse local -q 'SELECT version()' | tee -a install-out.txt | grep -q '^26\.3\.'
       - name: Check app
         run: |
           sudo incus exec ct -- bash -c 'for i in $(seq 1 30); do curl -fsS localhost:8080/api/health && exit 0; sleep 2; done; exit 1'
@@ -43,4 +54,4 @@ jobs:
           cat diag.txt
           git config user.name ci; git config user.email ci@localhost
           git checkout -q --orphan diag && git rm -rq --cached . && git add -f diag.txt
-          git commit -qm "diagnostics ${GITHUB_RUN_ID}" && git push -fq origin HEAD:refs/heads/ci-diagnostics
+          git commit -qm "diagnostics ${GITHUB_RUN_ID}" && git push -fq origin HEAD:refs/heads/ci-diagnostics-${{ matrix.scenario }}
