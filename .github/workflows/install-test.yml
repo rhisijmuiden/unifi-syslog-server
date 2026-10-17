@@ -1,0 +1,38 @@
+name: install-test
+
+# Runs deploy/install.sh inside a fresh, unprivileged Debian 13 system container
+# (Incus/LXC, like a Proxmox CT) with systemd, then checks that the app answers.
+on:
+  workflow_dispatch:
+  pull_request:
+    paths: ['deploy/**', 'install/**', 'ct/**']
+
+jobs:
+  lxc:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Incus
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq incus
+          sudo incus admin init --auto
+          # Docker's FORWARD drop policy breaks container networking.
+          sudo iptables -I DOCKER-USER -j ACCEPT || true
+      - name: Start unprivileged Debian 13 container
+        run: |
+          sudo incus launch images:debian/13 ct -c security.privileged=false -c limits.memory=4GiB
+          for i in $(seq 1 60); do sudo incus exec ct -- getent hosts deb.debian.org && break; sleep 2; done
+          sudo incus exec ct -- bash -c 'apt-get update -qq && apt-get install -y -qq curl ca-certificates'
+          sudo incus file push deploy/install.sh ct/root/install.sh
+      - name: Run installer
+        run: sudo incus exec ct --env USS_NONINTERACTIVE=1 -- bash /root/install.sh
+      - name: Check app
+        run: |
+          sudo incus exec ct -- bash -c 'for i in $(seq 1 30); do curl -fsS localhost:8080/api/health && exit 0; sleep 2; done; exit 1'
+          sudo incus exec ct -- systemctl is-active clickhouse-server unify-syslog
+      - name: Diagnostics
+        if: always()
+        run: |
+          sudo incus exec ct -- bash -c 'tail -n 80 /var/log/unify-syslog-install.log; journalctl -u clickhouse-server -u unify-syslog --no-pager -n 60; df -h /' || true
