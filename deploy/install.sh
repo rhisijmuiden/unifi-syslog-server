@@ -37,12 +37,12 @@ run() {
 }
 
 [[ $EUID -eq 0 ]] || die "Voer dit script uit als root."
-. /etc/os-release
-if [[ "${ID:-}" != "debian" ]]; then
-  die "Dit script is bedoeld voor Debian 13 (gevonden: ${PRETTY_NAME:-onbekend})."
+read -r OS_ID OS_VER OS_NAME < <(. /etc/os-release; echo "${ID:-} ${VERSION_ID:-} ${PRETTY_NAME:-onbekend}")
+if [[ "${OS_ID}" != "debian" ]]; then
+  die "Dit script is bedoeld voor Debian 13 (gevonden: ${OS_NAME})."
 fi
-if [[ "${VERSION_ID:-}" != "13" ]]; then
-  warn "Getest op Debian 13, gevonden ${PRETTY_NAME}. Doorgaan..."
+if [[ "${OS_VER}" != "13" ]]; then
+  warn "Getest op Debian 13, gevonden ${OS_NAME}. Doorgaan..."
 fi
 
 case "$(uname -m)" in
