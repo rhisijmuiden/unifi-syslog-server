@@ -9,15 +9,14 @@ jobs:
       - run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq qemu-user >/dev/null
           out=probe.txt; : > $out
-          for v in 25.8.10.7-lts 26.8.30.8-lts; do
+          for v in 25.8.10.7-lts 26.3.9.8-lts 26.8.30.8-lts; do
             n=${v%-lts}
             curl -sSLf -o c.tgz https://github.com/ClickHouse/ClickHouse/releases/download/v$v/clickhouse-common-static-$n-amd64.tgz || { echo "$v download failed" >> $out; continue; }
-            tar xzf c.tgz; b=$(find . -path "*clickhouse-common-static-$n*/usr/bin/clickhouse" | head -1)
-            for cpu in Nehalem Westmere SandyBridge IvyBridge Haswell; do
+            tar xzf c.tgz; b=$(find . -type f -name clickhouse -path "*usr/bin*" | head -1); echo "$v bin=$b" >> $out
+            for cpu in Westmere IvyBridge Haswell; do
               r=$(timeout 120 qemu-x86_64 -cpu $cpu $b local -q 'SELECT 1' 2>&1 | tail -1); echo "$v $cpu => $? $r" >> $out
             done
             rm -rf c.tgz clickhouse-common-static-*
           done
           cat $out
-          git config user.name ci; git config user.email ci@localhost
-          git init -q p && cp $out p/ && cd p && git add . && git commit -qm probe && git push -fq "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" HEAD:refs/heads/ci-cpu-probe
+          echo "::notice title=probe::$(paste -sd'|' $out)"
