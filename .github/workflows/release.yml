@@ -3,6 +3,11 @@ name: release
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Versie om uit te brengen, bijvoorbeeld v0.1.0 (de tag wordt aangemaakt)'
+        required: true
 
 permissions:
   contents: write
@@ -10,6 +15,8 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    env:
+      TAG: ${{ inputs.version || github.ref_name }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -23,9 +30,11 @@ jobs:
           cache: npm
           cache-dependency-path: web/package-lock.json
       - run: go test ./...
-      - run: make dist VERSION=${GITHUB_REF_NAME#v}
+      - run: make dist VERSION=${TAG#v}
       - uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ env.TAG }}
+          target_commitish: ${{ github.sha }}
           files: |
             dist/*.tar.gz
             dist/checksums.txt
