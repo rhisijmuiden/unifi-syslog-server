@@ -7,6 +7,9 @@ on:
   pull_request:
     paths: ['deploy/**', 'install/**', 'ct/**']
 
+permissions:
+  contents: write
+
 jobs:
   lxc:
     runs-on: ubuntu-24.04
@@ -27,7 +30,7 @@ jobs:
           sudo incus exec ct -- bash -c 'apt-get update -qq && apt-get install -y -qq curl ca-certificates'
           sudo incus file push deploy/install.sh ct/root/install.sh
       - name: Run installer
-        run: sudo incus exec ct --env USS_NONINTERACTIVE=1 -- bash /root/install.sh
+        run: sudo incus exec ct --env USS_NONINTERACTIVE=1 -- bash /root/install.sh 2>&1 | tee install-out.txt; exit ${PIPESTATUS[0]}
       - name: Check app
         run: |
           sudo incus exec ct -- bash -c 'for i in $(seq 1 30); do curl -fsS localhost:8080/api/health && exit 0; sleep 2; done; exit 1'
@@ -35,7 +38,9 @@ jobs:
       - name: Diagnostics
         if: always()
         run: |
-          sudo incus exec ct -- bash -c 'tail -n 80 /var/log/unify-syslog-install.log; journalctl -u clickhouse-server -u unify-syslog --no-pager -n 60; df -h /' > diag.txt 2>&1 || true
+          sudo incus exec ct -- bash -c 'tail -n 80 /var/log/unify-syslog-install.log; journalctl -u clickhouse-server -u unify-syslog --no-pager -n 60; df -h /; dmesg 2>/dev/null | tail -20' > diag.txt 2>&1 || true
+          { echo '===== installer output'; cat install-out.txt 2>/dev/null; echo '===== host dmesg'; sudo dmesg | tail -40; } >> diag.txt
           cat diag.txt
-          # Also as an annotation, so it is readable through the checks API.
-          echo "::warning title=diagnostics::$(tail -c 60000 diag.txt | sed 's/%/%25/g' | sed ':a;N;$!ba;s/\n/%0A/g')"
+          git config user.name ci; git config user.email ci@localhost
+          git checkout -q --orphan diag && git rm -rq --cached . && git add -f diag.txt
+          git commit -qm "diagnostics ${GITHUB_RUN_ID}" && git push -fq origin HEAD:refs/heads/ci-diagnostics
