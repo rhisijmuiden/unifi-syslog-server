@@ -201,7 +201,10 @@ if [[ -n "${USS_LOCAL_TARBALL:-}" ]]; then
   TARBALL="$USS_LOCAL_TARBALL"
 else
   if [[ "$VERSION" == "latest" ]]; then
-    VERSION="$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" | grep -m1 '"tag_name"' | cut -d'"' -f4)"
+    # Follow the /releases/latest redirect (no API rate limit, no grep closing the pipe early).
+    LATEST_URL="$(curl -fsSL -o /dev/null -w '%{url_effective}' "https://github.com/${REPO}/releases/latest" || true)"
+    VERSION="${LATEST_URL##*/tag/}"
+    [[ "$LATEST_URL" == */tag/* ]] || VERSION=""
     [[ -n "$VERSION" ]] || die "Kon de nieuwste release niet bepalen (zijn er releases op github.com/${REPO}?)"
   fi
   info "UniFi Syslog Server ${VERSION} downloaden"

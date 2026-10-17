@@ -40,7 +40,9 @@ jobs:
         run: |
           # Mimic a postinst that died (as with "Illegal instruction" on CPUs without AVX2).
           sudo incus exec ct -- sed -i '/^Package: clickhouse-server$/,/^$/s/^Status: install ok installed/Status: install ok half-configured/' /var/lib/dpkg/status
+          set -o pipefail
           sudo incus exec ct --env USS_NONINTERACTIVE=1 --env USS_CH_VERSION='26.3.*' -- bash /root/install.sh 2>&1 | tee -a install-out.txt
+          sudo incus exec ct -- curl -fsS localhost:8080/api/health
           sudo incus exec ct -- clickhouse local -q 'SELECT version()' | tee -a install-out.txt | grep -q '^26\.3\.'
       - name: Check app
         run: |
