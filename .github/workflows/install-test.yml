@@ -35,4 +35,7 @@ jobs:
       - name: Diagnostics
         if: always()
         run: |
-          sudo incus exec ct -- bash -c 'tail -n 80 /var/log/unify-syslog-install.log; journalctl -u clickhouse-server -u unify-syslog --no-pager -n 60; df -h /' || true
+          sudo incus exec ct -- bash -c 'tail -n 80 /var/log/unify-syslog-install.log; journalctl -u clickhouse-server -u unify-syslog --no-pager -n 60; df -h /' > diag.txt 2>&1 || true
+          cat diag.txt
+          # Also as an annotation, so it is readable through the checks API.
+          echo "::warning title=diagnostics::$(tail -c 60000 diag.txt | sed 's/%/%25/g' | sed ':a;N;$!ba;s/\n/%0A/g')"
