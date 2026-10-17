@@ -72,7 +72,7 @@ dpkg --configure -a >>"$LOG" 2>&1 || true
 
 info "Systeempakketten installeren"
 run apt-get update || die "apt-get update mislukt"
-run apt-get install -y curl ca-certificates gnupg apt-transport-https tar openssl tzdata || die "Basispakketten installeren mislukt"
+run apt-get install -y curl ca-certificates gnupg apt-transport-https tar openssl tzdata libcap2-bin || die "Basispakketten installeren mislukt"
 ok "Basispakketten geïnstalleerd"
 
 # ---------------------------------------------------------------- ClickHouse
@@ -143,9 +143,17 @@ EOF
 rm -f /etc/clickhouse-server/users.d/default-password.xml
 chown -R clickhouse:clickhouse /etc/clickhouse-server/config.d /etc/clickhouse-server/users.d 2>/dev/null || true
 if [[ "$(systemd-detect-virt -c 2>/dev/null || true)" == "lxc" ]]; then
-  # Unprivileged containers cannot grant these capabilities; ClickHouse runs fine without.
+  # Unprivileged containers cannot grant ClickHouse's extra capabilities; it runs fine without.
+  # The package puts file capabilities on the binary (again on every upgrade), and a binary
+  # with file capabilities outside the bounding set cannot be executed, so strip them first.
   install -d /etc/systemd/system/clickhouse-server.service.d
-  printf '[Service]\nAmbientCapabilities=\nCapabilityBoundingSet=\n' > /etc/systemd/system/clickhouse-server.service.d/lxc.conf
+  cat > /etc/systemd/system/clickhouse-server.service.d/lxc.conf <<'EOF2'
+[Service]
+AmbientCapabilities=
+CapabilityBoundingSet=
+ExecStartPre=-+/usr/sbin/setcap -r /usr/bin/clickhouse
+EOF2
+  setcap -r /usr/bin/clickhouse 2>/dev/null || true
   systemctl daemon-reload
 fi
 systemctl enable -q clickhouse-server
