@@ -23,6 +23,19 @@ ok()   { echo -e "${c_ok}✔${c_off} $*"; }
 warn() { echo -e "${c_warn}!${c_off} $*"; }
 die()  { echo -e "${c_err}✘ $*${c_off}" >&2; exit 1; }
 
+LOG=/var/log/unify-syslog-install.log
+# Run a command with its output in $LOG; on failure show the tail so the cause is visible.
+run() {
+  echo "+ $*" >>"$LOG"
+  if ! "$@" >>"$LOG" 2>&1; then
+    echo -e "${c_err}✘ Mislukt: $*${c_off}" >&2
+    echo "----- laatste regels van $LOG -----" >&2
+    tail -n 30 "$LOG" >&2
+    echo "-----------------------------------" >&2
+    return 1
+  fi
+}
+
 [[ $EUID -eq 0 ]] || die "Voer dit script uit als root."
 . /etc/os-release
 if [[ "${ID:-}" != "debian" ]]; then
@@ -39,10 +52,27 @@ case "$(uname -m)" in
 esac
 
 export DEBIAN_FRONTEND=noninteractive
+: >"$LOG"
+
+# ClickHouse needs about 2 GB on disk to install (the default Debian LXC disk is only 2 GB).
+FREE_MB=$(df -Pm / | awk 'NR==2 {print $4}')
+if (( FREE_MB < 3072 )); then
+  die "Te weinig schijfruimte: ${FREE_MB} MB vrij op /. Minimaal 3 GB nodig, 20 GB of meer aangeraden. Vergroot de schijf (Proxmox: Resources → Root Disk → Resize) en start opnieuw."
+elif (( FREE_MB < 10240 )); then
+  warn "Maar ${FREE_MB} MB vrij op /. Voor logopslag is 20 GB of meer aangeraden."
+fi
+if [[ "$ARCH" == amd64 ]] && ! grep -qw sse4_2 /proc/cpuinfo; then
+  die "De CPU ondersteunt geen SSE4.2, wat ClickHouse vereist. Zet in Proxmox het CPU-type van de VM op 'host' of 'x86-64-v2-AES'."
+fi
+TOTAL_MB=$(awk '/MemTotal/ {print int($2/1024)}' /proc/meminfo)
+(( TOTAL_MB >= 1800 )) || warn "Maar ${TOTAL_MB} MB RAM. 4 GB of meer is aangeraden."
+
+# Finish a package install that an earlier run left half-done.
+dpkg --configure -a >>"$LOG" 2>&1 || true
 
 info "Systeempakketten installeren"
-apt-get update -qq
-apt-get install -y -qq curl ca-certificates gnupg apt-transport-https tar openssl tzdata >/dev/null
+run apt-get update || die "apt-get update mislukt"
+run apt-get install -y curl ca-certificates gnupg apt-transport-https tar openssl tzdata || die "Basispakketten installeren mislukt"
 ok "Basispakketten geïnstalleerd"
 
 # ---------------------------------------------------------------- ClickHouse
@@ -51,8 +81,12 @@ if ! command -v clickhouse-server >/dev/null 2>&1; then
   install -d -m 0755 /usr/share/keyrings
   curl -fsSL 'https://packages.clickhouse.com/rpm/lts/repodata/repomd.xml.key' | gpg --dearmor --yes -o /usr/share/keyrings/clickhouse-keyring.gpg
   echo "deb [signed-by=/usr/share/keyrings/clickhouse-keyring.gpg arch=${ARCH}] https://packages.clickhouse.com/deb lts main" > /etc/apt/sources.list.d/clickhouse.list
-  apt-get update -qq
-  apt-get install -y -qq clickhouse-server clickhouse-client >/dev/null
+  run apt-get update || die "apt-get update mislukt"
+  if ! run apt-get install -y clickhouse-server clickhouse-client; then
+    run apt-get install -y -f || true
+    command -v clickhouse-server >/dev/null 2>&1 && dpkg -s clickhouse-server 2>/dev/null | grep -q 'Status: install ok installed' \
+      || die "ClickHouse installeren mislukt. Het volledige log staat in $LOG"
+  fi
   ok "ClickHouse geïnstalleerd"
 else
   ok "ClickHouse is al aanwezig"
