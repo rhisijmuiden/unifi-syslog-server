@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { Settings as SettingsIcon, Save, KeyRound } from 'lucide-react'
+import { Settings as SettingsIcon, Save } from 'lucide-react'
 import { api } from '../api'
 import { useAuth } from '../App'
 import { Button, Card, Field, Input, PageHeader, Select, Spinner, useToast } from '../components/ui'
@@ -10,18 +10,14 @@ const zones = ['Europe/Amsterdam', 'Europe/Brussels', 'Europe/London', 'Europe/B
 
 export default function SettingsPage() {
   const toast = useToast()
-  const { user, reloadStatus } = useAuth()
+  const { reloadStatus } = useAuth()
   const [g, setG] = useState<General>()
   const [busy, setBusy] = useState(false)
-  const [pw, setPw] = useState({ current: '', new: '' })
   useEffect(() => { api.get<General>('/settings/general').then(setG) }, [])
   if (!g) return <div className="grid place-items-center py-24"><Spinner /></div>
   const save = async () => {
     setBusy(true)
     try { const saved = await api.put<General>('/settings/general', g); setG(saved); toast('ok', t('Settings saved')); reloadStatus() } catch (e) { toast('err', (e as Error).message) } finally { setBusy(false) }
-  }
-  const changePw = async () => {
-    try { await api.post('/me/password', pw); setPw({ current: '', new: '' }); toast('ok', t('Password changed')) } catch (e) { toast('err', (e as Error).message) }
   }
   return (
     <>
@@ -50,15 +46,6 @@ export default function SettingsPage() {
             <li>{rich(t('For sites behind NAT: map the WAN IP to the site under {sites}.'), { sites: t('Sites') })}</li>
           </ol>
         </Card>
-        {user.provider === 'local' && (
-          <Card title={t('My password')}>
-            <div className="grid gap-4 md:grid-cols-[1fr_1fr_auto] md:items-end">
-              <Field label={t('Current password')}><Input type="password" value={pw.current} onChange={(e) => setPw({ ...pw, current: e.target.value })} /></Field>
-              <Field label={t('New password')}><Input type="password" value={pw.new} onChange={(e) => setPw({ ...pw, new: e.target.value })} /></Field>
-              <Button onClick={changePw} disabled={!pw.current || pw.new.length < 10} icon={<KeyRound className="size-4" />}>{t('Change')}</Button>
-            </div>
-          </Card>
-        )}
       </div>
     </>
   )

@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { ScrollText, Search, Radio, Pause, Download, Bookmark, HelpCircle, X, Plus, Minus } from 'lucide-react'
-import { api, type Bucket, type LogRow } from '../api'
+import { api, can, type Bucket, type LogRow } from '../api'
 import { useAuth } from '../App'
 import { Badge, Button, Card, Empty, Field, Input, Modal, PageHeader, Spinner, cx, useToast } from '../components/ui'
 import { Timeline } from '../components/charts'
@@ -137,9 +137,11 @@ export default function Logs() {
       {!live && hist && (
         <Card className="mb-5" title={<span>{t('{n} results', { n: fmtNum(hist.total) })} <span className="font-normal text-muted">· {took} ms</span></span>}
           actions={<>
-            {user.role === 'admin' && <Button variant="ghost" onClick={() => setSave(true)} icon={<Bookmark className="size-4" />}>{t('Save as category')}</Button>}
-            <a href={exportUrl('csv')}><Button variant="ghost" icon={<Download className="size-4" />}>CSV</Button></a>
-            <a href={exportUrl('json')}><Button variant="ghost" icon={<Download className="size-4" />}>JSON</Button></a>
+            {can.categories(user) && <Button variant="ghost" onClick={() => setSave(true)} icon={<Bookmark className="size-4" />}>{t('Save as category')}</Button>}
+            {can.export(user) && <>
+              <a href={exportUrl('csv')}><Button variant="ghost" icon={<Download className="size-4" />}>CSV</Button></a>
+              <a href={exportUrl('json')}><Button variant="ghost" icon={<Download className="size-4" />}>JSON</Button></a>
+            </>}
           </>}>
           <Timeline buckets={hist.buckets} stepSec={hist.step} height={140} range={toRange(st)}
             onSelect={(f, t) => set({ preset: 'custom', from: localIso(f), to: localIso(t) })} />

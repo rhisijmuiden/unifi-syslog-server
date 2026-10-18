@@ -34,6 +34,8 @@ type Server struct {
 	Out     chan<- Message
 	Stats   *Stats
 	Log     *slog.Logger
+	// Filter is the optional source allowlist.
+	Filter *Filter
 }
 
 const maxMsg = 64 * 1024
@@ -94,6 +96,9 @@ func (s *Server) serveUDP(pc net.PacketConn) error {
 		}
 		s.Stats.UDPPackets.Add(1)
 		ip := addrIP(addr)
+		if !s.Filter.Allow(ip, "udp") {
+			continue
+		}
 		data := make([]byte, n)
 		copy(data, buf[:n])
 		s.emit(data, ip)
@@ -109,6 +114,10 @@ func (s *Server) serveTCP(ctx context.Context, ln net.Listener) error {
 			}
 			s.Log.Warn("tcp accept", "err", err)
 			time.Sleep(100 * time.Millisecond)
+			continue
+		}
+		if !s.Filter.Allow(addrIP(c.RemoteAddr()), "tcp") {
+			c.Close()
 			continue
 		}
 		go s.handleTCP(ctx, c)

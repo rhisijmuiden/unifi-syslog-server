@@ -50,7 +50,11 @@ func (s *Server) listDevices(w http.ResponseWriter, r *http.Request) {
 	now := time.Now()
 	silentAfter := time.Duration(s.Meta.Inventory().SilentMinutes) * time.Minute
 	out := []deviceView{}
+	u := user(r)
 	for _, d := range s.Meta.Devices() {
+		if !u.SiteAllowed(d.Site) {
+			continue
+		}
 		c := counts[d.Key]
 		v := deviceView{InvDevice: d, Status: deviceStatus(d, now, silentAfter), Count: c.Count, Errors: c.Errors}
 		if cd, ok := s.controllerDevice(d.MAC); ok && d.MAC != "" {
@@ -158,7 +162,11 @@ func (s *Server) siteOverview(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	out := make([]*siteView, 0, len(sites))
+	u := user(r)
 	for _, v := range sites {
+		if !u.SiteAllowed(v.Site) {
+			continue
+		}
 		// The default site only matters while something actually lands there.
 		if v.Site == store.DefaultSite && v.Senders == 0 && v.Devices == 0 && v.Total == 0 {
 			continue

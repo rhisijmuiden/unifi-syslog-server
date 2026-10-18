@@ -5,9 +5,9 @@ package auth
 import (
 	"context"
 	"encoding/json"
-	"io"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 	"sync"
 	"time"
@@ -155,22 +155,60 @@ func (e *Entra) Finish(ctx context.Context, base, state, code string) (*Identity
 			id.Language = graphLanguage(ctx, cfg, tok)
 		}
 	}
-	if s.AllowedGroup != "" && !contains(id.Groups, s.AllowedGroup) && !contains(id.Groups, s.AdminGroupID) {
+	if s.AllowedGroup != "" && !contains(id.Groups, s.AllowedGroup) && !inMappedGroup(s, id.Groups) {
 		return nil, errors.New("your account is not a member of the allowed group")
 	}
 	return id, nil
 }
 
-// Role maps group membership to an application role.
-func (e *Entra) Role(id *Identity) string {
-	s := e.Meta.SSO()
-	if s.AdminGroupID != "" && contains(id.Groups, s.AdminGroupID) {
-		return "admin"
+func inMappedGroup(s store.SSOSettings, groups []string) bool {
+	for _, g := range s.GroupRoles {
+		if contains(groups, g.GroupID) {
+			return true
+		}
 	}
-	if s.DefaultRole == "admin" {
-		return "admin"
+	return false
+}
+
+// Access maps group membership to a role and sites. The highest role of
+// all matching groups wins; the sites of the groups with that role are
+// combined, and a group without sites gives every site. Users in no mapped
+// group get the default role for every site. managed is false when no
+// mappings are configured: roles are then set by hand in the interface.
+func (e *Entra) Access(id *Identity) (role string, sites []string, managed bool) {
+	return Access(e.Meta.SSO(), id.Groups)
+}
+
+func Access(s store.SSOSettings, groups []string) (role string, sites []string, managed bool) {
+	role = s.DefaultRole
+	if !store.ValidRole(role) {
+		role = store.RoleViewer
 	}
-	return "viewer"
+	if len(s.GroupRoles) == 0 {
+		return role, []string{}, false
+	}
+	var best []store.GroupRole
+	for _, g := range s.GroupRoles {
+		if !contains(groups, g.GroupID) || !store.ValidRole(g.Role) {
+			continue
+		}
+		if len(best) == 0 || store.RoleRank(g.Role) > store.RoleRank(best[0].Role) {
+			best = []store.GroupRole{g}
+		} else if g.Role == best[0].Role {
+			best = append(best, g)
+		}
+	}
+	if len(best) == 0 {
+		return role, []string{}, true
+	}
+	var all []string
+	for _, g := range best {
+		if len(g.Sites) == 0 {
+			return best[0].Role, []string{}, true
+		}
+		all = append(all, g.Sites...)
+	}
+	return best[0].Role, store.CleanSites(all), true
 }
 
 func contains(l []string, s string) bool {

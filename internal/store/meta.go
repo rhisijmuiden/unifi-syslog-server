@@ -151,7 +151,7 @@ func OpenMeta(path, keyPath string) (*Meta, error) {
 		return nil, err
 	}
 	db.SetMaxOpenConns(4)
-	for _, sc := range []string{schema, unifiSchema} {
+	for _, sc := range []string{schema, unifiSchema, securitySchema} {
 		if _, err := db.Exec(sc); err != nil {
 			return nil, fmt.Errorf("migrate: %w", err)
 		}
@@ -180,6 +180,15 @@ var addedColumns = []struct{ table, column, def string }{
 	{"users", "language", "TEXT NOT NULL DEFAULT ''"},
 	{"users", "language_manual", "INTEGER NOT NULL DEFAULT 0"},
 	{"devices", "firmware_alerted", "TEXT NOT NULL DEFAULT ''"},
+	{"users", "sites", "TEXT NOT NULL DEFAULT ''"},
+	{"users", "role_managed", "INTEGER NOT NULL DEFAULT 0"},
+	{"users", "totp_secret", "TEXT NOT NULL DEFAULT ''"},
+	{"users", "totp_enabled", "INTEGER NOT NULL DEFAULT 0"},
+	{"users", "totp_last", "INTEGER NOT NULL DEFAULT 0"},
+	{"users", "recovery_codes", "TEXT NOT NULL DEFAULT ''"},
+	{"audit", "ip", "TEXT NOT NULL DEFAULT ''"},
+	{"audit", "kind", "TEXT NOT NULL DEFAULT ''"},
+	{"audit", "via", "TEXT NOT NULL DEFAULT ''"},
 }
 
 func migrateColumns(db *sql.DB) error {
@@ -283,10 +292,6 @@ func (m *Meta) SetSetting(key string, v any) error {
 	}
 	_, err = m.DB.Exec(`INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value`, key, string(b))
 	return err
-}
-
-func (m *Meta) Audit(user, action, detail string) {
-	m.DB.Exec(`INSERT INTO audit(ts,username,action,detail) VALUES(?,?,?,?)`, time.Now().Unix(), user, action, detail)
 }
 
 // ---------------------------------------------------------------- categories

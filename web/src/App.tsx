@@ -3,9 +3,10 @@ import { BrowserRouter, NavLink, Navigate, Route, Routes, useLocation } from 're
 import {
   LayoutDashboard, ScrollText, Tags, Router as RouterIcon, MapPin, BellRing, Users, KeyRound, Mail, DatabaseBackup,
   Settings, History, Info, LogOut, Moon, Sun, Menu, X, Languages, Palette,
-  ShieldX, Wifi, Network, Lock, Siren, Smartphone, Server, Globe,
+  ShieldX, Wifi, Network, Lock, Siren, Smartphone, Server, Globe, UserRound, ShieldCheck, ListChecks,
 } from 'lucide-react'
-import { api, brandingUrl, type Branding, type User } from './api'
+import { api, brandingUrl, can, type Branding, type User } from './api'
+import { roleLabel } from './components/Access'
 import { languages, setLanguage, t } from './i18n'
 import { BrandHeader } from './components/Brand'
 import { cx, Spinner, ToastProvider, useToast } from './components/ui'
@@ -28,6 +29,9 @@ import Dashboards from './pages/Dashboards'
 import Controllers from './pages/Controllers'
 import GeoIP from './pages/GeoIP'
 import Clients from './pages/Clients'
+import Account from './pages/Account'
+import Security from './pages/Security'
+import Allowlist from './pages/Allowlist'
 
 interface AuthCtx {
   user: User
@@ -141,15 +145,20 @@ const nav: { section: string; items: NavItem[] }[] = [
     { to: '/alerts', label: 'Alerts', icon: <BellRing />, admin: true },
     { to: '/controllers', label: 'UniFi controllers', icon: <Server />, admin: true },
     { to: '/geoip', label: 'GeoIP', icon: <Globe />, admin: true },
+    { to: '/allowlist', label: 'Source allowlist', icon: <ListChecks />, admin: true },
   ] },
   { section: 'Administration', items: [
     { to: '/users', label: 'Users', icon: <Users />, admin: true },
     { to: '/sso', label: 'Microsoft Entra SSO', icon: <KeyRound />, admin: true },
+    { to: '/security', label: 'Security', icon: <ShieldCheck />, admin: true },
     { to: '/mail', label: 'Mail server', icon: <Mail />, admin: true },
     { to: '/backup', label: 'Backup & restore', icon: <DatabaseBackup />, admin: true },
     { to: '/settings', label: 'Settings', icon: <Settings />, admin: true },
     { to: '/branding', label: 'Branding', icon: <Palette />, admin: true },
     { to: '/audit', label: 'Audit log', icon: <History />, admin: true },
+  ] },
+  { section: 'Account', items: [
+    { to: '/account', label: 'My account', icon: <UserRound /> },
   ] },
 ]
 
@@ -165,7 +174,7 @@ function Shell() {
   const [mobile, setMobile] = useState(false)
   const loc = useLocation()
   useEffect(() => setMobile(false), [loc.pathname])
-  const isAdmin = user.role === 'admin'
+  const isAdmin = can.admin(user)
 
   const sidebar = (
     <aside className="flex h-full w-64 flex-col border-r border-app bg-[var(--panel)]">
@@ -207,7 +216,7 @@ function Shell() {
           <div className="grid size-8 place-items-center rounded-full bg-gradient-to-br from-indigo-500/30 to-cyan-500/30 text-xs font-semibold uppercase">{(user.name || user.username).slice(0, 2)}</div>
           <div className="min-w-0 flex-1">
             <div className="truncate text-sm font-medium">{user.name || user.username}</div>
-            <div className="text-[11px] text-muted">{user.role === 'admin' ? t('Admin') : t('Viewer')}{user.provider === 'entra' && ' · Entra'}</div>
+            <div className="text-[11px] text-muted">{roleLabel(user.role)}{user.provider === 'entra' && ' · Entra'}</div>
           </div>
           <button title={t('Sign out')} onClick={logout} className="rounded-lg p-1.5 text-muted hover:bg-red-500/10 hover:text-red-500 cursor-pointer"><LogOut className="size-4" /></button>
         </div>
@@ -238,6 +247,7 @@ function Shell() {
             <Route path="/sites" element={<Sites />} />
             <Route path="/clients" element={<Clients />} />
             <Route path="/dashboards/:kind" element={<Dashboards />} />
+            <Route path="/account" element={<Account />} />
             {isAdmin && <>
               <Route path="/alerts" element={<Alerts />} />
               <Route path="/controllers" element={<Controllers />} />
@@ -249,6 +259,8 @@ function Shell() {
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="/branding" element={<BrandingPage />} />
               <Route path="/audit" element={<Audit />} />
+              <Route path="/security" element={<Security />} />
+              <Route path="/allowlist" element={<Allowlist />} />
             </>}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

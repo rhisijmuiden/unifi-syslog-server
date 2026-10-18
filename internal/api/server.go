@@ -5,12 +5,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/fs"
 	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
 	"path"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -55,8 +57,16 @@ type Server struct {
 	// OnSettings is called after general settings change (timezone, retention).
 	OnSettings func(store.GeneralSettings)
 
+	// Filter is the syslog source allowlist.
+	Filter *syslogd.Filter
+
 	loginMu   sync.Mutex
 	loginFail map[string][]time.Time
+
+	secMu   sync.Mutex
+	tickets map[string]*loginTicket // password checked, second factor pending
+	enrolls map[int64]enrollment    // authenticator setups awaiting a first code
+	viewed  map[string]time.Time    // audit de-duplication of views
 }
 
 const cookieName = "uss_session"
@@ -64,7 +74,10 @@ const sessionTTL = 12 * time.Hour
 
 type ctxKey int
 
-const userKey ctxKey = 1
+const (
+	userKey ctxKey = iota + 1
+	tokenKey
+)
 
 func (s *Server) Handler() http.Handler {
 	r := chi.NewRouter()
@@ -81,11 +94,11 @@ func (s *Server) Handler() http.Handler {
 		r.Get("/auth/entra/callback", s.entraCallback)
 		r.Get("/branding/{asset}", s.brandingAsset)
 
+		r.Post("/auth/login/totp", s.loginTOTP)
+
 		r.Group(func(r chi.Router) {
 			r.Use(s.requireUser)
 			r.Get("/me", s.me)
-			r.Post("/me/password", s.changePassword)
-			r.Put("/me/language", s.setMyLanguage)
 			r.Get("/info", s.info)
 			r.Get("/stats", s.stats)
 			r.Get("/update/check", s.updateCheck)
@@ -96,7 +109,6 @@ func (s *Server) Handler() http.Handler {
 			r.Post("/search/histogram", s.histogram)
 			r.Post("/search/top", s.top)
 			r.Post("/search/panels", s.panels)
-			r.Get("/search/export", s.export)
 			r.Get("/live", s.live)
 			r.Get("/fields", s.fields)
 			r.Get("/dashboard", s.dashboard)
@@ -110,11 +122,35 @@ func (s *Server) Handler() http.Handler {
 			r.Get("/firmware", s.firmware)
 			r.Get("/geoip/status", s.geoIPState)
 
+			// Account self-service needs a browser session, not an API token.
 			r.Group(func(r chi.Router) {
-				r.Use(requireAdmin)
+				r.Use(sessionOnly)
+				r.Post("/me/password", s.changePassword)
+				r.Put("/me/language", s.setMyLanguage)
+				r.Get("/me/totp", s.myTOTP)
+				r.Post("/me/totp/setup", s.totpSetup)
+				r.Post("/me/totp/enable", s.totpEnable)
+				r.Post("/me/totp/disable", s.totpDisable)
+				r.Post("/me/totp/recovery", s.totpRecovery)
+				r.Get("/tokens", s.listTokens)
+				r.Post("/tokens", s.createToken)
+				r.Delete("/tokens/{id}", s.deleteToken)
+			})
+
+			r.Group(func(r chi.Router) {
+				r.Use(requirePerm((*store.User).CanExport, "exporting needs the analyst or administrator role"))
+				r.Get("/search/export", s.export)
+			})
+
+			r.Group(func(r chi.Router) {
+				r.Use(requirePerm((*store.User).CanManageCategories, "managing categories needs the analyst or administrator role"))
 				r.Post("/categories", s.saveCategory)
 				r.Put("/categories/{id}", s.saveCategory)
 				r.Delete("/categories/{id}", s.deleteCategory)
+			})
+
+			r.Group(func(r chi.Router) {
+				r.Use(requirePerm((*store.User).IsAdmin, "administrators only"))
 				r.Put("/sources/{ip}", s.updateSource)
 				r.Delete("/sources/{ip}", s.deleteSource)
 				r.Put("/devices/{key}", s.updateDevice)
@@ -147,6 +183,10 @@ func (s *Server) Handler() http.Handler {
 				r.Post("/settings/smtp/test", s.testSMTP)
 				r.Get("/settings/backup", s.getBackup)
 				r.Put("/settings/backup", s.putBackup)
+				r.Get("/settings/security", s.getSecurity)
+				r.Put("/settings/security", s.putSecurity)
+				r.Get("/settings/allowlist", s.getAllowlist)
+				r.Put("/settings/allowlist", s.putAllowlist)
 
 				r.Post("/backup/test-target", s.testTarget)
 				r.Post("/backup/run", s.runBackup)
@@ -165,11 +205,13 @@ func (s *Server) Handler() http.Handler {
 				r.Post("/users", s.createUser)
 				r.Put("/users/{id}", s.updateUser)
 				r.Delete("/users/{id}", s.deleteUser)
+				r.Post("/users/{id}/totp/reset", s.resetUserTOTP)
 
 				r.Post("/update/apply", s.updateApply)
 				r.Post("/update/rollback", s.updateRollback)
 				r.Put("/settings/update", s.putUpdateSettings)
 				r.Get("/audit", s.audit)
+				r.Get("/audit/export", s.auditExport)
 			})
 		})
 		r.NotFound(func(w http.ResponseWriter, r *http.Request) { jerr(w, 404, "not found") })
@@ -192,13 +234,14 @@ func securityHeaders(next http.Handler) http.Handler {
 }
 
 // csrf requires a custom header on state-changing requests; browsers do not
-// send it cross-site without a CORS preflight, which we never allow.
+// send it cross-site without a CORS preflight, which we never allow. API
+// token requests carry no cookie, so they cannot be forged this way.
 func csrf(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet, http.MethodHead, http.MethodOptions:
 		default:
-			if r.Header.Get("X-USS") != "1" {
+			if r.Header.Get("X-USS") != "1" && bearer(r) == "" {
 				jerr(w, 403, "CSRF check failed")
 				return
 			}
@@ -207,8 +250,32 @@ func csrf(next http.Handler) http.Handler {
 	})
 }
 
+// bearer returns the API token of a request ("Authorization: Bearer uss_…").
+func bearer(r *http.Request) string {
+	h := r.Header.Get("Authorization")
+	if len(h) > 7 && strings.EqualFold(h[:7], "bearer ") {
+		return strings.TrimSpace(h[7:])
+	}
+	return ""
+}
+
 func (s *Server) requireUser(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if tok := bearer(r); tok != "" {
+			t, u, err := s.Meta.TokenUser(tok)
+			if err != nil {
+				jerr(w, 401, "invalid or expired API token")
+				return
+			}
+			if t.ReadOnly && r.Method != http.MethodGet && r.Method != http.MethodHead && !readOnlyPost(r.URL.Path) {
+				jerr(w, 403, "this API token is read-only")
+				return
+			}
+			s.Meta.TouchToken(t, clientIP(r))
+			ctx := context.WithValue(context.WithValue(r.Context(), userKey, u), tokenKey, t)
+			next.ServeHTTP(w, r.WithContext(ctx))
+			return
+		}
 		c, err := r.Cookie(cookieName)
 		if err != nil {
 			jerr(w, 401, "not signed in")
@@ -223,14 +290,38 @@ func (s *Server) requireUser(next http.Handler) http.Handler {
 	})
 }
 
-func requireAdmin(next http.Handler) http.Handler {
+// readOnlyPost lists POST endpoints that only read (searches send their
+// query as a JSON body), so read-only tokens may use them.
+func readOnlyPost(p string) bool {
+	switch p {
+	case "/api/search", "/api/search/histogram", "/api/search/top", "/api/search/panels":
+		return true
+	}
+	return false
+}
+
+// sessionOnly refuses API tokens, e.g. for managing tokens and 2FA.
+func sessionOnly(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if u := user(r); u == nil || u.Role != "admin" {
-			jerr(w, 403, "administrators only")
+		if token(r) != nil {
+			jerr(w, 403, "not available with an API token")
 			return
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// requirePerm allows the request when the signed-in user has a permission.
+func requirePerm(can func(*store.User) bool, msg string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if u := user(r); u == nil || !can(u) {
+				jerr(w, 403, msg)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
 func user(r *http.Request) *store.User {
@@ -238,12 +329,51 @@ func user(r *http.Request) *store.User {
 	return u
 }
 
+func token(r *http.Request) *store.APIToken {
+	t, _ := r.Context().Value(tokenKey).(*store.APIToken)
+	return t
+}
+
 func (s *Server) audit_(r *http.Request, action, detail string) {
 	name := "system"
 	if u := user(r); u != nil {
 		name = u.Username
 	}
-	s.Meta.Audit(name, action, detail)
+	e := store.AuditEntry{User: name, Action: action, Detail: detail, IP: clientIP(r)}
+	if t := token(r); t != nil {
+		e.Via = "api: " + t.Name
+	}
+	s.Meta.AddAudit(e)
+}
+
+// auditView records that a user looked at something, at most once per
+// ten minutes for the same user and subject, so polling pages and paging
+// through results do not flood the audit log.
+func (s *Server) auditView(r *http.Request, action, detail string) {
+	u := user(r)
+	if u == nil {
+		return
+	}
+	key := strconv.FormatInt(u.ID, 10) + "\x00" + action + "\x00" + detail
+	now := time.Now()
+	s.secMu.Lock()
+	if s.viewed == nil {
+		s.viewed = map[string]time.Time{}
+	}
+	if t, ok := s.viewed[key]; ok && now.Sub(t) < 10*time.Minute {
+		s.secMu.Unlock()
+		return
+	}
+	s.viewed[key] = now
+	if len(s.viewed) > 5000 {
+		for k, t := range s.viewed {
+			if now.Sub(t) >= 10*time.Minute {
+				delete(s.viewed, k)
+			}
+		}
+	}
+	s.secMu.Unlock()
+	s.audit_(r, action, detail)
 }
 
 // ---------------------------------------------------------------- helpers
@@ -418,20 +548,38 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 	u, err := s.Meta.CheckPassword(req.Username, req.Password)
 	if err != nil {
 		s.recordFail(ip)
-		s.Meta.Audit(req.Username, "login_failed", ip)
+		s.Meta.AddAudit(store.AuditEntry{User: req.Username, Action: "login_failed", IP: ip})
 		jerr(w, 401, "incorrect username or password")
+		return
+	}
+	// Second factor: ask for a code, or have the user set one up first
+	// when the policy requires it.
+	if u.TOTPEnabled {
+		jsonOut(w, map[string]any{"totp_required": true, "ticket": s.newTicket(u.ID, nil)})
+		return
+	}
+	if s.Meta.Security().RequireTOTP {
+		enr, err := auth.NewTOTP(s.Meta.General().InstanceName, u.Username)
+		if err != nil {
+			jerr(w, 500, err.Error())
+			return
+		}
+		jsonOut(w, map[string]any{"totp_setup": true, "ticket": s.newTicket(u.ID, enr), "enrollment": enr})
 		return
 	}
 	if err := s.setSession(w, r, u); err != nil {
 		jerr(w, 500, err.Error())
 		return
 	}
-	s.Meta.Audit(u.Username, "login", ip)
+	s.Meta.AddAudit(store.AuditEntry{User: u.Username, Action: "login", IP: ip})
 	jsonOut(w, u)
 }
 
 func (s *Server) logout(w http.ResponseWriter, r *http.Request) {
 	if c, err := r.Cookie(cookieName); err == nil {
+		if u, err := s.Meta.SessionUser(c.Value); err == nil {
+			s.Meta.AddAudit(store.AuditEntry{User: u.Username, Action: "logout", IP: clientIP(r)})
+		}
 		s.Meta.DeleteSession(c.Value)
 	}
 	http.SetCookie(w, &http.Cookie{Name: cookieName, Value: "", Path: "/", MaxAge: -1, HttpOnly: true})
@@ -465,7 +613,7 @@ func (s *Server) entraCallback(w http.ResponseWriter, r *http.Request) {
 		fail(err.Error())
 		return
 	}
-	role := s.Entra.Role(id)
+	role, sites, managed := s.Entra.Access(id)
 	u, err := s.Meta.UserByExternal("entra", id.Subject)
 	if errors.Is(err, store.ErrNotFound) {
 		// Link to an existing local account with the same username, else provision.
@@ -475,7 +623,7 @@ func (s *Server) entraCallback(w http.ResponseWriter, r *http.Request) {
 			fail("no account exists for " + id.Username)
 			return
 		} else {
-			u = &store.User{Username: id.Username, Email: id.Email, Name: id.Name, Role: role, Provider: "entra", ExternalID: id.Subject}
+			u = &store.User{Username: id.Username, Email: id.Email, Name: id.Name, Role: role, Sites: sites, RoleManaged: managed, Provider: "entra", ExternalID: id.Subject}
 			if lerr == nil {
 				u.Username = id.Username + " (entra)"
 			}
@@ -495,16 +643,22 @@ func (s *Server) entraCallback(w http.ResponseWriter, r *http.Request) {
 		u.Language = lang
 		s.Meta.SetUserLanguage(u.ID, lang, false)
 	}
-	// Group membership is authoritative for admin rights on every sign-in.
-	if s.Meta.SSO().AdminGroupID != "" && u.Role != role {
-		u.Role = role
+	// With group mappings, membership decides role and sites on every sign-in.
+	if managed && (u.Role != role || !slices.Equal(u.Sites, sites) || !u.RoleManaged) {
+		if u.Role != role || !slices.Equal(u.Sites, sites) {
+			s.Meta.Audit(u.Username, "user_access_from_entra", fmt.Sprintf("role %s, sites %s", role, sitesText(sites)))
+		}
+		u.Role, u.Sites, u.RoleManaged = role, sites, true
+		s.Meta.UpdateUser(u)
+	} else if !managed && u.RoleManaged {
+		u.RoleManaged = false
 		s.Meta.UpdateUser(u)
 	}
 	if err := s.setSession(w, r, u); err != nil {
 		fail(err.Error())
 		return
 	}
-	s.Meta.Audit(u.Username, "login_entra", clientIP(r))
+	s.Meta.AddAudit(store.AuditEntry{User: u.Username, Action: "login_entra", IP: clientIP(r)})
 	http.Redirect(w, r, "/", http.StatusFound)
 }
 
