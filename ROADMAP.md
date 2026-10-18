@@ -109,7 +109,7 @@ Goal: forward selected UniFi events directly and reliably to Microsoft Sentinel,
 | Other log tools | Syslog forwarding (RFC 5424 over TCP, optionally TLS) and a generic JSON webhook, so Graylog, Wazuh, QRadar and similar tools work too. Splunk through the HTTP Event Collector |
 | Multiple destinations | For example firewall and IPS events to Sentinel, and everything to Elastic for long-term storage |
 
-## 1.5 Remote probes
+## 1.5 Remote probes (in progress)
 
 Goal: a small probe at each site that receives UniFi logs locally, buffers them and forwards them reliably to the main server. No logs are lost when the internet link drops, and syslog never crosses the internet unencrypted.
 
