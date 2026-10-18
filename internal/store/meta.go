@@ -283,14 +283,14 @@ func (m *Meta) seedCategories() {
 		return
 	}
 	defaults := []Category{
-		{Name: "Geblokkeerd verkeer", Description: "Alle door de firewall geblokkeerde pakketten", Color: "#ef4444", Icon: "shield-x", Query: "category:firewall action:block"},
-		{Name: "Bedreigingen (IPS)", Description: "Intrusion detection / prevention meldingen", Color: "#f97316", Icon: "siren", Query: "category:ips"},
-		{Name: "Wi-Fi verbindingen", Description: "Clients die verbinden of verbreken", Color: "#0ea5e9", Icon: "wifi", Query: "category:wifi"},
-		{Name: "DHCP-leases", Description: "Uitgegeven IP-adressen", Color: "#10b981", Icon: "network", Query: "category:dhcp event:DHCPACK"},
-		{Name: "Inlogpogingen", Description: "SSH- en beheerdersaanmeldingen", Color: "#a855f7", Icon: "key-round", Query: "category:auth OR category:admin"},
-		{Name: "VPN", Description: "VPN-tunnels en -clients", Color: "#14b8a6", Icon: "lock", Query: "category:vpn"},
-		{Name: "Switchpoorten", Description: "Link up/down en STP", Color: "#eab308", Icon: "cable", Query: "category:switch"},
-		{Name: "Fouten", Description: "Alles met ernst 'error' of hoger", Color: "#dc2626", Icon: "triangle-alert", Query: "severity:<=3"},
+		{Name: "Blocked traffic", Description: "All packets blocked by the firewall", Color: "#ef4444", Icon: "shield-x", Query: "category:firewall action:block"},
+		{Name: "Threats (IPS)", Description: "Intrusion detection / prevention alerts", Color: "#f97316", Icon: "siren", Query: "category:ips"},
+		{Name: "Wi-Fi connections", Description: "Clients connecting or disconnecting", Color: "#0ea5e9", Icon: "wifi", Query: "category:wifi"},
+		{Name: "DHCP leases", Description: "Assigned IP addresses", Color: "#10b981", Icon: "network", Query: "category:dhcp event:DHCPACK"},
+		{Name: "Login attempts", Description: "SSH and admin sign-ins", Color: "#a855f7", Icon: "key-round", Query: "category:auth OR category:admin"},
+		{Name: "VPN", Description: "VPN tunnels and clients", Color: "#14b8a6", Icon: "lock", Query: "category:vpn"},
+		{Name: "Switch ports", Description: "Link up/down and STP", Color: "#eab308", Icon: "cable", Query: "category:switch"},
+		{Name: "Errors", Description: "Everything with severity 'error' or higher", Color: "#dc2626", Icon: "triangle-alert", Query: "severity:<=3"},
 	}
 	for i, c := range defaults {
 		c.Sort = i

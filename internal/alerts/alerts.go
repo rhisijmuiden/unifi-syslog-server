@@ -74,13 +74,13 @@ func (e *Engine) fire(ctx context.Context, r store.AlertRule, n uint64, req stor
 	req.Limit = 15
 	rows, _ := e.Logs.Search(ctx, req)
 	var b strings.Builder
-	fmt.Fprintf(&b, "Regel: %s\nZoekopdracht: %s\nAantal: %d in de laatste %d minuten (drempel %d)\n\nLaatste meldingen:\n", r.Name, r.Query, n, r.WindowMinutes, r.Threshold)
+	fmt.Fprintf(&b, "Rule: %s\nQuery: %s\nCount: %d in the last %d minutes (threshold %d)\n\nLatest events:\n", r.Name, r.Query, n, r.WindowMinutes, r.Threshold)
 	for _, x := range rows {
 		fmt.Fprintf(&b, "%s  %-15s %-10s %s\n", x.TS.Local().Format("2006-01-02 15:04:05"), x.Hostname, x.Category, x.Message)
 	}
 	mctx, cancel := context.WithTimeout(ctx, time.Minute)
 	defer cancel()
-	if err := e.Mailer.Send(mctx, []string{r.Recipients}, "Melding: "+r.Name, b.String()); err != nil {
+	if err := e.Mailer.Send(mctx, []string{r.Recipients}, "Alert: "+r.Name, b.String()); err != nil {
 		e.Log.Warn("alert mail", "err", err)
 	}
 }

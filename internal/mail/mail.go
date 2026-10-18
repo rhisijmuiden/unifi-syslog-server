@@ -35,7 +35,7 @@ func (m *Mailer) Send(ctx context.Context, to []string, subject, body string) er
 
 func SendWith(ctx context.Context, s store.SMTPSettings, instance string, to []string, subject, body string) error {
 	if s.Host == "" || s.FromAddress == "" {
-		return fmt.Errorf("SMTP is niet geconfigureerd")
+		return fmt.Errorf("SMTP is not configured")
 	}
 	var rcpt []string
 	for _, t := range to {
@@ -47,7 +47,7 @@ func SendWith(ctx context.Context, s store.SMTPSettings, instance string, to []s
 		rcpt = strings.FieldsFunc(s.DefaultTo, func(r rune) bool { return r == ',' || r == ';' || r == ' ' })
 	}
 	if len(rcpt) == 0 {
-		return fmt.Errorf("geen ontvangers opgegeven")
+		return fmt.Errorf("no recipients specified")
 	}
 
 	tlsCfg := &tls.Config{ServerName: s.Host, MinVersion: tls.VersionTLS12, InsecureSkipVerify: s.SkipVerify}
@@ -93,12 +93,12 @@ func SendWith(ctx context.Context, s store.SMTPSettings, instance string, to []s
 		if s.OAuthClientID != "" {
 			tok, err := oauthToken(ctx, s)
 			if err != nil {
-				return fmt.Errorf("OAuth2-token ophalen: %w", err)
+				return fmt.Errorf("fetching OAuth2 token: %w", err)
 			}
 			password = tok
 		}
 	default:
-		return fmt.Errorf("onbekende authenticatiemethode %q", s.Auth)
+		return fmt.Errorf("unknown authentication method %q", s.Auth)
 	}
 	if s.Auth != "none" && s.Username != "" {
 		opts = append(opts, gomail.WithUsername(s.Username), gomail.WithPassword(password))
@@ -147,6 +147,6 @@ func htmlBody(instance, subject, body string) string {
 <div style="padding:20px 28px;background:linear-gradient(135deg,#4f46e5,#06b6d4);color:#fff;font-weight:600;font-size:16px">` + html.EscapeString(instance) + `</div>
 <div style="padding:28px;color:#e5e7eb"><h2 style="margin:0 0 16px;font-size:20px;color:#fff">` + html.EscapeString(subject) + `</h2>
 <pre style="white-space:pre-wrap;font-family:ui-monospace,Consolas,monospace;font-size:13px;line-height:1.6;color:#cbd5e1;margin:0">` + html.EscapeString(body) + `</pre></div>
-<div style="padding:16px 28px;color:#6b7280;font-size:12px;border-top:1px solid #1f2937">Automatisch verzonden door ` + html.EscapeString(instance) + `</div>
+<div style="padding:16px 28px;color:#6b7280;font-size:12px;border-top:1px solid #1f2937">Sent automatically by ` + html.EscapeString(instance) + `</div>
 </div></body></html>`
 }

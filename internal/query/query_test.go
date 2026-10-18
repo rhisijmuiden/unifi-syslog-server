@@ -14,7 +14,7 @@ func TestCompile(t *testing.T) {
 		{"-proto:udp dport:20..25", "((NOT (proto = ?) AND dst_port BETWEEN ? AND ?))", 3},
 		{"host:U6*", "((hostname ILIKE ?))", 1},
 		{"src:192.168.1.0/24", "((((src_ip != '' AND toUInt32(toIPv4OrZero(src_ip)) BETWEEN ? AND ?))))", 2},
-		{"field.UNIFIwifiName:Thuis", "((fields[?] = ?))", 2},
+		{"field.UNIFIwifiName:Home", "((fields[?] = ?))", 2},
 		{`msg:"link down"`, "((positionCaseInsensitiveUTF8(message, ?) > 0))", 1},
 	}
 	for _, c := range cases {

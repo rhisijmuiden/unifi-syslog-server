@@ -31,7 +31,7 @@ export default function Categories() {
     nav('/logs?' + q)
   }
   const del = async (c: Category) => {
-    if (!confirm(`Categorie "${c.name}" verwijderen?`)) return
+    if (!confirm(`Delete category "${c.name}"?`)) return
     await api.del('/categories/' + c.id)
     cats.reload()
   }
@@ -41,21 +41,21 @@ export default function Categories() {
       else await api.post('/categories', { pinned: true, icon: 'filter', description: '', ...edit })
       setEdit(undefined)
       cats.reload()
-      toast('ok', 'Categorie opgeslagen')
+      toast('ok', 'Category saved')
     } catch (e) { toast('err', (e as Error).message) }
   }
 
   return (
     <>
-      <PageHeader title="Categorieën" subtitle="Eigen filters om de logs in te delen in wat je wilt volgen" icon={<Tags className="size-5" />}
+      <PageHeader title="Categories" subtitle="Custom filters to group logs into what you want to track" icon={<Tags className="size-5" />}
         actions={<>
           <SiteFilter value={st.site} onChange={(site) => set({ site })} />
           <RangePicker value={st} onChange={(r) => set({ preset: r.preset, from: r.from ?? '', to: r.to ?? '' })} />
-          {admin && <Button variant="primary" icon={<Plus className="size-4" />} onClick={() => setEdit({ name: '', query: '', color: colors[0] })}>Nieuwe categorie</Button>}
+          {admin && <Button variant="primary" icon={<Plus className="size-4" />} onClick={() => setEdit({ name: '', query: '', color: colors[0] })}>New category</Button>}
         </>} />
 
       {cats.loading && !cats.data ? <div className="grid place-items-center py-20"><Spinner /></div>
-        : !cats.data?.length ? <Empty icon={<Tags className="size-8" />} title="Nog geen categorieën" text="Maak een categorie aan met een zoekfilter, of sla een zoekopdracht op vanuit de logs." />
+        : !cats.data?.length ? <Empty icon={<Tags className="size-8" />} title="No categories yet" text="Create a category with a search filter, or save a search from the logs." />
         : (
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
             {cats.data.map((c) => {
@@ -77,29 +77,29 @@ export default function Categories() {
                   </div>
                   <div className="mt-4 text-3xl font-semibold tabular-nums">{s ? fmtNum(s.count) : <Spinner className="size-5" />}</div>
                   {s?.error && <p className="mt-1 text-xs text-red-500">{s.error}</p>}
-                  <code className="mt-3 block truncate rounded-lg bg-[var(--panel-2)] px-2.5 py-1.5 font-mono text-xs text-muted">{c.query || '(alles)'}</code>
-                  <button onClick={() => open(c)} className="mt-3 inline-flex items-center gap-1 text-sm text-indigo-400 hover:underline cursor-pointer">Bekijk logs <ArrowRight className="size-3.5" /></button>
+                  <code className="mt-3 block truncate rounded-lg bg-[var(--panel-2)] px-2.5 py-1.5 font-mono text-xs text-muted">{c.query || '(all)'}</code>
+                  <button onClick={() => open(c)} className="mt-3 inline-flex items-center gap-1 text-sm text-indigo-400 hover:underline cursor-pointer">View logs <ArrowRight className="size-3.5" /></button>
                 </div>
               )
             })}
           </div>
         )}
 
-      <Modal open={!!edit} onClose={() => setEdit(undefined)} title={edit?.id ? 'Categorie bewerken' : 'Nieuwe categorie'}
-        footer={<><Button onClick={() => setEdit(undefined)}>Annuleren</Button><Button variant="primary" onClick={saveEdit} disabled={!edit?.name}>Opslaan</Button></>}>
+      <Modal open={!!edit} onClose={() => setEdit(undefined)} title={edit?.id ? 'Edit category' : 'New category'}
+        footer={<><Button onClick={() => setEdit(undefined)}>Cancel</Button><Button variant="primary" onClick={saveEdit} disabled={!edit?.name}>Save</Button></>}>
         {edit && (
           <div className="space-y-4">
-            <Field label="Naam"><Input value={edit.name} onChange={(e) => setEdit({ ...edit, name: e.target.value })} /></Field>
-            <Field label="Omschrijving"><Input value={edit.description ?? ''} onChange={(e) => setEdit({ ...edit, description: e.target.value })} /></Field>
-            <Field label="Filter" hint="Dezelfde zoektaal als op de Logs-pagina, bv. category:firewall action:block dport:22">
+            <Field label="Name"><Input value={edit.name} onChange={(e) => setEdit({ ...edit, name: e.target.value })} /></Field>
+            <Field label="Description"><Input value={edit.description ?? ''} onChange={(e) => setEdit({ ...edit, description: e.target.value })} /></Field>
+            <Field label="Filter" hint="Same query language as the Logs page, e.g. category:firewall action:block dport:22">
               <Input className="font-mono" value={edit.query} onChange={(e) => setEdit({ ...edit, query: e.target.value })} />
             </Field>
-            <Field label="Kleur">
+            <Field label="Color">
               <div className="flex gap-2">
                 {colors.map((c) => <button key={c} onClick={() => setEdit({ ...edit, color: c })} className="size-8 cursor-pointer rounded-lg ring-2 ring-offset-2 ring-offset-[var(--panel)]" style={{ background: c, ['--tw-ring-color' as string]: edit.color === c ? c : 'transparent' }} />)}
               </div>
             </Field>
-            <Toggle checked={edit.pinned ?? true} onChange={(pinned) => setEdit({ ...edit, pinned })} label="Vastgezet" description="Toon deze categorie bovenaan" />
+            <Toggle checked={edit.pinned ?? true} onChange={(pinned) => setEdit({ ...edit, pinned })} label="Pinned" description="Show this category at the top" />
           </div>
         )}
       </Modal>

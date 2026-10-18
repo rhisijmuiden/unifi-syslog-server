@@ -67,7 +67,7 @@ func (s *Server) updateDevice(w http.ResponseWriter, r *http.Request) {
 		Monitored bool   `json:"monitored"`
 	}
 	if err := decode(r, &b); err != nil {
-		jerr(w, 400, "ongeldig verzoek")
+		jerr(w, 400, "invalid request")
 		return
 	}
 	key, _ := url.PathUnescape(chi.URLParam(r, "key"))
@@ -172,18 +172,18 @@ func (s *Server) getInventory(w http.ResponseWriter, r *http.Request) { jsonOut(
 func (s *Server) putInventory(w http.ResponseWriter, r *http.Request) {
 	var b store.InventorySettings
 	if err := decode(r, &b); err != nil {
-		jerr(w, 400, "ongeldig verzoek")
+		jerr(w, 400, "invalid request")
 		return
 	}
 	if b.SilentMinutes < 5 || b.SilentMinutes > 7*24*60 {
-		jerr(w, 400, "de wachttijd moet tussen 5 minuten en 7 dagen liggen")
+		jerr(w, 400, "the wait time must be between 5 minutes and 7 days")
 		return
 	}
 	b.Recipients = strings.TrimSpace(b.Recipients)
 	// Empty recipients fall back to the SMTP default recipient.
 	for _, p := range strings.FieldsFunc(b.Recipients, func(r rune) bool { return r == ',' || r == ';' || r == ' ' }) {
 		if !strings.Contains(p, "@") {
-			jerr(w, 400, "ongeldig e-mailadres: "+p)
+			jerr(w, 400, "invalid email address: "+p)
 			return
 		}
 	}

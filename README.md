@@ -1,146 +1,160 @@
 # Unify Syslog Server
 
-Een centrale syslog-server die speciaal is gebouwd voor UniFi. Alle UniFi-locaties sturen hun syslog naar één server; die herkent firewall-, IPS-, Wi-Fi-, DHCP-, DNS-, VPN-, switch- en beheerberichten, verrijkt ze met velden (bron, doel, poort, regel, client, SSID…) en maakt ze doorzoekbaar en zichtbaar in een dashboard.
+A central syslog server built specifically for UniFi. All UniFi sites send their syslog to one server, which recognizes firewall, IPS, Wi-Fi, DHCP, DNS, VPN, switch and management messages, enriches them with fields (source, destination, port, rule, client, SSID…) and makes them searchable and visible in a dashboard.
 
-- **Ontvanger**: UDP en TCP op poort 514 (RFC3164, RFC5424, RFC6587-framing).
-- **UniFi-parser**: apparaatnaam `model,mac,versie`, iptables-regeltags (`WAN_IN-D-3001`, `DESCR="..."`), CEF uit UniFi Network SIEM, hostapd/stahtd, dnsmasq/kea DHCP, DNS, Suricata IPS, WireGuard/OpenVPN/IPsec, SSH-logins, switch-poorten en `EVT_*`-controllercodes.
-- **Opslag**: ClickHouse (kolomopslag, compressie, miljarden regels), partities per dag en een instelbare bewaartermijn. Metadata in SQLite.
-- **Dashboard**: berichten per categorie, geblokkeerde bronnen en poorten, IPS-signaturen, Wi-Fi-clients, SSID's, DHCP-clients, apparaten en locaties. Klik door naar de logs.
-- **Zoeken**: een eigen zoektaal met velden, CIDR, bereiken en wildcards, live tail, en export naar CSV en JSON.
-- **Categorieën**: maak eigen categorieën (een opgeslagen zoekopdracht met kleur) om logs te filteren.
-- **Locaties**: bron-IP's koppelen aan een site, handmatig of via IP-bereiken. Ook locaties achter NAT werken. Een overzicht toont per locatie de status, apparaten en logs, blokkades, IPS-meldingen en fouten van de afgelopen 24 uur.
-- **Apparaten**: een vaste inventaris van alle UniFi-apparaten (op MAC-adres, dus ook achter NAT), met eigen naam en notities, firmware per model en bijgewerkte firmware. Apparaten die te lang geen logs sturen worden als *stil* gemarkeerd en desgewenst per e-mail gemeld, net als wanneer ze terugkomen.
-- **Alerts**: e-mail wanneer een zoekopdracht een drempel overschrijdt.
-- **Microsoft Entra SSO** (OIDC + PKCE), met groepen die worden gekoppeld aan rollen (admin of viewer).
-- **Mail**: een eigen SMTP-server met STARTTLS of TLS, minimaal TLS 1.2/1.3, en PLAIN, LOGIN, CRAM-MD5, SCRAM-SHA-256 of OAuth2 (Microsoft 365).
-- **Backup**: volledige en incrementele backups naar FTP, FTPS, SCP of een lokale map, met planning, bewaarbeleid en herstel vanaf de externe locatie.
-- **Updates**: de knop Info toont de versie, zoekt naar updates en installeert ze vanuit de interface.
-- De webinterface draait op **poort 8080**.
+- **Receiver**: UDP and TCP on port 514 (RFC3164, RFC5424, RFC6587 framing).
+- **UniFi parser**: device name `model,mac,version`, iptables rule tags (`WAN_IN-D-3001`, `DESCR="..."`), CEF from UniFi Network SIEM, hostapd/stahtd, dnsmasq/kea DHCP, DNS, Suricata IPS, WireGuard/OpenVPN/IPsec, SSH logins, switch ports and `EVT_*` controller codes.
+- **Storage**: ClickHouse (columnar storage, compression, billions of rows), daily partitions and a configurable retention period. Metadata in SQLite.
+- **Dashboard**: messages per category, blocked sources and ports, IPS signatures, Wi-Fi clients, SSIDs, DHCP clients, devices and sites. Click through to the logs.
+- **Search**: a dedicated query language with fields, CIDR, ranges and wildcards, live tail, and export to CSV and JSON.
+- **Categories**: create your own categories (a saved search with a color) to filter logs.
+- **Sites**: map source IPs to a site, manually or via IP ranges. Sites behind NAT work too. An overview shows, per site, the status, devices and logs, blocks, IPS alerts and errors of the last 24 hours.
+- **Devices**: a persistent inventory of all UniFi devices (by MAC address, so also behind NAT), with a custom name and notes, firmware per model and updated firmware. Devices that have not sent logs for too long are marked as *silent* and, optionally, reported by email, as is their return.
+- **Alerts**: email when a search exceeds a threshold.
+- **Microsoft Entra SSO** (OIDC + PKCE), with groups mapped to roles (admin or viewer).
+- **Mail**: your own SMTP server with STARTTLS or TLS, minimum TLS 1.2/1.3, and PLAIN, LOGIN, CRAM-MD5, SCRAM-SHA-256 or OAuth2 (Microsoft 365).
+- **Backup**: full and incremental backups to FTP, FTPS, SCP or a local folder, with scheduling, retention policy and restore from the remote location.
+- **Updates**: the Info button shows the version, checks for updates and installs them from the interface.
+- The web interface runs on **port 8080**.
 
-## Installatie
+## Screenshots
+
+![Overview dashboard](docs/screenshots/dashboard.png)
+
+| | |
+|---|---|
+| ![Logs and search](docs/screenshots/logs.png)<br>**Logs**: search with the query language, histogram, live tail and CSV/JSON export. | ![Sites](docs/screenshots/sites.png)<br>**Sites**: status per site over the last 24 hours, and sender-to-site mapping. |
+| ![Devices](docs/screenshots/devices.png)<br>**Devices**: inventory of gateways, switches and access points with firmware and silent-device monitoring. | ![Categories](docs/screenshots/categories.png)<br>**Categories**: saved searches with a color, used as filters. |
+| ![Backup and restore](docs/screenshots/backup.png)<br>**Backup & restore**: full and incremental backups to FTP, FTPS or SCP. | ![Info and updates](docs/screenshots/info.png)<br>**Info & updates**: current version, update check and in-app update. |
+| ![Microsoft Entra SSO](docs/screenshots/sso.png)<br>**Microsoft Entra SSO** with group-to-role mapping. | ![Mail server](docs/screenshots/mail.png)<br>**Mail server**: your own SMTP server with modern TLS and authentication. |
+| ![Light mode](docs/screenshots/dashboard-light.png)<br>**Light mode**. | ![Sign in](docs/screenshots/login.png)<br>**Sign in** page. |
+
+The screenshots show simulated UniFi traffic from four sites (`unify-syslog simulate`).
+
+## Installation
 
 ### Proxmox LXC
 
-Draai dit op de Proxmox-host:
+Run this on the Proxmox host:
 
 ```bash
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/rhisijmuiden/unify-syslog-server/main/ct/unify-syslog-server.sh)"
 ```
 
-Het script gebruikt de community-scripts-engine en maakt een unprivileged Debian 13-container aan (standaard 4 vCPU, 4 GB RAM en 40 GB schijf). Met *Advanced* kun je dat aanpassen. Kies de schijf naar verwachting: met UniFi-logs is dat grofweg 1 GB per 10 miljoen berichten na compressie.
+The script uses the community-scripts engine and creates an unprivileged Debian 13 container (by default 4 vCPU, 4 GB RAM and a 40 GB disk). Use *Advanced* to change this. Size the disk to your expected volume: with UniFi logs that is roughly 1 GB per 10 million messages after compression.
 
-Je kunt de container later bijwerken door hetzelfde commando in de container te draaien, of met de knop **Info** in de webinterface.
+You can update the container later by running the same command inside the container, or with the **Info** button in the web interface.
 
-### Debian 13 (VM of fysieke server)
+### Debian 13 (VM or physical server)
 
-Draai dit als root:
+Run this as root:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/rhisijmuiden/unify-syslog-server/main/deploy/install.sh | bash
 ```
 
-Het installatiescript:
+The install script:
 
-1. installeert ClickHouse en stelt het in (alleen bereikbaar op localhost, met een eigen gebruiker en wachtwoord);
-2. downloadt de nieuwste release en controleert de checksum;
-3. installeert een systemd-service `unify-syslog`;
-4. maakt een admin-account aan en zet de inloggegevens in `/root/unify-syslog.creds`.
+1. installs and configures ClickHouse (reachable on localhost only, with its own user and password);
+2. downloads the latest release and verifies the checksum;
+3. installs a systemd service `unify-syslog`;
+4. creates an admin account and writes the credentials to `/root/unify-syslog.creds`.
 
-Je kunt het gedrag aanpassen met deze omgevingsvariabelen:
+You can adjust its behavior with these environment variables:
 
-| Variabele | Betekenis |
+| Variable | Meaning |
 |---|---|
-| `USS_VERSION=v0.1.0` | Installeert een specifieke versie in plaats van de nieuwste. |
-| `USS_ADMIN_PASSWORD=...` | Stelt het eerste admin-wachtwoord in (anders wordt het gegenereerd). |
-| `USS_NONINTERACTIVE=1` | Slaat alle vragen over. |
-| `USS_CH_MEMORY_RATIO=0.5` | Stelt in welk deel van het RAM ClickHouse mag gebruiken. |
+| `USS_VERSION=v0.1.0` | Installs a specific version instead of the latest. |
+| `USS_ADMIN_PASSWORD=...` | Sets the initial admin password (generated otherwise). |
+| `USS_NONINTERACTIVE=1` | Skips all prompts. |
+| `USS_CH_MEMORY_RATIO=0.5` | Sets the share of RAM that ClickHouse may use. |
 
-Open daarna `http://<server>:8080`.
+Then open `http://<server>:8080`.
 
-### Bestanden
+### Files
 
-| Pad | Inhoud |
+| Path | Contents |
 |---|---|
-| `/etc/unify-syslog/config.yaml` | Poorten, ClickHouse-verbinding en ingest-instellingen. |
-| `/var/lib/unify-syslog/` | Metadata (`meta.db`), de encryptiesleutel (`secret.key`) en lokale backups. |
-| `/opt/unify-syslog/` | Het programma. |
+| `/etc/unify-syslog/config.yaml` | Ports, ClickHouse connection and ingest settings. |
+| `/var/lib/unify-syslog/` | Metadata (`meta.db`), the encryption key (`secret.key`) and local backups. |
+| `/opt/unify-syslog/` | The program. |
 
-## UniFi instellen
+## Configuring UniFi
 
 **UniFi Network (controller, UDM, UCG, Cloud Key)**
 
-1. Ga naar *Settings → CyberSecure → Traffic Logging* (in oudere versies *Settings → System → Advanced → Remote Logging*).
-2. Kies **SIEM Server** of **Syslog**, vul het IP-adres van deze server in, gebruik poort `514` en sla op.
-3. Zet bij de firewallregels die je wilt zien de optie **Syslog Logging** aan.
-4. Wil je ook debug-berichten van de apparaten ontvangen, zet dan *Debug Logs* aan.
+1. Go to *Settings → CyberSecure → Traffic Logging* (in older versions *Settings → System → Advanced → Remote Logging*).
+2. Choose **SIEM Server** or **Syslog**, enter the IP address of this server, use port `514` and save.
+3. Enable **Syslog Logging** on the firewall rules you want to see.
+4. To also receive debug messages from the devices, enable *Debug Logs*.
 
-**Meerdere locaties**: elke locatie stuurt naar het publieke IP of de VPN-tunnel van deze server. Ga daarna in de interface naar **Locaties** en koppel elk bron-IP (bijvoorbeeld het WAN-IP van een vestiging) of IP-bereik aan een sitenaam.
+**Multiple sites**: each site sends to the public IP or the VPN tunnel of this server. Then go to **Sites** in the interface and map each source IP (for example the WAN IP of a branch office) or IP range to a site name.
 
-## Zoektaal
+## Query language
 
-| Voorbeeld | Betekenis |
+| Example | Meaning |
 |---|---|
-| `category:firewall action:block` | Geblokkeerd firewallverkeer. |
-| `src:203.0.113.0/24` | Bron-IP in een subnet. |
-| `dport:22 OR dport:3389` | SSH of RDP. |
-| `-category:dns` | Alles behalve DNS. |
-| `rule:"WAN_IN-D-*"` | Een wildcard. |
-| `severity:<=warning` | De ernst warning of hoger. |
-| `dport:1..1024` | Een poortbereik. |
-| `ssid:"Kantoor" client:aa:bb:*` | Een SSID en clients met een MAC-prefix. |
-| `"authentication failure"` | Een exacte zin in het bericht. |
-| `field.signature_id:2210050` | Een extra veld van de parser. |
+| `category:firewall action:block` | Blocked firewall traffic. |
+| `src:203.0.113.0/24` | Source IP in a subnet. |
+| `dport:22 OR dport:3389` | SSH or RDP. |
+| `-category:dns` | Everything except DNS. |
+| `rule:"WAN_IN-D-*"` | A wildcard. |
+| `severity:<=warning` | Severity warning or higher. |
+| `dport:1..1024` | A port range. |
+| `ssid:"Office" client:aa:bb:*` | An SSID and clients with a MAC prefix. |
+| `"authentication failure"` | An exact phrase in the message. |
+| `field.signature_id:2210050` | An extra field from the parser. |
 
-Je kunt op deze velden zoeken:
+You can search on these fields:
 
-| Groep | Velden |
+| Group | Fields |
 |---|---|
-| Algemeen | `category`, `app`, `host`, `site`, `source`, `severity`, `facility`, `msg`, `raw` |
-| Apparaat | `model`, `mac`, `firmware` |
-| Gebeurtenis | `action`, `rule`, `event` |
-| Verkeer | `src`, `dst`, `sport`, `dport`, `proto`, `in`, `out`, `ip` (bron of doel), `port` |
+| General | `category`, `app`, `host`, `site`, `source`, `severity`, `facility`, `msg`, `raw` |
+| Device | `model`, `mac`, `firmware` |
+| Event | `action`, `rule`, `event` |
+| Traffic | `src`, `dst`, `sport`, `dport`, `proto`, `in`, `out`, `ip` (source or destination), `port` |
 | Clients | `client`, `client_name`, `client_ip`, `ssid` |
 
-## Backup en herstel
+## Backup and restore
 
-Stel backups in via **Backup** in de webinterface.
+Configure backups under **Backup** in the web interface.
 
-- **Volledige backup**: alle logs plus de configuratie (gebruikers, instellingen, categorieën en de encryptiesleutel).
-- **Incrementele backup**: alleen wat sinds de vorige backup in de keten is binnengekomen.
-- **Herstel**: kies een backup op de externe locatie. De server haalt de hele keten op (de volledige backup plus de incrementele backups), zet de logs terug en herstart.
+- **Full backup**: all logs plus the configuration (users, settings, categories and the encryption key).
+- **Incremental backup**: only what has arrived since the previous backup in the chain.
+- **Restore**: choose a backup at the remote location. The server fetches the whole chain (the full backup plus the incremental backups), restores the logs and restarts.
 
-Een backup bevat de encryptiesleutel. Bewaar backups daarom op een vertrouwde locatie.
+A backup contains the encryption key, so store backups in a trusted location.
 
-## Commandoregel
+## Command line
 
 ```bash
-unify-syslog user add jan --admin       # gebruiker aanmaken
-unify-syslog user passwd admin          # wachtwoord resetten
-unify-syslog update [--check]           # bijwerken naar de nieuwste release
-unify-syslog simulate --target 127.0.0.1:514 --rate 500 --sites 3   # testverkeer
+unify-syslog user add jan --admin       # create a user
+unify-syslog user passwd admin          # reset a password
+unify-syslog update [--check]           # update to the latest release
+unify-syslog simulate --target 127.0.0.1:514 --rate 500 --sites 3   # test traffic
 unify-syslog version
 ```
 
-## Zelf bouwen
+## Building from source
 
-Vereisten: Go 1.26 en Node 22.
+Requirements: Go 1.26 and Node 22.
 
 ```bash
-make web      # React-UI bouwen (web/dist, ingebed in de binary)
+make web      # build the React UI (web/dist, embedded in the binary)
 make build    # bin/unify-syslog
 make test
-make dist     # release-tarballs voor amd64 en arm64 met checksums.txt
+make dist     # release tarballs for amd64 and arm64 with checksums.txt
 ```
 
-Een tag `v*` laat GitHub Actions een release maken. Het installatiescript en de updater gebruiken die release.
+A `v*` tag makes GitHub Actions create a release. The install script and the updater use that release.
 
-## Architectuur
+## Architecture
 
 ```
-UniFi-apparaten ──UDP/TCP 514──▶ syslogd ─▶ ingest-workers (UniFi-parser, site)
-                                              │ batches van 20k / 1 s
-                                              ▼
-                       ClickHouse  logs (MergeTree, TTL) + logs_hourly (MV)
-                                              ▲
-       Browser ──HTTP 8080──▶ API + React-UI ─┘   SQLite: gebruikers, instellingen, sites
+UniFi devices ──UDP/TCP 514──▶ syslogd ─▶ ingest workers (UniFi parser, site)
+                                            │ batches of 20k / 1 s
+                                            ▼
+                     ClickHouse  logs (MergeTree, TTL) + logs_hourly (MV)
+                                            ▲
+     Browser ──HTTP 8080──▶ API + React UI ─┘   SQLite: users, settings, sites
 ```

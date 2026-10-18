@@ -12,19 +12,19 @@ import (
 )
 
 func TestDeviceMail(t *testing.T) {
-	ap := store.InvDevice{Hostname: "U6-Pro", Name: "AP Receptie", Model: "U6-Pro", MAC: "f4:e2:c6:00:00:01", Site: "Kantoor", LastSeen: 1_800_000_000}
+	ap := store.InvDevice{Hostname: "U6-Pro", Name: "AP Reception", Model: "U6-Pro", MAC: "f4:e2:c6:00:00:01", Site: "Office", LastSeen: 1_800_000_000}
 	sw := store.InvDevice{Hostname: "USW-24", Site: "default", LastSeen: 1_800_000_000}
 
 	subj, body := deviceMail([]store.InvDevice{ap}, nil, 60)
-	if subj != "Apparaat stil: AP Receptie" {
+	if subj != "Device silent: AP Reception" {
 		t.Errorf("subject %q", subj)
 	}
-	if !strings.Contains(body, "langer dan 60 minuten") || !strings.Contains(body, "locatie Kantoor") {
+	if !strings.Contains(body, "more than 60 minutes") || !strings.Contains(body, "site Office") {
 		t.Errorf("body %q", body)
 	}
 
 	subj, body = deviceMail([]store.InvDevice{ap}, []store.InvDevice{sw}, 60)
-	if subj != "1 apparaten stil, 1 weer actief" || !strings.Contains(body, "locatie Standaard") {
+	if subj != "1 devices silent, 1 back online" || !strings.Contains(body, "site Default") {
 		t.Errorf("mixed: %q %q", subj, body)
 	}
 }
@@ -36,8 +36,8 @@ func TestCheckDevices(t *testing.T) {
 		t.Fatal(err)
 	}
 	now := time.Now()
-	m.TouchDevice("U6-Pro", "U6-Pro", "aa:00:00:00:00:01", "6.7.10", "Kantoor", "10.0.0.1", now.Add(-2*time.Hour))
-	m.TouchDevice("USW-24", "USW-24", "aa:00:00:00:00:02", "7.1.26", "Kantoor", "10.0.0.1", now)
+	m.TouchDevice("U6-Pro", "U6-Pro", "aa:00:00:00:00:01", "6.7.10", "Office", "10.0.0.1", now.Add(-2*time.Hour))
+	m.TouchDevice("USW-24", "USW-24", "aa:00:00:00:00:02", "7.1.26", "Office", "10.0.0.1", now)
 	m.FlushDevices()
 	e := &Engine{Meta: m, Log: slog.New(slog.DiscardHandler), Started: now}
 
@@ -59,7 +59,7 @@ func TestCheckDevices(t *testing.T) {
 		t.Fatalf("after check: %v", s)
 	}
 	// The device comes back.
-	m.TouchDevice("U6-Pro", "U6-Pro", "aa:00:00:00:00:01", "6.7.10", "Kantoor", "10.0.0.1", now)
+	m.TouchDevice("U6-Pro", "U6-Pro", "aa:00:00:00:00:01", "6.7.10", "Office", "10.0.0.1", now)
 	e.checkDevices(context.Background(), now)
 	if s := silent(); s["aa:00:00:00:00:01"] {
 		t.Fatal("device that came back is still silent")

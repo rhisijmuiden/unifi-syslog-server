@@ -37,7 +37,7 @@ type searchBody struct {
 func (s *Server) parseSearch(w http.ResponseWriter, r *http.Request) (*searchBody, bool) {
 	var b searchBody
 	if err := decode(r, &b); err != nil {
-		jerr(w, 400, "ongeldig verzoek")
+		jerr(w, 400, "invalid request")
 		return nil, false
 	}
 	normalizeRange(&b.SearchReq)
@@ -287,14 +287,14 @@ func (s *Server) listCategories(w http.ResponseWriter, r *http.Request) {
 func (s *Server) saveCategory(w http.ResponseWriter, r *http.Request) {
 	var c store.Category
 	if err := decode(r, &c); err != nil {
-		jerr(w, 400, "ongeldig verzoek")
+		jerr(w, 400, "invalid request")
 		return
 	}
 	if id := idParam(r); id > 0 {
 		c.ID = id
 	}
 	if strings.TrimSpace(c.Name) == "" {
-		jerr(w, 400, "naam is verplicht")
+		jerr(w, 400, "name is required")
 		return
 	}
 	if _, err := query.Compile(c.Query); err != nil {
@@ -326,7 +326,7 @@ func (s *Server) listSources(w http.ResponseWriter, r *http.Request) {
 func (s *Server) updateSource(w http.ResponseWriter, r *http.Request) {
 	var b struct{ Name, Site string }
 	if err := decode(r, &b); err != nil {
-		jerr(w, 400, "ongeldig verzoek")
+		jerr(w, 400, "invalid request")
 		return
 	}
 	ip, _ := url.PathUnescape(chi.URLParam(r, "ip"))
@@ -361,11 +361,11 @@ func (s *Server) listRanges(w http.ResponseWriter, r *http.Request) {
 func (s *Server) saveRange(w http.ResponseWriter, r *http.Request) {
 	var sr store.SiteRange
 	if err := decode(r, &sr); err != nil || sr.Site == "" {
-		jerr(w, 400, "locatie en netwerk zijn verplicht")
+		jerr(w, 400, "site and network are required")
 		return
 	}
 	if err := s.Meta.SaveSiteRange(&sr); err != nil {
-		jerr(w, 400, "ongeldig netwerk (gebruik CIDR, bv. 10.1.0.0/16)")
+		jerr(w, 400, "invalid network (use CIDR, e.g. 10.1.0.0/16)")
 		return
 	}
 	s.Pipeline.ReloadRanges()
@@ -385,15 +385,15 @@ func (s *Server) getGeneral(w http.ResponseWriter, r *http.Request) { jsonOut(w,
 func (s *Server) putGeneral(w http.ResponseWriter, r *http.Request) {
 	var g store.GeneralSettings
 	if err := decode(r, &g); err != nil {
-		jerr(w, 400, "ongeldig verzoek")
+		jerr(w, 400, "invalid request")
 		return
 	}
 	if _, err := time.LoadLocation(g.Timezone); err != nil {
-		jerr(w, 400, "onbekende tijdzone")
+		jerr(w, 400, "unknown time zone")
 		return
 	}
 	if g.RetentionDays < 1 || g.RetentionDays > 3650 {
-		jerr(w, 400, "retentie moet tussen 1 en 3650 dagen liggen")
+		jerr(w, 400, "retention must be between 1 and 3650 days")
 		return
 	}
 	old := s.Meta.General()
@@ -421,11 +421,11 @@ func (s *Server) getSSO(w http.ResponseWriter, r *http.Request) {
 func (s *Server) putSSO(w http.ResponseWriter, r *http.Request) {
 	var v store.SSOSettings
 	if err := decode(r, &v); err != nil {
-		jerr(w, 400, "ongeldig verzoek")
+		jerr(w, 400, "invalid request")
 		return
 	}
 	if v.Enabled && (v.TenantID == "" || v.ClientID == "") {
-		jerr(w, 400, "tenant-ID en client-ID zijn verplicht")
+		jerr(w, 400, "tenant ID and client ID are required")
 		return
 	}
 	if err := s.Meta.SaveSSO(v); err != nil {
@@ -443,7 +443,7 @@ func (s *Server) getSMTP(w http.ResponseWriter, r *http.Request) {
 func (s *Server) putSMTP(w http.ResponseWriter, r *http.Request) {
 	var v store.SMTPSettings
 	if err := decode(r, &v); err != nil {
-		jerr(w, 400, "ongeldig verzoek")
+		jerr(w, 400, "invalid request")
 		return
 	}
 	if err := s.Meta.SaveSMTP(v); err != nil {
@@ -460,7 +460,7 @@ func (s *Server) testSMTP(w http.ResponseWriter, r *http.Request) {
 		Settings store.SMTPSettings `json:"settings"`
 	}
 	if err := decode(r, &v); err != nil {
-		jerr(w, 400, "ongeldig verzoek")
+		jerr(w, 400, "invalid request")
 		return
 	}
 	cur := s.Meta.SMTP()
@@ -472,13 +472,13 @@ func (s *Server) testSMTP(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 45*time.Second)
 	defer cancel()
-	err := mail.SendWith(ctx, v.Settings, s.Meta.General().InstanceName, []string{v.To}, "Testbericht",
-		"Dit is een testbericht van "+s.Meta.General().InstanceName+".\nAls je dit leest werkt de mailconfiguratie.\n\nVerzonden: "+time.Now().Format(time.RFC1123))
+	err := mail.SendWith(ctx, v.Settings, s.Meta.General().InstanceName, []string{v.To}, "Test message",
+		"This is a test message from "+s.Meta.General().InstanceName+".\nIf you are reading this, the mail configuration works.\n\nSent: "+time.Now().Format(time.RFC1123))
 	if err != nil {
 		jerr(w, 400, err.Error())
 		return
 	}
-	jsonOut(w, map[string]string{"message": "Testbericht verzonden naar " + v.To})
+	jsonOut(w, map[string]string{"message": "Test message sent to " + v.To})
 }
 
 func (s *Server) getBackup(w http.ResponseWriter, r *http.Request) {
@@ -488,18 +488,18 @@ func (s *Server) getBackup(w http.ResponseWriter, r *http.Request) {
 func (s *Server) putBackup(w http.ResponseWriter, r *http.Request) {
 	var v store.BackupSettings
 	if err := decode(r, &v); err != nil {
-		jerr(w, 400, "ongeldig verzoek")
+		jerr(w, 400, "invalid request")
 		return
 	}
 	if _, err := time.Parse("15:04", v.Time); err != nil {
-		jerr(w, 400, "tijd moet HH:MM zijn")
+		jerr(w, 400, "time must be HH:MM")
 		return
 	}
 	for _, t := range v.Targets {
 		switch t.Type {
 		case "ftp", "ftps", "ftps-implicit", "scp", "local":
 		default:
-			jerr(w, 400, "onbekend type "+t.Type)
+			jerr(w, 400, "unknown type "+t.Type)
 			return
 		}
 	}
@@ -514,7 +514,7 @@ func (s *Server) putBackup(w http.ResponseWriter, r *http.Request) {
 func (s *Server) testTarget(w http.ResponseWriter, r *http.Request) {
 	var t store.BackupTarget
 	if err := decode(r, &t); err != nil {
-		jerr(w, 400, "ongeldig verzoek")
+		jerr(w, 400, "invalid request")
 		return
 	}
 	for _, old := range s.Meta.Backup().Targets {
@@ -576,11 +576,11 @@ func (s *Server) backupList(w http.ResponseWriter, r *http.Request) {
 func (s *Server) restore(w http.ResponseWriter, r *http.Request) {
 	var o backup.RestoreOptions
 	if err := decode(r, &o); err != nil || o.Name == "" {
-		jerr(w, 400, "ongeldig verzoek")
+		jerr(w, 400, "invalid request")
 		return
 	}
 	if !o.Config && !o.Logs {
-		jerr(w, 400, "kies configuratie en/of logdata")
+		jerr(w, 400, "choose configuration and/or log data")
 		return
 	}
 	if err := s.Backup.StartRestore(o); err != nil {
@@ -594,12 +594,12 @@ func (s *Server) restore(w http.ResponseWriter, r *http.Request) {
 func (s *Server) backupDownload(w http.ResponseWriter, r *http.Request) {
 	name := filepath.Base(chi.URLParam(r, "name"))
 	if !strings.HasPrefix(name, "unify-syslog-") || !strings.HasSuffix(name, ".tar") {
-		jerr(w, 400, "ongeldige naam")
+		jerr(w, 400, "invalid name")
 		return
 	}
 	p := filepath.Join(s.Cfg.BackupDir(), name)
 	if _, err := os.Stat(p); err != nil {
-		jerr(w, 404, "niet gevonden")
+		jerr(w, 404, "not found")
 		return
 	}
 	w.Header().Set("Content-Disposition", `attachment; filename="`+name+`"`)
@@ -620,7 +620,7 @@ func (s *Server) listAlerts(w http.ResponseWriter, r *http.Request) {
 func (s *Server) saveAlert(w http.ResponseWriter, r *http.Request) {
 	var a store.AlertRule
 	if err := decode(r, &a); err != nil {
-		jerr(w, 400, "ongeldig verzoek")
+		jerr(w, 400, "invalid request")
 		return
 	}
 	if id := idParam(r); id > 0 {
@@ -664,22 +664,22 @@ func validRole(r string) bool { return r == "admin" || r == "viewer" }
 func (s *Server) createUser(w http.ResponseWriter, r *http.Request) {
 	var b userBody
 	if err := decode(r, &b); err != nil {
-		jerr(w, 400, "ongeldig verzoek")
+		jerr(w, 400, "invalid request")
 		return
 	}
 	b.Username = strings.TrimSpace(b.Username)
 	if b.Username == "" || !validRole(b.Role) {
-		jerr(w, 400, "gebruikersnaam en rol zijn verplicht")
+		jerr(w, 400, "username and role are required")
 		return
 	}
 	if len(b.Password) < 10 {
-		jerr(w, 400, "wachtwoord moet minimaal 10 tekens zijn")
+		jerr(w, 400, "password must be at least 10 characters")
 		return
 	}
 	u := b.User
 	u.Provider = "local"
 	if err := s.Meta.CreateUser(&u, b.Password); err != nil {
-		jerr(w, 400, "gebruiker bestaat al")
+		jerr(w, 400, "user already exists")
 		return
 	}
 	s.audit_(r, "user_created", u.Username)
@@ -689,21 +689,21 @@ func (s *Server) createUser(w http.ResponseWriter, r *http.Request) {
 func (s *Server) updateUser(w http.ResponseWriter, r *http.Request) {
 	var b userBody
 	if err := decode(r, &b); err != nil {
-		jerr(w, 400, "ongeldig verzoek")
+		jerr(w, 400, "invalid request")
 		return
 	}
 	u, err := s.Meta.UserByID(idParam(r))
 	if err != nil {
-		jerr(w, 404, "niet gevonden")
+		jerr(w, 404, "not found")
 		return
 	}
 	if !validRole(b.Role) {
-		jerr(w, 400, "ongeldige rol")
+		jerr(w, 400, "invalid role")
 		return
 	}
 	me := user(r)
 	if u.ID == me.ID && (b.Role != "admin" || b.Disabled) {
-		jerr(w, 400, "je kunt jezelf geen beheerrechten afnemen")
+		jerr(w, 400, "you cannot remove your own admin rights")
 		return
 	}
 	u.Email, u.Name, u.Role, u.Disabled = b.Email, b.Name, b.Role, b.Disabled
@@ -713,11 +713,11 @@ func (s *Server) updateUser(w http.ResponseWriter, r *http.Request) {
 	}
 	if b.Password != "" {
 		if u.Provider != "local" {
-			jerr(w, 400, "wachtwoord van SSO-gebruikers kan niet worden ingesteld")
+			jerr(w, 400, "cannot set a password for SSO users")
 			return
 		}
 		if len(b.Password) < 10 {
-			jerr(w, 400, "wachtwoord moet minimaal 10 tekens zijn")
+			jerr(w, 400, "password must be at least 10 characters")
 			return
 		}
 		s.Meta.SetPassword(u.ID, b.Password)
@@ -729,7 +729,7 @@ func (s *Server) updateUser(w http.ResponseWriter, r *http.Request) {
 func (s *Server) deleteUser(w http.ResponseWriter, r *http.Request) {
 	id := idParam(r)
 	if id == user(r).ID {
-		jerr(w, 400, "je kunt jezelf niet verwijderen")
+		jerr(w, 400, "you cannot delete yourself")
 		return
 	}
 	s.Meta.DeleteUser(id)
@@ -832,5 +832,5 @@ func (s *Server) updateApply(w http.ResponseWriter, r *http.Request) {
 			s.Log.Error("update failed", "err", err)
 		}
 	}()
-	jsonOut(w, map[string]string{"message": fmt.Sprintf("Update gestart vanaf versie %s", version.Version)})
+	jsonOut(w, map[string]string{"message": fmt.Sprintf("Update started from version %s", version.Version)})
 }

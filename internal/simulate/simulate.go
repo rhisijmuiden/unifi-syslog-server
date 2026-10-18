@@ -16,11 +16,11 @@ type device struct {
 
 var aps = []string{"U7PG2,f09fc2a1b2c3,v6.6.77.15402", "U6-Pro,245a4c112233,v6.7.10.15511", "U6-LR,e063da445566,v6.7.10.15511", "UAP-AC-Lite,788a20778899,v6.6.77.15402"}
 var switches = []string{"USW-24-PoE,74acb9aabbcc,v7.1.26.15869", "USW-Lite-8-PoE,d021f9ddeeff,v7.1.26.15869"}
-var ssids = []string{"Thuis", "Gasten", "IoT", "Kantoor"}
+var ssids = []string{"Home", "Guest", "IoT", "Office"}
 var clients = []struct{ mac, name string }{
-	{"a4:83:e7:11:22:33", "iPhone-Reinder"}, {"3c:22:fb:44:55:66", "MacBook-Pro"}, {"b8:27:eb:77:88:99", "raspberrypi"},
-	{"dc:a6:32:aa:bb:cc", "Hue-Bridge"}, {"f0:18:98:dd:ee:ff", "iPad"}, {"00:17:88:12:34:56", "Sonos-Woonkamer"},
-	{"7c:d5:66:ab:cd:ef", "Galaxy-S24"}, {"18:b4:30:fe:dc:ba", "Nest-Thermostaat"},
+	{"a4:83:e7:11:22:33", "iPhone-Alex"}, {"3c:22:fb:44:55:66", "MacBook-Pro"}, {"b8:27:eb:77:88:99", "raspberrypi"},
+	{"dc:a6:32:aa:bb:cc", "Hue-Bridge"}, {"f0:18:98:dd:ee:ff", "iPad"}, {"00:17:88:12:34:56", "Sonos-LivingRoom"},
+	{"7c:d5:66:ab:cd:ef", "Galaxy-S24"}, {"18:b4:30:fe:dc:ba", "Nest-Thermostat"},
 }
 var attackers = []string{"185.220.101.4", "45.9.20.11", "193.32.162.77", "89.248.165.52", "141.98.10.63", "222.186.30.112", "92.63.197.153"}
 var ports = []int{22, 23, 445, 3389, 80, 8080, 5060, 1433, 3306, 8443, 6379}
@@ -28,7 +28,7 @@ var ports = []int{22, 23, 445, 3389, 80, 8080, 5060, 1433, 3306, 8443, 6379}
 func pick[T any](r *rand.Rand, l []T) T { return l[r.Intn(len(l))] }
 
 // Run sends rate messages per second to target for duration. site selects a
-// simulated location (its index varies the source addresses).
+// simulated site (its index varies the source addresses).
 func Run(target string, rate int, duration time.Duration, sites int, out func(string)) error {
 	conn, err := net.Dial("udp", target)
 	if err != nil {
@@ -54,13 +54,13 @@ func Run(target string, rate int, duration time.Duration, sites int, out func(st
 			sent++
 		}
 	}
-	out(fmt.Sprintf("%d berichten verzonden naar %s", sent, target))
+	out(fmt.Sprintf("%d messages sent to %s", sent, target))
 	return nil
 }
 
 func message(r *rand.Rand, site int) string {
 	ts := time.Now().Format("Jan _2 15:04:05")
-	gw := fmt.Sprintf("UDM-Pro-Locatie%d", site+1)
+	gw := fmt.Sprintf("UDM-Pro-Site%d", site+1)
 	lan := fmt.Sprintf("192.168.%d.%d", 10+site, 20+r.Intn(200))
 	c := pick(r, clients)
 	switch n := r.Intn(100); {
@@ -73,7 +73,7 @@ func message(r *rand.Rand, site int) string {
 		}
 		descr := ""
 		if chain == "CUSTOM1_LAN-B-30000" {
-			descr = `DESCR="Block IoT naar LAN" `
+			descr = `DESCR="Block IoT to LAN" `
 		}
 		return fmt.Sprintf(`<4>%s %s kernel: [%d.%06d] [%s] %sIN=%s OUT=%s MAC=74:ac:b9:11:22:33:%s:08:00 SRC=%s DST=%s LEN=44 TOS=0x00 PREC=0x00 TTL=%d ID=%d PROTO=%s SPT=%d DPT=%d WINDOW=1024 RES=0x00 SYN URGP=0`,
 			ts, gw, r.Intn(999999), r.Intn(999999), chain, descr, in, out, c.mac, src, dst, 40+r.Intn(200), r.Intn(65535), pick(r, []string{"TCP", "TCP", "UDP"}), 1024+r.Intn(60000), pick(r, ports))

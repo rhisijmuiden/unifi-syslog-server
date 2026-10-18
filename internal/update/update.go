@@ -88,7 +88,7 @@ func (u *Updater) latest(ctx context.Context, pre bool) (*Release, error) {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode == 404 {
-		return nil, fmt.Errorf("nog geen releases gepubliceerd op github.com/%s", u.Repo)
+		return nil, fmt.Errorf("no releases published yet on github.com/%s", u.Repo)
 	}
 	if resp.StatusCode != 200 {
 		return nil, fmt.Errorf("GitHub API: %s", resp.Status)
@@ -99,7 +99,7 @@ func (u *Updater) latest(ctx context.Context, pre bool) (*Release, error) {
 			return nil, err
 		}
 		if len(rs) == 0 {
-			return nil, fmt.Errorf("geen releases gevonden")
+			return nil, fmt.Errorf("no releases found")
 		}
 		return &rs[0], nil
 	}
@@ -130,7 +130,7 @@ func (u *Updater) Apply(ctx context.Context, pre bool, restart func()) error {
 	u.mu.Lock()
 	if u.running {
 		u.mu.Unlock()
-		return fmt.Errorf("update is al bezig")
+		return fmt.Errorf("an update is already running")
 	}
 	u.running = true
 	u.mu.Unlock()
@@ -140,15 +140,15 @@ func (u *Updater) Apply(ctx context.Context, pre bool, restart func()) error {
 		u.mu.Unlock()
 	}()
 
-	u.setState("release ophalen")
+	u.setState("fetching release")
 	r, err := u.latest(ctx, pre)
 	if err != nil {
-		u.setState("fout: " + err.Error())
+		u.setState("error: " + err.Error())
 		return err
 	}
 	if !Newer(r.Tag, version.Version) {
-		u.setState("al up-to-date")
-		return fmt.Errorf("versie %s is al de nieuwste", version.Version)
+		u.setState("already up to date")
+		return fmt.Errorf("version %s is already the latest", version.Version)
 	}
 	var assetURL, sumURL string
 	for _, a := range r.Assets {
@@ -160,8 +160,8 @@ func (u *Updater) Apply(ctx context.Context, pre bool, restart func()) error {
 		}
 	}
 	if assetURL == "" {
-		err := fmt.Errorf("release %s bevat geen %s", r.Tag, AssetName())
-		u.setState("fout: " + err.Error())
+		err := fmt.Errorf("release %s does not contain %s", r.Tag, AssetName())
+		u.setState("error: " + err.Error())
 		return err
 	}
 	exe, err := os.Executable()
@@ -171,37 +171,37 @@ func (u *Updater) Apply(ctx context.Context, pre bool, restart func()) error {
 	exe, _ = filepath.EvalSymlinks(exe)
 	dir := filepath.Dir(exe)
 
-	u.setState("downloaden " + r.Tag)
+	u.setState("downloading " + r.Tag)
 	tmp, err := os.CreateTemp(dir, ".update-*.tar.gz")
 	if err != nil {
-		u.setState("fout: " + err.Error())
-		return fmt.Errorf("geen schrijfrechten in %s: %w", dir, err)
+		u.setState("error: " + err.Error())
+		return fmt.Errorf("no write permission in %s: %w", dir, err)
 	}
 	defer os.Remove(tmp.Name())
 	h := sha256.New()
 	if err := u.download(ctx, assetURL, io.MultiWriter(tmp, h)); err != nil {
 		tmp.Close()
-		u.setState("fout: " + err.Error())
+		u.setState("error: " + err.Error())
 		return err
 	}
 	tmp.Close()
 	if sumURL != "" {
-		u.setState("checksum controleren")
+		u.setState("verifying checksum")
 		want, err := u.checksum(ctx, sumURL, AssetName())
 		if err != nil {
-			u.setState("fout: " + err.Error())
+			u.setState("error: " + err.Error())
 			return err
 		}
 		if got := hex.EncodeToString(h.Sum(nil)); got != want {
-			err := fmt.Errorf("checksum klopt niet (%s != %s)", got, want)
-			u.setState("fout: " + err.Error())
+			err := fmt.Errorf("checksum mismatch (%s != %s)", got, want)
+			u.setState("error: " + err.Error())
 			return err
 		}
 	}
-	u.setState("installeren")
+	u.setState("installing")
 	newBin := exe + ".new"
 	if err := extractBinary(tmp.Name(), "unify-syslog", newBin); err != nil {
-		u.setState("fout: " + err.Error())
+		u.setState("error: " + err.Error())
 		return err
 	}
 	os.Remove(exe + ".old")
@@ -212,7 +212,7 @@ func (u *Updater) Apply(ctx context.Context, pre bool, restart func()) error {
 		os.Rename(exe+".old", exe)
 		return err
 	}
-	u.setState("herstarten naar " + r.Tag)
+	u.setState("restarting into " + r.Tag)
 	if restart != nil {
 		go func() {
 			time.Sleep(1500 * time.Millisecond)
@@ -249,7 +249,7 @@ func (u *Updater) checksum(ctx context.Context, url, name string) (string, error
 			return strings.ToLower(f[0]), nil
 		}
 	}
-	return "", fmt.Errorf("geen checksum voor %s", name)
+	return "", fmt.Errorf("no checksum for %s", name)
 }
 
 func extractBinary(tgz, want, dst string) error {
@@ -266,7 +266,7 @@ func extractBinary(tgz, want, dst string) error {
 	for {
 		h, err := tr.Next()
 		if err == io.EOF {
-			return fmt.Errorf("%s niet gevonden in archief", want)
+			return fmt.Errorf("%s not found in archive", want)
 		}
 		if err != nil {
 			return err
