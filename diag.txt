@@ -1,0 +1,171 @@
+===== build
+==> Base image: 2026-10-06-raspios-trixie-arm64-lite.img.xz
+/var/tmp/uss-rpi.rm7fJv/root/usr/lib/tmpfiles.d/unify-syslog-probe.conf
+/var/tmp/uss-rpi.rm7fJv/root/etc/issue.d/unify-syslog-probe.issue
+/var/tmp/uss-rpi.rm7fJv/root/etc/profile.d/unify-syslog-probe.sh
+/var/tmp/uss-rpi.rm7fJv/root/etc/systemd/system/unify-syslog-probe.service
+/var/tmp/uss-rpi.rm7fJv/root/usr/lib/sysusers.d/unify-syslog-probe.conf
+/var/tmp/uss-rpi.rm7fJv/root/etc/systemd/system/multi-user.target.wants/unify-syslog-probe.service
+==> Probe 0.0.0-ci installed into the image
+WORK=/var/tmp/uss-rpi.rm7fJv
+LOOP=/dev/loop0
+===== boot
+[[0;32m  OK  [0m] Started [0;1;39msystemd-logind.service[0m - User Login Management.
+[[0;32m  OK  [0m] Started [0;1;39mpolkit.service[0m - Authorization Manager.
+[[0;32m  OK  [0m] Started [0;1;39mudisks2.service[0m - Disk Manager.
+[[0;32m  OK  [0m] Started [0;1;39msystemd-hostnamed.service[0m - Hostname Service.
+         Starting [0;1;39mNetworkManager-dispatcher…[0manager Script Dispatcher Service...
+         Starting [0;1;39msystemd-remount-fs.servic…[0munt Root and Kernel File Systems...
+[[0;32m  OK  [0m] Started [0;1;39mNetworkManager-dispatcher.…[0m Manager Script Dispatcher Service.
+[[0;1;31mFAILED[0m] Failed to start [0;1;39msystemd-remount-fs…[0mmount Root and Kernel File Systems.
+See 'systemctl status systemd-remount-fs.service' for details.
+[[0;1;38:5:185mDEPEND[0m] Dependency failed for [0;1;39mrpi-setup-lo…[0m-loop - set up file on loop device.
+[[0;1;38:5:185mDEPEND[0m] Dependency failed for [0;1;39msystemd-zram…ervice[0m - Create swap on /dev/zram0.
+[[0;1;38:5:185mDEPEND[0m] Dependency failed for [0;1;39mdev-zram0.sw…[0map managed swap device (zram+file).
+[[0;1;38:5:185mDEPEND[0m] Dependency failed for [0;1;39mrpi-resize-s…[0mvar-swap-service - resize swapfile.
+[[0;32m  OK  [0m] Started [0;1;39mNetworkManager.service[0m - Network Manager.
+[[0;32m  OK  [0m] Reached target [0;1;39mnetwork.target[0m - Network.
+         Starting [0;1;39mNetworkManager-wait-onlin…ce[0m - Network Manager Wait Online...
+[[0;32m  OK  [0m] Started [0;1;39mrpi-usb-gadget-ics.service[0m… auto-switcher (client <-> shared).
+         Starting [0;1;39mssh.service[0m - OpenBSD Secure Shell server...
+         Starting [0;1;39msystemd-user-sessions.service[0m - Permit User Sessions...
+[[0;32m  OK  [0m] Finished [0;1;39msystemd-user-sessions.service[0m - Permit User Sessions.
+[[0;32m  OK  [0m] Started [0;1;39mconsole-getty.service[0m - Console Getty.
+[[0;32m  OK  [0m] Reached target [0;1;39mgetty.target[0m - Login Prompts.
+[[0;32m  OK  [0m] Finished [0;1;39mNetworkManager-wait-onlin…vice[0m - Network Manager Wait Online.
+[[0;32m  OK  [0m] Reached target [0;1;39mnetwork-online.target[0m - Network is Online.
+         Starting [0;1;39mcloud-config.service[0m - Cloud-init: Config Stage...
+         Starting [0;1;39munify-syslog-probe.service[0m - UniFi Syslog probe...
+[[0;1;31mFAILED[0m] Failed to start [0;1;39mssh.service[0m - OpenBSD Secure Shell server.
+See 'systemctl status ssh.service' for details.
+[  195.776768] sh[539]: Completed socket interaction for boot stage config
+[[0;32m  OK  [0m] Finished [0;1;39mcloud-config.service[0m - Cloud-init: Config Stage.
+         Starting [0;1;39muserconfig.service[0m - User configuration dialog...
+[[0;32m  OK  [0m] Started [0;1;39munify-syslog-probe.service[0m - UniFi Syslog probe.
+[[0;1;31mFAILED[0m] Failed to start [0;1;39muserconfig.service[0m - User configuration dialog.
+See 'systemctl status userconfig.service' for details.
+[[0;32m  OK  [0m] Reached target [0;1;39mmulti-user.target[0m - Multi-User System.
+[[0;32m  OK  [0m] Reached target [0;1;39mgraphical.target[0m - Graphical Interface.
+         Starting [0;1;39mcloud-final.service[0m - Cloud-init: Final Stage...
+[  195.828361] sh[549]: Completed socket interaction for boot stage final
+[[0;32m  OK  [0m] Finished [0;1;39mcloud-final.service[0m - Cloud-init: Final Stage.
+[[0;32m  OK  [0m] Reached target [0;1;39mcloud-init.target[0m - Cloud-init target.
+
+Debian GNU/Linux 13 uss-probe pts/0
+
+My IP address is 10.1.0.168 fe80::222:48ff:feb8:2a15
+
+UniFi Syslog probe - web page: http://10.1.0.168:8080  (enroll it there, or sign in and run: sudo unify-syslog-probe setup)
+
+uss-probe login: [[0;32m  OK  [0m] Removed slice [0;1;39msystem-getty.slice[0m - Slice /system/getty.
+[[0;32m  OK  [0m] Removed slice [0;1;39msystem-modprobe.slice[0m - Slice /system/modprobe.
+[[0;32m  OK  [0m] Removed slice [0;1;39msystem-rpi\x2dsetup\…ice[0m - Slice /system/rpi-setup-loop.
+[[0;32m  OK  [0m] Removed slice [0;1;39msystem-systemd\x2dzr…[0m- Slice /system/systemd-zram-setup.
+[[0;32m  OK  [0m] Stopped target [0;1;39mcloud-init.target[0m - Cloud-init target.
+[[0;32m  OK  [0m] Stopped target [0;1;39mgraphical.target[0m - Graphical Interface.
+[[0;32m  OK  [0m] Stopped target [0;1;39mtimers.target[0m - Timer Units.
+[[0;32m  OK  [0m] Stopped [0;1;39mapt-daily-upgrade.timer[0m - …y apt upgrade and clean activities.
+[[0;32m  OK  [0m] Stopped [0;1;39mapt-daily.timer[0m - Daily apt download activities.
+[[0;32m  OK  [0m] Stopped [0;1;39mapt-listchanges.timer[0m - Tr…e apt-listchanges database for APT.
+[[0;32m  OK  [0m] Stopped [0;1;39mdpkg-db-backup.timer[0m - Daily dpkg database backup timer.
+[[0;32m  OK  [0m] Stopped [0;1;39me2scrub_all.timer[0m - Period…Metadata Check for All Filesystems.
+[[0;32m  OK  [0m] Stopped [0;1;39mlogrotate.timer[0m - Daily rotation of log files.
+[[0;32m  OK  [0m] Stopped [0;1;39mman-db.timer[0m - Daily man-db regeneration.
+[[0;32m  OK  [0m] Stopped [0;1;39mrpi-zram-writeback.timer[0m - zram writeback timer.
+[[0;32m  OK  [0m] Stopped [0;1;39msystemd-tmpfiles-clean.tim…[0my Cleanup of Temporary Directories.
+[[0;32m  OK  [0m] Stopped target [0;1;39mtime-set.target[0m - System Time Set.
+[[0;32m  OK  [0m] Closed [0;1;39mcloud-init-hotplugd.socket[0m - cloud-init hotplug hook socket.
+         Stopping [0;1;39mNetworkManager-dispatcher…[0manager Script Dispatcher Service...
+[[0;32m  OK  [0m] Stopped [0;1;39mcloud-final.service[0m - Cloud-init: Final Stage.
+[[0;32m  OK  [0m] Stopped target [0;1;39mmulti-user.target[0m - Multi-User System.
+[[0;32m  OK  [0m] Stopped target [0;1;39mgetty.target[0m - Login Prompts.
+         Stopping [0;1;39mavahi-daemon.service[0m - Avahi mDNS/DNS-SD Stack...
+[[0;32m  OK  [0m] Stopped [0;1;39mcloud-config.service[0m - Cloud-init: Config Stage.
+[[0;32m  OK  [0m] Stopped target [0;1;39mcloud-config.target[0m - Cloud-config availability.
+         Stopping [0;1;39mconsole-getty.service[0m - Console Getty...
+         Stopping [0;1;39mcron.service[0m - Regular ba…ground program processing daemon...
+         Stopping [0;1;39mpolkit.service[0m - Authorization Manager...
+         Stopping [0;1;39mrpi-usb-gadget-ics.servic…[0muto-switcher (client <-> shared)...
+[[0;32m  OK  [0m] Stopped [0;1;39msshd-keygen.service[0m - Generate sshd host keys on first boot.
+         Stopping [0;1;39msystemd-hostnamed.service[0m - Hostname Service...
+         Stopping [0;1;39msystemd-logind.service[0m - User Login Management...
+[[0;32m  OK  [0m] Stopped [0;1;39msystemd-machine-id-commit.…[0m Save Transient machine-id to Disk.
+[[0;32m  OK  [0m] Stopped target [0;1;39mfirst-boot-complete.target[0m - First Boot Complete.
+[[0;32m  OK  [0m] Stopped [0;1;39mregenerate_ssh_host_keys.service[0m - Regenerate SSH host keys.
+[[0;32m  OK  [0m] Stopped [0;1;39mrpi-resize.service[0m - Grow …trim root filesystem on first boot.
+[[0;32m  OK  [0m] Stopped [0;1;39msystemd-udev-load-credenti…[0m- Load udev Rules from Credentials.
+         Stopping [0;1;39mudisks2.service[0m - Disk Manager...
+         Stopping [0;1;39munify-syslog-probe.service[0m - UniFi Syslog probe...
+[[0;32m  OK  [0m] Stopped [0;1;39mavahi-daemon.service[0m - Avahi mDNS/DNS-SD Stack.
+[[0;32m  OK  [0m] Stopped [0;1;39mcron.service[0m - Regular background program processing daemon.
+[[0;32m  OK  [0m] Stopped [0;1;39msystemd-hostnamed.service[0m - Hostname Service.
+[[0;32m  OK  [0m] Stopped [0;1;39msystemd-logind.service[0m - User Login Management.
+[[0;32m  OK  [0m] Stopped [0;1;39mudisks2.service[0m - Disk Manager.
+[[0;32m  OK  [0m] Stopped [0;1;39mpolkit.service[0m - Authorization Manager.
+[[0;32m  OK  [0m] Stopped [0;1;39mNetworkManager-dispatcher.…[0m Manager Script Dispatcher Service.
+[[0;32m  OK  [0m] Stopped [0;1;39mrpi-usb-gadget-ics.service[0m… auto-switcher (client <-> shared).
+[[0;32m  OK  [0m] Stopped [0;1;39mconsole-getty.service[0m - Console Getty.
+[[0;32m  OK  [0m] Stopped [0;1;39munify-syslog-probe.service[0m - UniFi Syslog probe.
+[[0;32m  OK  [0m] Stopped target [0;1;39mnetwork-online.target[0m - Network is Online.
+[[0;32m  OK  [0m] Stopped [0;1;39mNetworkManager-wait-online…vice[0m - Network Manager Wait Online.
+         Stopping [0;1;39msystemd-user-sessions.service[0m - Permit User Sessions...
+[[0;32m  OK  [0m] Stopped [0;1;39msystemd-user-sessions.service[0m - Permit User Sessions.
+[[0;32m  OK  [0m] Stopped target [0;1;39mnetwork.target[0m - Network.
+[[0;32m  OK  [0m] Stopped target [0;1;39mremote-fs.target[0m - Remote File Systems.
+         Stopping [0;1;39mNetworkManager.service[0m - Network Manager...
+         Stopping [0;1;39mwpa_supplicant.service[0m - WPA supplicant...
+[[0;32m  OK  [0m] Stopped [0;1;39mwpa_supplicant.service[0m - WPA supplicant.
+[[0;32m  OK  [0m] Stopped [0;1;39mNetworkManager.service[0m - Network Manager.
+[[0;32m  OK  [0m] Stopped target [0;1;39mnetwork-pre.target[0m - Preparation for Network.
+         Stopping [0;1;39mdbus.service[0m - D-Bus System Message Bus...
+[[0;32m  OK  [0m] Stopped [0;1;39msystemd-network-generator.…[0mork Units from Kernel Command Line.
+[[0;32m  OK  [0m] Stopped [0;1;39mdbus.service[0m - D-Bus System Message Bus.
+[[0;32m  OK  [0m] Stopped target [0;1;39mbasic.target[0m - Basic System.
+[[0;32m  OK  [0m] Stopped target [0;1;39mpaths.target[0m - Path Units.
+[[0;32m  OK  [0m] Stopped [0;1;39msystemd-ask-password-conso…[0mequests to Console Directory Watch.
+[[0;32m  OK  [0m] Stopped [0;1;39msystemd-ask-password-wall.…[0md Requests to Wall Directory Watch.
+[[0;32m  OK  [0m] Stopped target [0;1;39mslices.target[0m - Slice Units.
+[[0;32m  OK  [0m] Removed slice [0;1;39muser.slice[0m - User and Session Slice.
+[[0;32m  OK  [0m] Stopped target [0;1;39msockets.target[0m - Socket Units.
+[[0;32m  OK  [0m] Closed [0;1;39mavahi-daemon.socket[0m - Avahi…DNS/DNS-SD Stack Activation Socket.
+[[0;32m  OK  [0m] Closed [0;1;39mdbus.socket[0m - D-Bus System Message Bus Socket.
+[[0;32m  OK  [0m] Closed [0;1;39msshd-unix-local.socket[0m - Op…temd-ssh-generator, AF_UNIX Local).
+[[0;32m  OK  [0m] Closed [0;1;39msystemd-hostnamed.socket[0m - Hostname Service Socket.
+[[0;32m  OK  [0m] Stopped target [0;1;39msysinit.target[0m - System Initialization.
+[[0;32m  OK  [0m] Stopped [0;1;39mcloud-init-network.service[0m - Cloud-init: Network Stage.
+[[0;32m  OK  [0m] Stopped [0;1;39mcloud-init-local.service[0m -…ud-init: Local Stage (pre-network).
+[[0;32m  OK  [0m] Stopped [0;1;39msystemd-firstboot.service[0m - First Boot Wizard.
+[[0;32m  OK  [0m] Stopped [0;1;39msystemd-update-done.service[0m - Update is Completed.
+[[0;32m  OK  [0m] Stopped [0;1;39mldconfig.service[0m - Rebuild Dynamic Linker Cache.
+[[0;32m  OK  [0m] Stopped [0;1;39msystemd-journal-catalog-up….service[0m - Rebuild Journal Catalog.
+[[0;32m  OK  [0m] Stopped [0;1;39msystemd-tmpfiles-setup.ser…[0mreate System Files and Directories.
+[[0;32m  OK  [0m] Stopped target [0;1;39mlocal-fs.target[0m - Local File Systems.
+         Unmounting [0;1;39mboot-firmware.mount[0m - /boot/firmware...
+         Unmounting [0;1;39mrun-lock.mount[0m - Legacy Locks Directory /run/lock...
+         Unmounting [0;1;39mtmp.mount[0m - Temporary Directory /tmp...
+[[0;32m  OK  [0m] Unmounted [0;1;39mboot-firmware.mount[0m - /boot/firmware.
+[[0;32m  OK  [0m] Unmounted [0;1;39mrun-lock.mount[0m - Legacy Locks Directory /run/lock.
+[[0;32m  OK  [0m] Unmounted [0;1;39mtmp.mount[0m - Temporary Directory /tmp.
+[[0;32m  OK  [0m] Stopped target [0;1;39mlocal-fs-pre.target[0m…Preparation for Local File Systems.
+[[0;32m  OK  [0m] Stopped target [0;1;39mswap.target[0m - Swaps.
+[[0;32m  OK  [0m] Reached target [0;1;39mumount.target[0m - Unmount All Filesystems.
+[[0;32m  OK  [0m] Stopped [0;1;39msystemd-tmpfiles-setup-dev…[0mCreate Static Device Nodes in /dev.
+[[0;32m  OK  [0m] Stopped [0;1;39msystemd-sysusers.service[0m - Create System Users.
+[[0;32m  OK  [0m] Stopped [0;1;39msystemd-tmpfiles-setup-dev…[0mic Device Nodes in /dev gracefully.
+[[0;32m  OK  [0m] Reached target [0;1;39mshutdown.target[0m - System Shutdown.
+[[0;32m  OK  [0m] Reached target [0;1;39mfinal.target[0m - Late Shutdown Services.
+[[0;32m  OK  [0m] Finished [0;1;39msystemd-poweroff.service[0m - System Power Off.
+[[0;32m  OK  [0m] Reached target [0;1;39mpoweroff.target[0m - System Power Off.
+Sending SIGTERM to remaining processes...
+Sending SIGKILL to remaining processes...
+All filesystems, swaps, loop devices, MD devices and DM devices detached.
+Powering off.
+===== journal
+Oct 18 15:53:58 uss-probe systemd[1]: Starting unify-syslog-probe.service - UniFi Syslog probe...
+Oct 18 15:53:58 uss-probe systemd[1]: Started unify-syslog-probe.service - UniFi Syslog probe.
+Oct 18 15:53:58 uss-probe unify-syslog-probe[545]: time=2026-10-18T15:53:58.382Z level=INFO msg="probe starting" version=0.0.0-ci data=/var/lib/unify-syslog-probe enrolled=false
+Oct 18 15:53:58 uss-probe unify-syslog-probe[545]: time=2026-10-18T15:53:58.383Z level=WARN msg="enrollment with key from /boot/firmware/uss-probe.txt" err="enrollment key is damaged"
+Oct 18 15:53:58 uss-probe unify-syslog-probe[545]: time=2026-10-18T15:53:58.383Z level=INFO msg="syslog UDP listening" addr=:514
+Oct 18 15:53:58 uss-probe unify-syslog-probe[545]: time=2026-10-18T15:53:58.383Z level=INFO msg="syslog TCP listening" addr=:514
+===== status
+{"enrolled":false,"revoked":false,"server":"","name":"","site":"","version":"0.0.0-ci","server_version":"","last_contact":0,"last_error":"","status":{"version":"0.0.0-ci","arch":"arm64","os":"Debian GNU/Linux 13 (trixie)","hostname":"uss-probe","ips":["10.1.0.168","172.17.0.1"],"uptime":0,"received":0,"rate":0,"sent":0,"buffer_records":0,"buffer_bytes":0,"buffer_max":1073741824,"dropped":0,"expired":0,"oldest":0,"devices":0,"cpu":8.461538461538462,"load1":0.76,"mem_used":1290252288,"mem_total":16722010112,"disk_used":2118356992,"disk_total":2422747136,"listen":"udp :514, tcp :514"}}
