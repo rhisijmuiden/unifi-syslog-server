@@ -18,7 +18,7 @@ func TestScopeSites(t *testing.T) {
 	if got := u.ScopeSites([]string{"b", "c"}); !slices.Equal(got, []string{"b"}) {
 		t.Errorf("intersection: %v", got)
 	}
-	if got := u.ScopeSites([]string{"c"}); len(got) != 1 || got[0] != noSite {
+	if got := u.ScopeSites([]string{"c"}); len(got) != 1 || got[0] != NoSite {
 		t.Errorf("no overlap must match nothing: %v", got)
 	}
 	if !(&User{Role: RoleViewer, Sites: []string{DefaultSite}}).SiteAllowed("") {

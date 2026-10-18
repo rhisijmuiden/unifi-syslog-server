@@ -46,9 +46,9 @@ func (u *User) SiteAllowed(site string) bool {
 	return slices.Contains(u.Sites, site)
 }
 
-// noSite matches no row; used when a restricted user asks only for sites
+// NoSite matches no row; used when a restricted user asks only for sites
 // they may not see.
-const noSite = "\x00"
+const NoSite = "\x00"
 
 // ScopeSites narrows a requested site filter to what the user may see. An
 // empty request means "all sites I may see".
@@ -66,7 +66,7 @@ func (u *User) ScopeSites(req []string) []string {
 		}
 	}
 	if len(out) == 0 {
-		return []string{noSite}
+		return []string{NoSite}
 	}
 	return out
 }

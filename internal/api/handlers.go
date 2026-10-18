@@ -130,6 +130,9 @@ func searchDetail(query string, sites []string) string {
 		d = "all messages"
 	}
 	if len(sites) > 0 {
+		if slices.Contains(sites, store.NoSite) {
+			return d + "; no permitted site"
+		}
 		d += "; sites: " + strings.Join(sites, ", ")
 	}
 	return d
