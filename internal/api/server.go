@@ -95,6 +95,7 @@ func (s *Server) Handler() http.Handler {
 			r.Get("/sources", s.listSources)
 			r.Get("/devices", s.listDevices)
 			r.Get("/sites", s.listSites)
+			r.Get("/sites/overview", s.siteOverview)
 
 			r.Group(func(r chi.Router) {
 				r.Use(requireAdmin)
@@ -103,6 +104,10 @@ func (s *Server) Handler() http.Handler {
 				r.Delete("/categories/{id}", s.deleteCategory)
 				r.Put("/sources/{ip}", s.updateSource)
 				r.Delete("/sources/{ip}", s.deleteSource)
+				r.Put("/devices/{key}", s.updateDevice)
+				r.Delete("/devices/{key}", s.deleteDevice)
+				r.Get("/settings/inventory", s.getInventory)
+				r.Put("/settings/inventory", s.putInventory)
 				r.Get("/site-ranges", s.listRanges)
 				r.Post("/site-ranges", s.saveRange)
 				r.Delete("/site-ranges/{id}", s.deleteRange)

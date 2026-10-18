@@ -347,19 +347,6 @@ func (s *Server) deleteSource(w http.ResponseWriter, r *http.Request) {
 	jsonOut(w, map[string]bool{"ok": true})
 }
 
-func (s *Server) listDevices(w http.ResponseWriter, r *http.Request) {
-	days, _ := strconv.Atoi(r.URL.Query().Get("days"))
-	if days <= 0 {
-		days = 7
-	}
-	d, err := s.Logs.Devices(r.Context(), time.Now().AddDate(0, 0, -days))
-	if err != nil {
-		jerr(w, 500, err.Error())
-		return
-	}
-	jsonOut(w, d)
-}
-
 func (s *Server) listSites(w http.ResponseWriter, r *http.Request) { jsonOut(w, s.Meta.Sites()) }
 
 func (s *Server) listRanges(w http.ResponseWriter, r *http.Request) {

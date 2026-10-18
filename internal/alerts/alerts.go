@@ -18,6 +18,10 @@ type Engine struct {
 	Logs   *store.Logs
 	Mailer *mail.Mailer
 	Log    *slog.Logger
+
+	// Started is when the server came up; silent-device checks wait one
+	// silence window after it.
+	Started time.Time
 }
 
 func (e *Engine) Run(ctx context.Context) {
@@ -29,6 +33,7 @@ func (e *Engine) Run(ctx context.Context) {
 			return
 		case now := <-t.C:
 			e.evaluate(ctx, now)
+			e.checkDevices(ctx, now)
 		}
 	}
 }

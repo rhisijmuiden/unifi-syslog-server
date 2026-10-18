@@ -73,9 +73,9 @@ const nav: { section: string; items: NavItem[] }[] = [
     { to: '/logs', label: 'Logs', icon: <ScrollText /> },
     { to: '/categories', label: 'Categorieën', icon: <Tags /> },
     { to: '/devices', label: 'Apparaten', icon: <RouterIcon /> },
+    { to: '/sites', label: 'Locaties', icon: <MapPin /> },
   ] },
   { section: 'Configuratie', items: [
-    { to: '/sites', label: 'Locaties', icon: <MapPin />, admin: true },
     { to: '/alerts', label: 'Meldingen', icon: <BellRing />, admin: true },
   ] },
   { section: 'Beheer', items: [
@@ -163,8 +163,8 @@ function Shell() {
             <Route path="/logs" element={<Logs />} />
             <Route path="/categories" element={<Categories />} />
             <Route path="/devices" element={<Devices />} />
+            <Route path="/sites" element={<Sites />} />
             {isAdmin && <>
-              <Route path="/sites" element={<Sites />} />
               <Route path="/alerts" element={<Alerts />} />
               <Route path="/users" element={<UsersPage />} />
               <Route path="/sso" element={<SSO />} />

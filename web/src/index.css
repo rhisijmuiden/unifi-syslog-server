@@ -41,20 +41,23 @@ body {
 .text-muted { color: var(--muted); }
 .bg-app { background: var(--bg); }
 
-.input {
-  width: 100%;
-  border-radius: 0.6rem;
-  border: 1px solid var(--border);
-  background: var(--panel-2);
-  padding: 0.55rem 0.8rem;
-  font-size: 0.875rem;
-  color: var(--text);
-  outline: none;
-  transition: border-color .15s, box-shadow .15s;
+/* In the components layer so utilities like w-44 can size inputs. */
+@layer components {
+  .input {
+    width: 100%;
+    border-radius: 0.6rem;
+    border: 1px solid var(--border);
+    background: var(--panel-2);
+    padding: 0.55rem 0.8rem;
+    font-size: 0.875rem;
+    color: var(--text);
+    outline: none;
+    transition: border-color .15s, box-shadow .15s;
+  }
+  .input:focus { border-color: #6366f1; box-shadow: 0 0 0 3px rgb(99 102 241 / .2); }
+  .input::placeholder { color: var(--muted); opacity: .7; }
+  textarea.input { font-family: var(--font-mono); font-size: .8rem; }
 }
-.input:focus { border-color: #6366f1; box-shadow: 0 0 0 3px rgb(99 102 241 / .2); }
-.input::placeholder { color: var(--muted); opacity: .7; }
-textarea.input { font-family: var(--font-mono); font-size: .8rem; }
 
 .scroll-thin::-webkit-scrollbar { width: 8px; height: 8px; }
 .scroll-thin::-webkit-scrollbar-thumb { background: var(--border); border-radius: 8px; }

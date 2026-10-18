@@ -575,3 +575,31 @@ func (l *Logs) Devices(ctx context.Context, from time.Time) ([]Device, error) {
 	}
 	return out, rows.Err()
 }
+
+type SiteStat struct {
+	Site     string    `json:"site"`
+	Total    uint64    `json:"total"`
+	Blocked  uint64    `json:"blocked"`
+	Threats  uint64    `json:"threats"`
+	Errors   uint64    `json:"errors"`
+	LastHour time.Time `json:"last_hour"`
+}
+
+// SiteStats sums the hourly rollup per site since from.
+func (l *Logs) SiteStats(ctx context.Context, from time.Time) ([]SiteStat, error) {
+	rows, err := l.Conn.Query(ctx, `SELECT toString(site), sum(cnt), sumIf(cnt, action IN ('block','reject')), sumIf(cnt, category='ips'), sumIf(cnt, severity<=3), max(hour)
+		FROM `+l.t("logs_hourly")+` WHERE hour >= toStartOfHour(?) GROUP BY site`, from)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []SiteStat{}
+	for rows.Next() {
+		var s SiteStat
+		if err := rows.Scan(&s.Site, &s.Total, &s.Blocked, &s.Threats, &s.Errors, &s.LastHour); err != nil {
+			return nil, err
+		}
+		out = append(out, s)
+	}
+	return out, rows.Err()
+}

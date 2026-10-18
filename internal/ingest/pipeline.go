@@ -67,10 +67,14 @@ func (p *Pipeline) Run(ctx context.Context) {
 			select {
 			case <-ctx.Done():
 				p.Meta.FlushSources()
+				p.Meta.FlushDevices()
 				return
 			case <-t.C:
 				if err := p.Meta.FlushSources(); err != nil {
 					p.Log.Warn("flush sources", "err", err)
+				}
+				if err := p.Meta.FlushDevices(); err != nil {
+					p.Log.Warn("flush devices", "err", err)
 				}
 			}
 		}
@@ -94,6 +98,7 @@ func (p *Pipeline) parseLoop(ctx context.Context, out chan<- *unifi.Event) {
 			site, name := p.Meta.Resolve(m.SourceIP, e.Hostname, e.DeviceModel, e.DeviceMAC, e.DeviceVersion, p.ranges)
 			p.rangesMu.RUnlock()
 			e.Site = site
+			p.Meta.TouchDevice(e.Hostname, e.DeviceModel, e.DeviceMAC, e.DeviceVersion, site, m.SourceIP, m.Received)
 			// Remote locations usually arrive NATed from one WAN address, so the
 			// source name labels the sender, it does not replace device hostnames.
 			if name != "" {
