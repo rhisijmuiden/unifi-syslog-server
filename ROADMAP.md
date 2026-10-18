@@ -36,6 +36,7 @@ Goal: move from "looking at logs" to "knowing in time that something is wrong".
 | Saved searches | Save and share searches, also as a shortcut in the menu | Planned |
 | Retention per category | For example firewall 90 days, Wi-Fi 30 days, IPS 1 year (ClickHouse TTL) | Planned |
 | System status | Page with messages per second, disk usage, ClickHouse health and dropped packets | Planned |
+| More languages | German and French next to Dutch and English, with more to follow. Interface, e-mails and reports, using the existing translation files | Planned |
 
 ## 1.1.x Branding and languages (shipped in v0.3.0)
 
