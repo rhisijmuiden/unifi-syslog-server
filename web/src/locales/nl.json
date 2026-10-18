@@ -693,5 +693,8 @@
   "no UniFi Network integration API found at this address (Network 9.0 or later is required)": "Geen UniFi Network-integratie-API gevonden op dit adres (Network 9.0 of nieuwer is nodig)",
   "the account ID or license key was rejected": "Het account-ID of de licentiesleutel is geweigerd",
   "too many panels": "Te veel panelen",
-  "GeoIP is not available": "GeoIP is niet beschikbaar"
+  "GeoIP is not available": "GeoIP is niet beschikbaar",
+  "GeoIP is on, but the database could not be downloaded: {error}": "GeoIP staat aan, maar de database kon niet worden gedownload: {error}",
+  "GeoIP is on, but the database is still being downloaded.": "GeoIP staat aan, maar de database wordt nog gedownload.",
+  "No blocked traffic from internet addresses in this period. Only logs received after GeoIP was turned on have a country.": "Geen geblokkeerd verkeer vanaf internetadressen in deze periode. Alleen logs die binnenkwamen nadat GeoIP aan ging, hebben een land."
 }
