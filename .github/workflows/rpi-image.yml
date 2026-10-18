@@ -43,7 +43,8 @@ jobs:
           # A damaged key on the boot partition must be reported, not crash the probe.
           echo uss1_not-a-real-key | sudo tee "$R/boot/firmware/uss-probe.txt" >/dev/null
           sudo systemd-nspawn -q -D "$R" --boot --machine=uss-probe > boot.txt 2>&1 &
-          for i in $(seq 1 90); do curl -fsS localhost:8080/api/status > status.json 2>/dev/null && break; sleep 2; done
+          # Without real hardware some Pi services fail and the network wait times out, so booting takes minutes.
+          for i in $(seq 1 240); do curl -fsS localhost:8080/api/status > status.json 2>/dev/null && break; sleep 2; done
           cat status.json
           python3 -c "import json,sys; s=json.load(open('status.json')); print(s['version'], s['status']['listen']); sys.exit(0 if s['version']=='0.0.0-ci' and not s['enrolled'] else 1)"
           curl -fsS localhost:8080/ | grep -q 'UniFi Syslog probe'
@@ -67,7 +68,8 @@ jobs:
         if: always()
         run: |
           { echo '===== build'; cat build.txt; echo '===== boot'; tail -n 150 boot.txt
-            echo '===== journal'; cat probe-journal.txt; echo '===== status'; cat status.json; } > diag.txt 2>&1 || true
+            echo '===== journal'; cat probe-journal.txt || sudo journalctl -M uss-probe -u unify-syslog-probe --no-pager -n 100
+            echo '===== status'; cat status.json; } > diag.txt 2>&1 || true
           cat diag.txt
           git config user.name ci; git config user.email ci@localhost
           git checkout -q --orphan diag && git rm -rqf --cached . && git add -f diag.txt

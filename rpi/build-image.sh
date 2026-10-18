@@ -70,6 +70,13 @@ chmod 0755 "$R/opt/unify-syslog-probe/unify-syslog-probe"
 file "$R/opt/unify-syslog-probe/unify-syslog-probe" 2>/dev/null | grep -q aarch64 || echo "warning: the probe in the image may not be arm64"
 ln -sf /opt/unify-syslog-probe/unify-syslog-probe "$R/usr/local/bin/unify-syslog-probe"
 "$TOOL" install-files --root "$R"
+# Create the service user and directories now, so the first boot does not depend on it.
+if command -v systemd-sysusers >/dev/null; then
+  systemd-sysusers --root "$R" unify-syslog-probe.conf
+  systemd-tmpfiles --root "$R" --create unify-syslog-probe.conf
+else
+  echo "warning: systemd-sysusers not found; the probe creates its user at first boot"
+fi
 cat >"$R/etc/sysctl.d/90-unify-syslog-probe.conf" <<EOF
 net.core.rmem_max = 8388608
 net.core.rmem_default = 4194304
