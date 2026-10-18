@@ -23,6 +23,7 @@ import (
 	"github.com/rhisijmuiden/unify-syslog-server/internal/query"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/store"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/unifi"
+	"github.com/rhisijmuiden/unify-syslog-server/internal/update"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/version"
 )
 
@@ -827,7 +828,7 @@ func (s *Server) updateCheck(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
 	defer cancel()
 	us := s.Meta.Update()
-	res, err := s.Updater.Check(ctx, us.Prerelease)
+	res, err := s.Updater.Check(ctx, us.Channel)
 	if err != nil {
 		jerr(w, 502, err.Error())
 		return
@@ -843,13 +844,66 @@ func (s *Server) updateStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) updateApply(w http.ResponseWriter, r *http.Request) {
-	s.audit_(r, "update_started", "")
+	channel := s.Meta.Update().Channel
+	s.audit_(r, "update_started", "channel "+channel)
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
 		defer cancel()
-		if err := s.Updater.Apply(ctx, s.Meta.Update().Prerelease, s.Restart); err != nil {
+		if err := s.Updater.Apply(ctx, channel, s.Restart); err != nil {
 			s.Log.Error("update failed", "err", err)
 		}
 	}()
 	jsonOut(w, map[string]string{"message": fmt.Sprintf("Update started from version %s", version.Version)})
+}
+
+func (s *Server) updateVersions(w http.ResponseWriter, r *http.Request) {
+	kept := s.Updater.Kept()
+	if kept == nil {
+		kept = []update.Kept{}
+	}
+	jsonOut(w, map[string]any{
+		"current":       version.Version,
+		"channel":       s.Meta.Update().Channel,
+		"kept":          kept,
+		"last_rollback": s.Updater.LastRollback(),
+	})
+}
+
+func (s *Server) putUpdateSettings(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Channel string `json:"channel"`
+	}
+	if err := decode(r, &b); err != nil || (b.Channel != update.ChannelStable && b.Channel != update.ChannelTest) {
+		jerr(w, 400, "channel must be stable or test")
+		return
+	}
+	us := s.Meta.Update()
+	if us.Channel != b.Channel {
+		us.Channel, us.LastVersion = b.Channel, ""
+		if err := s.Meta.SetSetting("update", us); err != nil {
+			jerr(w, 500, err.Error())
+			return
+		}
+		s.audit_(r, "update_channel_changed", b.Channel)
+	}
+	jsonOut(w, us)
+}
+
+func (s *Server) updateRollback(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Version string `json:"version"`
+	}
+	if err := decode(r, &b); err != nil {
+		jerr(w, 400, "invalid request")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), time.Minute)
+	defer cancel()
+	ver, err := s.Updater.Rollback(ctx, b.Version, s.Restart)
+	if err != nil {
+		jerr(w, 400, err.Error())
+		return
+	}
+	s.audit_(r, "update_rolled_back", fmt.Sprintf("%s to %s", version.Version, ver))
+	jsonOut(w, map[string]string{"message": fmt.Sprintf("Rolling back from version %s to %s", version.Version, ver)})
 }

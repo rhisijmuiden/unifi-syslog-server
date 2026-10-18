@@ -1,6 +1,12 @@
 // Package update checks GitHub Releases for a newer version and replaces
 // the running binary in place. systemd (Restart=always) brings the new
 // version up after the process exits.
+//
+// Releases come in two channels: stable (production) and test (GitHub
+// pre-releases such as v0.4.0-beta.1). Before every install the running
+// binary and a snapshot of the settings database are kept in HistoryDir, so
+// an update can be rolled back by hand or automatically when the new
+// version fails to start (see history.go).
 package update
 
 import (
@@ -15,9 +21,9 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -25,10 +31,25 @@ import (
 	"github.com/rhisijmuiden/unify-syslog-server/internal/version"
 )
 
+// Release channels.
+const (
+	ChannelStable = "stable"
+	ChannelTest   = "test"
+)
+
+// NormalizeChannel maps anything unknown to the stable channel.
+func NormalizeChannel(c string) string {
+	if c == ChannelTest {
+		return ChannelTest
+	}
+	return ChannelStable
+}
+
 type Release struct {
 	Tag         string    `json:"tag_name"`
 	Name        string    `json:"name"`
 	Body        string    `json:"body"`
+	Draft       bool      `json:"draft"`
 	Prerelease  bool      `json:"prerelease"`
 	PublishedAt time.Time `json:"published_at"`
 	HTMLURL     string    `json:"html_url"`
@@ -40,9 +61,15 @@ type Release struct {
 }
 
 type CheckResult struct {
-	Current   string    `json:"current"`
-	Latest    string    `json:"latest"`
-	Available bool      `json:"available"`
+	Current   string `json:"current"`
+	Latest    string `json:"latest"`
+	Channel   string `json:"channel"`
+	Available bool   `json:"available"`
+	// Prerelease marks Latest as a test version.
+	Prerelease bool `json:"prerelease"`
+	// Downgrade is set when Latest is lower than Current: switching from the
+	// test channel back to stable offers the newest stable release.
+	Downgrade bool      `json:"downgrade"`
 	Notes     string    `json:"notes"`
 	URL       string    `json:"url"`
 	Published time.Time `json:"published"`
@@ -51,7 +78,19 @@ type CheckResult struct {
 
 type Updater struct {
 	Repo   string
+	API    string // GitHub API base URL
 	Client *http.Client
+	// Exe is the binary that gets replaced; empty means the running one.
+	Exe string
+	// HistoryDir keeps previous versions for rollback; empty disables it.
+	HistoryDir string
+	// MetaPath is the settings database; a rollback stages its snapshot as
+	// MetaPath+".restore", which store.OpenMeta applies on the next start.
+	MetaPath string
+	// Snapshot writes a consistent copy of the settings database to dst.
+	Snapshot func(dst string) error
+	// Keep is how many previous versions stay in HistoryDir.
+	Keep int
 
 	mu      sync.Mutex
 	running bool
@@ -59,7 +98,7 @@ type Updater struct {
 }
 
 func New() *Updater {
-	return &Updater{Repo: version.Repo, Client: &http.Client{Timeout: 5 * time.Minute}}
+	return &Updater{Repo: version.Repo, API: "https://api.github.com", Client: &http.Client{Timeout: 5 * time.Minute}, Keep: 3}
 }
 
 func (u *Updater) State() (bool, string) {
@@ -74,11 +113,43 @@ func (u *Updater) setState(s string) {
 	u.mu.Unlock()
 }
 
-func (u *Updater) latest(ctx context.Context, pre bool) (*Release, error) {
-	url := "https://api.github.com/repos/" + u.Repo + "/releases/latest"
-	if pre {
-		url = "https://api.github.com/repos/" + u.Repo + "/releases?per_page=10"
+// begin marks an update or rollback as running; the returned func ends it.
+func (u *Updater) begin() (func(), error) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	if u.running {
+		return nil, fmt.Errorf("an update is already running")
 	}
+	u.running = true
+	return func() {
+		u.mu.Lock()
+		u.running = false
+		u.mu.Unlock()
+	}, nil
+}
+
+func (u *Updater) fail(err error) error {
+	u.setState("error: " + err.Error())
+	return err
+}
+
+func (u *Updater) exe() (string, error) {
+	exe := u.Exe
+	if exe == "" {
+		var err error
+		if exe, err = os.Executable(); err != nil {
+			return "", err
+		}
+	}
+	if p, err := filepath.EvalSymlinks(exe); err == nil {
+		exe = p
+	}
+	return exe, nil
+}
+
+// Releases lists the published releases (drafts excluded), newest first.
+func (u *Updater) Releases(ctx context.Context) ([]Release, error) {
+	url := u.API + "/repos/" + u.Repo + "/releases?per_page=50"
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("User-Agent", "unify-syslog-server/"+version.Version)
@@ -87,35 +158,78 @@ func (u *Updater) latest(ctx context.Context, pre bool) (*Release, error) {
 		return nil, err
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode == 404 {
-		return nil, fmt.Errorf("no releases published yet on github.com/%s", u.Repo)
-	}
 	if resp.StatusCode != 200 {
 		return nil, fmt.Errorf("GitHub API: %s", resp.Status)
 	}
-	if pre {
-		var rs []Release
-		if err := json.NewDecoder(resp.Body).Decode(&rs); err != nil {
-			return nil, err
-		}
-		if len(rs) == 0 {
-			return nil, fmt.Errorf("no releases found")
-		}
-		return &rs[0], nil
+	var rs []Release
+	if err := json.NewDecoder(resp.Body).Decode(&rs); err != nil {
+		return nil, err
 	}
-	var r Release
-	return &r, json.NewDecoder(resp.Body).Decode(&r)
+	out := rs[:0]
+	for _, r := range rs {
+		if !r.Draft {
+			out = append(out, r)
+		}
+	}
+	return out, nil
 }
 
-func (u *Updater) Check(ctx context.Context, pre bool) (*CheckResult, error) {
-	r, err := u.latest(ctx, pre)
+// Pick returns the highest release on the channel: stable only considers
+// releases without a pre-release suffix, test considers all of them.
+func Pick(rs []Release, channel string) *Release {
+	var best *Release
+	for i := range rs {
+		r := &rs[i]
+		if NormalizeChannel(channel) == ChannelStable && (r.Prerelease || IsPrerelease(r.Tag)) {
+			continue
+		}
+		if best == nil || Newer(r.Tag, best.Tag) {
+			best = r
+		}
+	}
+	return best
+}
+
+// Offer decides whether release tag should be offered to a server running
+// current on channel. Newer versions always are; on the stable channel a
+// server running a test version is also offered the newest stable release
+// when that is lower, so it can leave the test channel.
+func Offer(tag, current, channel string) (available, downgrade bool) {
+	switch c := Compare(tag, current); {
+	case c > 0:
+		return true, false
+	case c < 0 && NormalizeChannel(channel) == ChannelStable && IsPrerelease(current):
+		return true, true
+	}
+	return false, false
+}
+
+func (u *Updater) target(ctx context.Context, channel string) (*Release, error) {
+	rs, err := u.Releases(ctx)
 	if err != nil {
 		return nil, err
 	}
+	r := Pick(rs, channel)
+	if r == nil {
+		if NormalizeChannel(channel) == ChannelStable {
+			return nil, fmt.Errorf("no stable releases published yet on github.com/%s", u.Repo)
+		}
+		return nil, fmt.Errorf("no releases published yet on github.com/%s", u.Repo)
+	}
+	return r, nil
+}
+
+func (u *Updater) Check(ctx context.Context, channel string) (*CheckResult, error) {
+	channel = NormalizeChannel(channel)
+	r, err := u.target(ctx, channel)
+	if err != nil {
+		return nil, err
+	}
+	avail, down := Offer(r.Tag, version.Version, channel)
 	return &CheckResult{
-		Current: version.Version, Latest: strings.TrimPrefix(r.Tag, "v"),
-		Available: Newer(r.Tag, version.Version), Notes: r.Body, URL: r.HTMLURL,
-		Published: r.PublishedAt, CheckedAt: time.Now(),
+		Current: version.Version, Latest: strings.TrimPrefix(r.Tag, "v"), Channel: channel,
+		Available: avail, Downgrade: down, Prerelease: r.Prerelease || IsPrerelease(r.Tag),
+		Notes: r.Body, URL: r.HTMLURL, Published: r.PublishedAt, CheckedAt: time.Now(),
 	}, nil
 }
 
@@ -124,29 +238,22 @@ func AssetName() string {
 	return fmt.Sprintf("unify-syslog-server_linux_%s.tar.gz", runtime.GOARCH)
 }
 
-// Apply downloads, verifies (checksums.txt) and installs the latest
-// release, then calls restart.
-func (u *Updater) Apply(ctx context.Context, pre bool, restart func()) error {
-	u.mu.Lock()
-	if u.running {
-		u.mu.Unlock()
-		return fmt.Errorf("an update is already running")
-	}
-	u.running = true
-	u.mu.Unlock()
-	defer func() {
-		u.mu.Lock()
-		u.running = false
-		u.mu.Unlock()
-	}()
-
-	u.setState("fetching release")
-	r, err := u.latest(ctx, pre)
+// Apply downloads, verifies (checksums.txt and a trial run) and installs
+// the release the channel offers, then calls restart. The running version
+// is kept in HistoryDir first.
+func (u *Updater) Apply(ctx context.Context, channel string, restart func()) error {
+	done, err := u.begin()
 	if err != nil {
-		u.setState("error: " + err.Error())
 		return err
 	}
-	if !Newer(r.Tag, version.Version) {
+	defer done()
+
+	u.setState("fetching release")
+	r, err := u.target(ctx, channel)
+	if err != nil {
+		return u.fail(err)
+	}
+	if avail, _ := Offer(r.Tag, version.Version, channel); !avail {
 		u.setState("already up to date")
 		return fmt.Errorf("version %s is already the latest", version.Version)
 	}
@@ -160,57 +267,57 @@ func (u *Updater) Apply(ctx context.Context, pre bool, restart func()) error {
 		}
 	}
 	if assetURL == "" {
-		err := fmt.Errorf("release %s does not contain %s", r.Tag, AssetName())
-		u.setState("error: " + err.Error())
-		return err
+		return u.fail(fmt.Errorf("release %s does not contain %s", r.Tag, AssetName()))
 	}
-	exe, err := os.Executable()
+	exe, err := u.exe()
 	if err != nil {
-		return err
+		return u.fail(err)
 	}
-	exe, _ = filepath.EvalSymlinks(exe)
 	dir := filepath.Dir(exe)
 
 	u.setState("downloading " + r.Tag)
 	tmp, err := os.CreateTemp(dir, ".update-*.tar.gz")
 	if err != nil {
-		u.setState("error: " + err.Error())
-		return fmt.Errorf("no write permission in %s: %w", dir, err)
+		return u.fail(fmt.Errorf("no write permission in %s: %w", dir, err))
 	}
 	defer os.Remove(tmp.Name())
 	h := sha256.New()
 	if err := u.download(ctx, assetURL, io.MultiWriter(tmp, h)); err != nil {
 		tmp.Close()
-		u.setState("error: " + err.Error())
-		return err
+		return u.fail(err)
 	}
 	tmp.Close()
 	if sumURL != "" {
 		u.setState("verifying checksum")
 		want, err := u.checksum(ctx, sumURL, AssetName())
 		if err != nil {
-			u.setState("error: " + err.Error())
-			return err
+			return u.fail(err)
 		}
 		if got := hex.EncodeToString(h.Sum(nil)); got != want {
-			err := fmt.Errorf("checksum mismatch (%s != %s)", got, want)
-			u.setState("error: " + err.Error())
-			return err
+			return u.fail(fmt.Errorf("checksum mismatch (%s != %s)", got, want))
 		}
 	}
 	u.setState("installing")
 	newBin := exe + ".new"
+	defer os.Remove(newBin)
 	if err := extractBinary(tmp.Name(), "unify-syslog", newBin); err != nil {
-		u.setState("error: " + err.Error())
-		return err
+		return u.fail(err)
 	}
-	os.Remove(exe + ".old")
-	if err := os.Rename(exe, exe+".old"); err != nil {
-		return err
+	if err := trialRun(ctx, newBin, r.Tag); err != nil {
+		return u.fail(err)
+	}
+	if u.HistoryDir != "" {
+		u.setState("keeping version " + version.Version + " for rollback")
+		if err := u.keep(exe, version.Version, "update"); err != nil {
+			return u.fail(fmt.Errorf("keep current version: %w", err))
+		}
 	}
 	if err := os.Rename(newBin, exe); err != nil {
-		os.Rename(exe+".old", exe)
-		return err
+		return u.fail(err)
+	}
+	if u.HistoryDir != "" {
+		u.writePending(pending{From: version.Version, To: strings.TrimPrefix(r.Tag, "v"), StartedAt: time.Now()})
+		u.prune()
 	}
 	u.setState("restarting into " + r.Tag)
 	if restart != nil {
@@ -218,6 +325,21 @@ func (u *Updater) Apply(ctx context.Context, pre bool, restart func()) error {
 			time.Sleep(1500 * time.Millisecond)
 			restart()
 		}()
+	}
+	return nil
+}
+
+// trialRun executes "<bin> version" so a binary that cannot run on this
+// machine (wrong architecture, damaged download) is never installed.
+func trialRun(ctx context.Context, bin, want string) error {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, bin, "version").CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("new version does not run on this machine: %v %s", err, strings.TrimSpace(string(out)))
+	}
+	if want != "" && !strings.Contains(string(out), " "+strings.TrimPrefix(want, "v")+" ") {
+		return fmt.Errorf("new binary reports %q, expected version %s", strings.TrimSpace(string(out)), want)
 	}
 	return nil
 }
@@ -284,39 +406,4 @@ func extractBinary(tgz, want, dst string) error {
 		}
 		return out.Close()
 	}
-}
-
-// Newer reports whether tag a is a higher semantic version than b.
-func Newer(a, b string) bool {
-	pa, pb := parse(a), parse(b)
-	for i := 0; i < 3; i++ {
-		if pa[i] != pb[i] {
-			return pa[i] > pb[i]
-		}
-	}
-	// A release without pre-release suffix beats one with.
-	sa, sb := suffix(a), suffix(b)
-	if sa == "" && sb != "" {
-		return true
-	}
-	return false
-}
-
-func parse(v string) [3]int {
-	v = strings.TrimPrefix(strings.TrimSpace(v), "v")
-	if i := strings.IndexAny(v, "-+"); i >= 0 {
-		v = v[:i]
-	}
-	var out [3]int
-	for i, p := range strings.SplitN(v, ".", 3) {
-		out[i], _ = strconv.Atoi(p)
-	}
-	return out
-}
-
-func suffix(v string) string {
-	if i := strings.IndexAny(v, "-+"); i >= 0 {
-		return v[i:]
-	}
-	return ""
 }

@@ -3,7 +3,8 @@
 //	unify-syslog [serve]                          run the server
 //	unify-syslog user add <name> [--admin]        create a local user (password from stdin or generated)
 //	unify-syslog user passwd <name>               reset a password
-//	unify-syslog update [--check]                 update to the latest GitHub release
+//	unify-syslog update [--check]                 update to the latest release on the configured channel
+//	unify-syslog update rollback [version]        switch back to a kept previous version
 //	unify-syslog simulate [--target 127.0.0.1:514] [--rate 200] [--duration 60s] [--sites 3]
 //	unify-syslog version
 package main
@@ -15,9 +16,11 @@ import (
 	"flag"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"syscall"
@@ -63,7 +66,7 @@ func main() {
 	case "user":
 		err = userCmd(cfgPath, args)
 	case "update":
-		err = updateCmd(args)
+		err = updateCmd(cfgPath, args)
 	case "simulate":
 		err = simulateCmd(args)
 	case "version", "--version", "-v":
@@ -84,14 +87,37 @@ func serve(cfgPath string) error {
 		return err
 	}
 	log.Info("starting", "version", version.Version, "config", cfgPath)
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+	restart := func() {
+		log.Info("restart requested")
+		stop()
+		go func() {
+			time.Sleep(10 * time.Second)
+			os.Exit(0)
+		}()
+	}
+
+	// A freshly installed update that keeps failing is rolled back before it
+	// touches the settings database.
+	upd := newUpdater(cfg)
+	if err := upd.StartupCheck(ctx); err != nil {
+		if errors.Is(err, update.ErrRolledBack) {
+			log.Error("rolled back", "err", err)
+			return err
+		}
+		log.Error("update startup check", "err", err)
+	}
+	var ready atomic.Bool
+	go upd.WatchStartup(ctx, ready.Load, restart)
+
 	meta, err := store.OpenMeta(cfg.MetaDBPath(), cfg.SecretKeyPath())
 	if err != nil {
 		return fmt.Errorf("metadata db: %w", err)
 	}
+	upd.Snapshot = meta.Snapshot
+	go upd.ImportPrevious(ctx)
 	gen := meta.General()
-
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
 
 	var logs *store.Logs
 	for attempt := 1; ; attempt++ {
@@ -124,14 +150,6 @@ func serve(cfgPath string) error {
 	pipe := &ingest.Pipeline{In: queue, Meta: meta, Logs: logs, Workers: cfg.Ingest.Workers, BatchSize: cfg.Ingest.BatchSize,
 		Flush: time.Duration(cfg.Ingest.FlushInterval) * time.Millisecond, Location: getLoc, Stats: ingStats, Log: log}
 
-	restart := func() {
-		log.Info("restart requested")
-		stop()
-		go func() {
-			time.Sleep(10 * time.Second)
-			os.Exit(0)
-		}()
-	}
 	mailer := &mail.Mailer{Meta: meta}
 	bk := &backup.Manager{Meta: meta, Logs: logs, Mailer: mailer, Dir: cfg.BackupDir(), KeyPath: cfg.SecretKeyPath(), Log: log, Restart: restart}
 	al := &alerts.Engine{Meta: meta, Logs: logs, Mailer: mailer, Log: log, Started: time.Now()}
@@ -142,7 +160,7 @@ func serve(cfgPath string) error {
 			log.Warn("seed device inventory", "err", err)
 		}
 	}()
-	apiSrv := &api.Server{Cfg: cfg, Meta: meta, Logs: logs, Mailer: mailer, Backup: bk, Updater: update.New(), Entra: &auth.Entra{Meta: meta},
+	apiSrv := &api.Server{Cfg: cfg, Meta: meta, Logs: logs, Mailer: mailer, Backup: bk, Updater: upd, Entra: &auth.Entra{Meta: meta},
 		Alerts: al, Pipeline: pipe, SysStats: sysStats, IngStats: ingStats, UI: web.Dist(), Log: log, Started: time.Now(), Restart: restart,
 		OnSettings: func(g store.GeneralSettings) { setLoc(g.Timezone) }}
 
@@ -166,9 +184,15 @@ func serve(cfgPath string) error {
 			}
 		}
 	}()
+	ln, err := net.Listen("tcp", cfg.HTTPListen)
+	if err != nil {
+		return fmt.Errorf("web interface: %w", err)
+	}
+	ready.Store(true)
 	go func() {
 		log.Info("web interface listening", "addr", cfg.HTTPListen)
-		if err := httpSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		if err := httpSrv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			ready.Store(false)
 			errc <- err
 		}
 	}()
@@ -250,15 +274,44 @@ func userCmd(cfgPath string, args []string) error {
 	return nil
 }
 
-func updateCmd(args []string) error {
+func newUpdater(cfg *config.Config) *update.Updater {
 	u := update.New()
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
-	defer cancel()
-	res, err := u.Check(ctx, false)
+	u.HistoryDir = filepath.Join(cfg.DataDir, "versions")
+	u.MetaPath = cfg.MetaDBPath()
+	return u
+}
+
+func updateCmd(cfgPath string, args []string) error {
+	cfg, err := config.Load(cfgPath)
 	if err != nil {
 		return err
 	}
-	fmt.Printf("current %s, latest %s\n", res.Current, res.Latest)
+	meta, err := store.OpenMeta(cfg.MetaDBPath(), cfg.SecretKeyPath())
+	if err != nil {
+		return err
+	}
+	u := newUpdater(cfg)
+	u.Snapshot = meta.Snapshot
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
+	defer cancel()
+	if len(args) > 0 && args[0] == "rollback" {
+		target := ""
+		if len(args) > 1 {
+			target = args[1]
+		}
+		ver, err := u.Rollback(ctx, target, nil)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("rolled back to %s; restart the service: systemctl restart unify-syslog\n", ver)
+		return nil
+	}
+	channel := meta.Update().Channel
+	res, err := u.Check(ctx, channel)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("current %s, latest %s (%s channel)\n", res.Current, res.Latest, res.Channel)
 	if len(args) > 0 && args[0] == "--check" {
 		return nil
 	}
@@ -266,7 +319,7 @@ func updateCmd(args []string) error {
 		fmt.Println("already up to date")
 		return nil
 	}
-	if err := u.Apply(ctx, false, nil); err != nil {
+	if err := u.Apply(ctx, channel, nil); err != nil {
 		return err
 	}
 	fmt.Println("installed; restart the service: systemctl restart unify-syslog")

@@ -49,10 +49,23 @@ func OpenLogs(ctx context.Context, cfg config.ClickHouse, retentionDays int) (*L
 func (l *Logs) t(name string) string { return "`" + l.db + "`." + name }
 
 func (l *Logs) migrate(ctx context.Context, retention int) error {
+	for _, s := range l.schema(retention) {
+		if err := l.Conn.Exec(ctx, s); err != nil {
+			return fmt.Errorf("migrate: %w", err)
+		}
+	}
+	return nil
+}
+
+// schema lists the statements that create or upgrade the log store. They
+// must stay additive (CREATE ... IF NOT EXISTS, ADD COLUMN IF NOT EXISTS)
+// so an older version still reads the data after a rollback; see
+// TestLogSchemaIsAdditive.
+func (l *Logs) schema(retention int) []string {
 	if retention <= 0 {
 		retention = 90
 	}
-	stmts := []string{
+	return []string{
 		"CREATE DATABASE IF NOT EXISTS `" + l.db + "`",
 		`CREATE TABLE IF NOT EXISTS ` + l.t("logs") + ` (
 			ts DateTime64(3, 'UTC') CODEC(Delta, ZSTD(1)),
@@ -112,12 +125,6 @@ func (l *Logs) migrate(ctx context.Context, retention int) error {
 			SELECT toStartOfHour(ts) AS hour, site, category, action, severity, source_ip, count() AS cnt
 			FROM ` + l.t("logs") + ` GROUP BY hour, site, category, action, severity, source_ip`,
 	}
-	for _, s := range stmts {
-		if err := l.Conn.Exec(ctx, s); err != nil {
-			return fmt.Errorf("migrate: %w", err)
-		}
-	}
-	return nil
 }
 
 func (l *Logs) SetRetention(ctx context.Context, days int) error {

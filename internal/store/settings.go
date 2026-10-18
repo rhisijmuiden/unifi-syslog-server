@@ -75,8 +75,11 @@ type BackupSettings struct {
 }
 
 type UpdateSettings struct {
-	AutoCheck   bool      `json:"auto_check"`
-	Prerelease  bool      `json:"prerelease"`
+	AutoCheck bool `json:"auto_check"`
+	// Channel is "stable" (production releases) or "test" (pre-releases).
+	Channel string `json:"channel"`
+	// Prerelease is the setting Channel replaced; still read for old databases.
+	Prerelease  bool      `json:"prerelease,omitempty"`
 	LastCheck   time.Time `json:"last_check"`
 	LastVersion string    `json:"last_version"`
 }
@@ -161,6 +164,13 @@ func (m *Meta) SaveBackup(b BackupSettings) error {
 func (m *Meta) Update() UpdateSettings {
 	u := UpdateSettings{AutoCheck: true}
 	m.GetSetting("update", &u)
+	if u.Channel == "" {
+		u.Channel = "stable"
+		if u.Prerelease {
+			u.Channel = "test"
+		}
+	}
+	u.Prerelease = false
 	return u
 }
 
