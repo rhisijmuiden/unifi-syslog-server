@@ -5,9 +5,9 @@ package auth
 import (
 	"context"
 	"encoding/json"
-	"io"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 	"sync"
 	"time"

@@ -294,7 +294,6 @@ func (m *Meta) SetSetting(key string, v any) error {
 	return err
 }
 
-
 // ---------------------------------------------------------------- categories
 
 type Category struct {

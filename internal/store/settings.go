@@ -17,11 +17,11 @@ type GeneralSettings struct {
 }
 
 type SSOSettings struct {
-	Enabled       bool   `json:"enabled"`
-	SyncLanguage  bool   `json:"sync_language"` // take the language of the Microsoft account
-	TenantID      string `json:"tenant_id"`
-	ClientID      string `json:"client_id"`
-	ClientSecret  string `json:"client_secret"`
+	Enabled      bool   `json:"enabled"`
+	SyncLanguage bool   `json:"sync_language"` // take the language of the Microsoft account
+	TenantID     string `json:"tenant_id"`
+	ClientID     string `json:"client_id"`
+	ClientSecret string `json:"client_secret"`
 	// AdminGroupID is the single admin group of earlier versions. It is
 	// still written (the first admin mapping) so a rollback keeps working.
 	AdminGroupID  string `json:"admin_group_id"`
