@@ -1,13 +1,78 @@
 import { useState } from 'react'
-import { MapPin, Plus, Trash2, Save } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { MapPin, Plus, Trash2, Save, Router as RouterIcon, ShieldAlert, Ban, AlertTriangle } from 'lucide-react'
 import { api } from '../api'
-import { Button, Card, Empty, Field, Input, PageHeader, Spinner, useAsync, useToast } from '../components/ui'
-import { fmtAgo } from '../lib/format'
+import { useAuth } from '../App'
+import { Button, Card, Empty, Field, Input, PageHeader, Spinner, cx, useAsync, useToast } from '../components/ui'
+import { fmtAgo, fmtCompact } from '../lib/format'
 
 interface Source { ip: string; name: string; site: string; hostname: string; model: string; last_seen: number; first_seen: number }
 interface Range { id: number; site: string; cidr: string }
+interface SiteView { site: string; ranges: string[]; devices: number; active: number; silent: number; senders: number; last_seen: number; total: number; blocked: number; threats: number; errors: number }
+
+const siteLabel = (s: string) => (s === 'default' ? 'Standaard' : s)
+
+function SiteCard({ s }: { s: SiteView }) {
+  const nav = useNavigate()
+  const state = s.silent > 0 ? 'warn' : s.last_seen && Date.now() / 1000 - s.last_seen < 3600 ? 'ok' : 'idle'
+  const dot = { ok: 'bg-emerald-500', warn: 'bg-amber-500', idle: 'bg-slate-500' }[state]
+  return (
+    <div className="panel flex flex-col rounded-2xl p-5 fade-in">
+      <div className="flex items-start justify-between gap-3">
+        <button onClick={() => nav('/?' + new URLSearchParams({ site: s.site }))} className="min-w-0 cursor-pointer text-left">
+          <div className="flex items-center gap-2">
+            <span className={cx('size-2.5 shrink-0 rounded-full', dot, state === 'ok' && 'shadow-[0_0_8px] shadow-emerald-500/60')} />
+            <span className="truncate font-semibold hover:text-indigo-400">{siteLabel(s.site)}</span>
+          </div>
+          <div className="mt-0.5 text-xs text-muted">{s.last_seen ? 'Laatste log ' + fmtAgo(s.last_seen * 1000) : s.total ? 'Geen afzenders meer op deze locatie' : 'Nog geen logs'}</div>
+        </button>
+        <button onClick={() => nav('/devices?' + new URLSearchParams({ site: s.site }))} className="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1 text-xs text-muted ring-1 ring-[var(--border)] hover:text-[var(--text)]">
+          <RouterIcon className="size-3.5" />{s.devices} apparaten
+        </button>
+      </div>
+      {s.silent > 0 && (
+        <button onClick={() => nav('/devices?' + new URLSearchParams({ site: s.site, status: 'silent' }))} className="mt-3 flex cursor-pointer items-center gap-2 rounded-lg bg-amber-500/10 px-3 py-2 text-left text-xs text-amber-500 ring-1 ring-amber-500/30">
+          <AlertTriangle className="size-4 shrink-0" />{s.silent === 1 ? '1 apparaat stuurt' : `${s.silent} apparaten sturen`} geen logs meer
+        </button>
+      )}
+      <div className="mt-4 grid grid-cols-4 gap-2 text-center">
+        {[
+          { l: 'Logs 24u', v: s.total, c: '' },
+          { l: 'Geblokkeerd', v: s.blocked, c: 'text-rose-500', i: <Ban className="size-3" /> },
+          { l: 'IPS', v: s.threats, c: 'text-fuchsia-500', i: <ShieldAlert className="size-3" /> },
+          { l: 'Fouten', v: s.errors, c: 'text-orange-500' },
+        ].map((x) => (
+          <div key={x.l} className="rounded-xl bg-[var(--panel-2)] px-1 py-2">
+            <div className={cx('text-lg font-semibold tabular-nums', x.v > 0 && x.c)}>{fmtCompact(x.v)}</div>
+            <div className="flex items-center justify-center gap-1 text-[10px] uppercase tracking-wide text-muted">{x.i}{x.l}</div>
+          </div>
+        ))}
+      </div>
+      <div className="mt-3 flex flex-wrap gap-1.5 text-[11px] text-muted">
+        <span>{s.active} actief</span><span>·</span><span>{s.senders} {s.senders === 1 ? 'afzender' : 'afzenders'}</span>
+        {s.ranges.length > 0 && <><span>·</span><span className="font-mono">{s.ranges.join(', ')}</span></>}
+      </div>
+    </div>
+  )
+}
 
 export default function Sites() {
+  const { user } = useAuth()
+  const isAdmin = user.role === 'admin'
+  const overview = useAsync(() => api.get<SiteView[]>('/sites/overview'))
+  return (
+    <>
+      <PageHeader title="Locaties" subtitle="Status van al je vestigingen in de afgelopen 24 uur" icon={<MapPin className="size-5" />}
+        actions={<Button onClick={overview.reload} loading={overview.loading}>Vernieuwen</Button>} />
+      {overview.loading && !overview.data ? <div className="grid place-items-center py-16"><Spinner /></div>
+        : !overview.data?.length ? <Card><Empty icon={<MapPin className="size-8" />} title="Nog geen locaties" text="Zodra UniFi-apparaten logs sturen verschijnen ze hier. Koppel hieronder netwerken aan een locatie." /></Card>
+        : <div className="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-3">{overview.data.map((s) => <SiteCard key={s.site} s={s} />)}</div>}
+      {isAdmin && <div className="mt-8"><SiteConfig onChange={overview.reload} /></div>}
+    </>
+  )
+}
+
+function SiteConfig({ onChange }: { onChange: () => void }) {
   const toast = useToast()
   const sources = useAsync(() => api.get<Source[]>('/sources'))
   const ranges = useAsync(() => api.get<Range[]>('/site-ranges'))
@@ -18,7 +83,7 @@ export default function Sites() {
     try {
       await api.post('/site-ranges', nr)
       setNr({ site: '', cidr: '' })
-      ranges.reload(); sources.reload()
+      ranges.reload(); sources.reload(); onChange()
       toast('ok', 'Netwerk toegevoegd')
     } catch (e) { toast('err', (e as Error).message) }
   }
@@ -27,7 +92,7 @@ export default function Sites() {
     try {
       await api.put('/sources/' + encodeURIComponent(ip), e)
       setEdits(({ [ip]: _, ...rest }) => rest)
-      sources.reload()
+      sources.reload(); onChange()
       toast('ok', 'Opgeslagen')
     } catch (err) { toast('err', (err as Error).message) }
   }
@@ -35,7 +100,7 @@ export default function Sites() {
 
   return (
     <>
-      <PageHeader title="Locaties" subtitle="Koppel binnenkomende logs aan je vestigingen" icon={<MapPin className="size-5" />} />
+      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted">Indeling</h2>
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-5">
         <Card className="xl:col-span-2" title="Netwerken per locatie" subtitle="Afzenders uit deze netwerken (bv. het WAN-adres van een vestiging) krijgen automatisch deze locatie">
           <div className="mb-4 grid grid-cols-[1fr_1fr_auto] items-end gap-2">
@@ -49,7 +114,7 @@ export default function Sites() {
               {ranges.data.map((r) => (
                 <li key={r.id} className="flex items-center justify-between py-2.5 text-sm">
                   <span><span className="font-medium">{r.site}</span> <span className="ml-2 font-mono text-xs text-muted">{r.cidr}</span></span>
-                  <button onClick={async () => { await api.del('/site-ranges/' + r.id); ranges.reload() }} className="cursor-pointer rounded-lg p-1.5 text-red-500 hover:bg-red-500/10"><Trash2 className="size-4" /></button>
+                  <button onClick={async () => { await api.del('/site-ranges/' + r.id); ranges.reload(); onChange() }} className="cursor-pointer rounded-lg p-1.5 text-red-500 hover:bg-red-500/10"><Trash2 className="size-4" /></button>
                 </li>
               ))}
             </ul>

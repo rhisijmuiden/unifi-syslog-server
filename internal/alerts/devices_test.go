@@ -1,0 +1,67 @@
+package alerts
+
+import (
+	"context"
+	"log/slog"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/rhisijmuiden/unify-syslog-server/internal/store"
+)
+
+func TestDeviceMail(t *testing.T) {
+	ap := store.InvDevice{Hostname: "U6-Pro", Name: "AP Receptie", Model: "U6-Pro", MAC: "f4:e2:c6:00:00:01", Site: "Kantoor", LastSeen: 1_800_000_000}
+	sw := store.InvDevice{Hostname: "USW-24", Site: "default", LastSeen: 1_800_000_000}
+
+	subj, body := deviceMail([]store.InvDevice{ap}, nil, 60)
+	if subj != "Apparaat stil: AP Receptie" {
+		t.Errorf("subject %q", subj)
+	}
+	if !strings.Contains(body, "langer dan 60 minuten") || !strings.Contains(body, "locatie Kantoor") {
+		t.Errorf("body %q", body)
+	}
+
+	subj, body = deviceMail([]store.InvDevice{ap}, []store.InvDevice{sw}, 60)
+	if subj != "1 apparaten stil, 1 weer actief" || !strings.Contains(body, "locatie Standaard") {
+		t.Errorf("mixed: %q %q", subj, body)
+	}
+}
+
+func TestCheckDevices(t *testing.T) {
+	dir := t.TempDir()
+	m, err := store.OpenMeta(filepath.Join(dir, "meta.db"), filepath.Join(dir, "key"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now()
+	m.TouchDevice("U6-Pro", "U6-Pro", "aa:00:00:00:00:01", "6.7.10", "Kantoor", "10.0.0.1", now.Add(-2*time.Hour))
+	m.TouchDevice("USW-24", "USW-24", "aa:00:00:00:00:02", "7.1.26", "Kantoor", "10.0.0.1", now)
+	m.FlushDevices()
+	e := &Engine{Meta: m, Log: slog.New(slog.DiscardHandler), Started: now}
+
+	silent := func() map[string]bool {
+		out := map[string]bool{}
+		for _, d := range m.Devices() {
+			out[d.Key] = d.Silent
+		}
+		return out
+	}
+	// Server only just started: nothing is judged yet.
+	e.checkDevices(context.Background(), now)
+	if s := silent(); s["aa:00:00:00:00:01"] {
+		t.Fatal("judged during start-up grace period")
+	}
+	e.Started = now.Add(-2 * time.Hour)
+	e.checkDevices(context.Background(), now)
+	if s := silent(); !s["aa:00:00:00:00:01"] || s["aa:00:00:00:00:02"] {
+		t.Fatalf("after check: %v", s)
+	}
+	// The device comes back.
+	m.TouchDevice("U6-Pro", "U6-Pro", "aa:00:00:00:00:01", "6.7.10", "Kantoor", "10.0.0.1", now)
+	e.checkDevices(context.Background(), now)
+	if s := silent(); s["aa:00:00:00:00:01"] {
+		t.Fatal("device that came back is still silent")
+	}
+}

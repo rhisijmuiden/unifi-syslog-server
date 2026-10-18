@@ -8,7 +8,8 @@ Een centrale syslog-server die speciaal is gebouwd voor UniFi. Alle UniFi-locati
 - **Dashboard**: berichten per categorie, geblokkeerde bronnen en poorten, IPS-signaturen, Wi-Fi-clients, SSID's, DHCP-clients, apparaten en locaties. Klik door naar de logs.
 - **Zoeken**: een eigen zoektaal met velden, CIDR, bereiken en wildcards, live tail, en export naar CSV en JSON.
 - **Categorieën**: maak eigen categorieën (een opgeslagen zoekopdracht met kleur) om logs te filteren.
-- **Locaties**: bron-IP's koppelen aan een site, handmatig of via IP-bereiken. Ook locaties achter NAT werken.
+- **Locaties**: bron-IP's koppelen aan een site, handmatig of via IP-bereiken. Ook locaties achter NAT werken. Een overzicht toont per locatie de status, apparaten en logs, blokkades, IPS-meldingen en fouten van de afgelopen 24 uur.
+- **Apparaten**: een vaste inventaris van alle UniFi-apparaten (op MAC-adres, dus ook achter NAT), met eigen naam en notities, firmware per model en bijgewerkte firmware. Apparaten die te lang geen logs sturen worden als *stil* gemarkeerd en desgewenst per e-mail gemeld, net als wanneer ze terugkomen.
 - **Alerts**: e-mail wanneer een zoekopdracht een drempel overschrijdt.
 - **Microsoft Entra SSO** (OIDC + PKCE), met groepen die worden gekoppeld aan rollen (admin of viewer).
 - **Mail**: een eigen SMTP-server met STARTTLS of TLS, minimaal TLS 1.2/1.3, en PLAIN, LOGIN, CRAM-MD5, SCRAM-SHA-256 of OAuth2 (Microsoft 365).

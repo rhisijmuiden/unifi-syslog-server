@@ -134,7 +134,14 @@ func serve(cfgPath string) error {
 	}
 	mailer := &mail.Mailer{Meta: meta}
 	bk := &backup.Manager{Meta: meta, Logs: logs, Mailer: mailer, Dir: cfg.BackupDir(), KeyPath: cfg.SecretKeyPath(), Log: log, Restart: restart}
-	al := &alerts.Engine{Meta: meta, Logs: logs, Mailer: mailer, Log: log}
+	al := &alerts.Engine{Meta: meta, Logs: logs, Mailer: mailer, Log: log, Started: time.Now()}
+	go func() {
+		sctx, cancel := context.WithTimeout(ctx, time.Minute)
+		defer cancel()
+		if err := meta.SeedDevices(sctx, logs); err != nil {
+			log.Warn("seed device inventory", "err", err)
+		}
+	}()
 	apiSrv := &api.Server{Cfg: cfg, Meta: meta, Logs: logs, Mailer: mailer, Backup: bk, Updater: update.New(), Entra: &auth.Entra{Meta: meta},
 		Alerts: al, Pipeline: pipe, SysStats: sysStats, IngStats: ingStats, UI: web.Dist(), Log: log, Started: time.Now(), Restart: restart,
 		OnSettings: func(g store.GeneralSettings) { setLoc(g.Timezone) }}

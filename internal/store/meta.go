@@ -26,7 +26,8 @@ type Meta struct {
 	key  []byte
 
 	mu      sync.RWMutex
-	sources map[string]Source // by IP
+	sources map[string]Source    // by IP
+	devices map[string]InvDevice // by DeviceKey
 }
 
 const schema = `
@@ -61,6 +62,23 @@ CREATE TABLE IF NOT EXISTS sources (
   model TEXT NOT NULL DEFAULT '',
   mac TEXT NOT NULL DEFAULT '',
   version TEXT NOT NULL DEFAULT '',
+  first_seen INTEGER NOT NULL,
+  last_seen INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS devices (
+  key TEXT PRIMARY KEY,
+  mac TEXT NOT NULL DEFAULT '',
+  hostname TEXT NOT NULL DEFAULT '',
+  model TEXT NOT NULL DEFAULT '',
+  version TEXT NOT NULL DEFAULT '',
+  prev_version TEXT NOT NULL DEFAULT '',
+  version_changed INTEGER NOT NULL DEFAULT 0,
+  name TEXT NOT NULL DEFAULT '',
+  notes TEXT NOT NULL DEFAULT '',
+  site TEXT NOT NULL DEFAULT '',
+  source_ip TEXT NOT NULL DEFAULT '',
+  monitored INTEGER NOT NULL DEFAULT 1,
+  silent INTEGER NOT NULL DEFAULT 0,
   first_seen INTEGER NOT NULL,
   last_seen INTEGER NOT NULL
 );
@@ -142,6 +160,9 @@ func OpenMeta(path, keyPath string) (*Meta, error) {
 	}
 	m := &Meta{DB: db, path: path, key: key}
 	if err := m.reloadSources(); err != nil {
+		return nil, err
+	}
+	if err := m.reloadDevices(); err != nil {
 		return nil, err
 	}
 	m.seedCategories()
