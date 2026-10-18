@@ -151,7 +151,7 @@ func OpenMeta(path, keyPath string) (*Meta, error) {
 		return nil, err
 	}
 	db.SetMaxOpenConns(4)
-	for _, sc := range []string{schema, unifiSchema, securitySchema, forwardSchema, probeSchema} {
+	for _, sc := range []string{schema, unifiSchema, securitySchema, forwardSchema, probeSchema, notifySchema} {
 		if _, err := db.Exec(sc); err != nil {
 			return nil, fmt.Errorf("migrate: %w", err)
 		}
@@ -190,6 +190,9 @@ var addedColumns = []struct{ table, column, def string }{
 	{"audit", "kind", "TEXT NOT NULL DEFAULT ''"},
 	{"audit", "via", "TEXT NOT NULL DEFAULT ''"},
 	{"alert_rules", "forward_to", "TEXT NOT NULL DEFAULT ''"},
+	{"alert_rules", "channels", "TEXT NOT NULL DEFAULT ''"},
+	{"alert_rules", "severity", "TEXT NOT NULL DEFAULT 'warning'"},
+	{"alert_rules", "email", "INTEGER NOT NULL DEFAULT 1"},
 }
 
 func migrateColumns(db *sql.DB) error {
@@ -385,10 +388,16 @@ type AlertRule struct {
 	LastFired       int64  `json:"last_fired"`
 	// Destinations are forwarding destinations that also receive the alert.
 	Destinations []int64 `json:"destinations"`
+	// Channels are notification channels (Teams, Slack, SMS…) for the alert.
+	Channels []int64 `json:"channels"`
+	// Severity is info, warning or critical; channels can skip lower ones.
+	Severity string `json:"severity"`
+	// Email sends the alert by e-mail to Recipients.
+	Email bool `json:"email"`
 }
 
 func (m *Meta) AlertRules() ([]AlertRule, error) {
-	rows, err := m.DB.Query(`SELECT id,name,query,threshold,window_minutes,cooldown_minutes,recipients,enabled,last_fired,forward_to FROM alert_rules ORDER BY id`)
+	rows, err := m.DB.Query(`SELECT id,name,query,threshold,window_minutes,cooldown_minutes,recipients,enabled,last_fired,forward_to,channels,severity,email FROM alert_rules ORDER BY id`)
 	if err != nil {
 		return nil, err
 	}
@@ -396,11 +405,12 @@ func (m *Meta) AlertRules() ([]AlertRule, error) {
 	out := []AlertRule{}
 	for rows.Next() {
 		var a AlertRule
-		var fwd string
-		if err := rows.Scan(&a.ID, &a.Name, &a.Query, &a.Threshold, &a.WindowMinutes, &a.CooldownMinutes, &a.Recipients, &a.Enabled, &a.LastFired, &fwd); err != nil {
+		var fwd, chans string
+		if err := rows.Scan(&a.ID, &a.Name, &a.Query, &a.Threshold, &a.WindowMinutes, &a.CooldownMinutes, &a.Recipients, &a.Enabled, &a.LastFired, &fwd, &chans, &a.Severity, &a.Email); err != nil {
 			return nil, err
 		}
 		a.Destinations = splitIDs(fwd)
+		a.Channels = splitIDs(chans)
 		out = append(out, a)
 	}
 	return out, rows.Err()
@@ -413,17 +423,20 @@ func (m *Meta) SaveAlertRule(a *AlertRule) error {
 	if a.WindowMinutes < 1 {
 		a.WindowMinutes = 5
 	}
+	if SeverityRank(a.Severity) == 1 {
+		a.Severity = SevWarning
+	}
 	if a.ID == 0 {
-		res, err := m.DB.Exec(`INSERT INTO alert_rules(name,query,threshold,window_minutes,cooldown_minutes,recipients,enabled,forward_to,created_at) VALUES(?,?,?,?,?,?,?,?,?)`,
-			a.Name, a.Query, a.Threshold, a.WindowMinutes, a.CooldownMinutes, a.Recipients, a.Enabled, joinIDs(a.Destinations), time.Now().Unix())
+		res, err := m.DB.Exec(`INSERT INTO alert_rules(name,query,threshold,window_minutes,cooldown_minutes,recipients,enabled,forward_to,channels,severity,email,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`,
+			a.Name, a.Query, a.Threshold, a.WindowMinutes, a.CooldownMinutes, a.Recipients, a.Enabled, joinIDs(a.Destinations), joinIDs(a.Channels), a.Severity, a.Email, time.Now().Unix())
 		if err != nil {
 			return err
 		}
 		a.ID, _ = res.LastInsertId()
 		return nil
 	}
-	_, err := m.DB.Exec(`UPDATE alert_rules SET name=?,query=?,threshold=?,window_minutes=?,cooldown_minutes=?,recipients=?,enabled=?,forward_to=? WHERE id=?`,
-		a.Name, a.Query, a.Threshold, a.WindowMinutes, a.CooldownMinutes, a.Recipients, a.Enabled, joinIDs(a.Destinations), a.ID)
+	_, err := m.DB.Exec(`UPDATE alert_rules SET name=?,query=?,threshold=?,window_minutes=?,cooldown_minutes=?,recipients=?,enabled=?,forward_to=?,channels=?,severity=?,email=? WHERE id=?`,
+		a.Name, a.Query, a.Threshold, a.WindowMinutes, a.CooldownMinutes, a.Recipients, a.Enabled, joinIDs(a.Destinations), joinIDs(a.Channels), a.Severity, a.Email, a.ID)
 	return err
 }
 

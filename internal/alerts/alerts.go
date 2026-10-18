@@ -12,6 +12,7 @@ import (
 	"github.com/rhisijmuiden/unify-syslog-server/internal/forward"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/i18n"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/mail"
+	"github.com/rhisijmuiden/unify-syslog-server/internal/notify"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/store"
 )
 
@@ -28,6 +29,8 @@ type Engine struct {
 	Controller func(mac string) (store.ControllerDevice, bool)
 	// Forward delivers fired alerts to forwarding destinations; optional.
 	Forward *forward.Manager
+	// Notify delivers to notification channels (Teams, Slack, SMS…); optional.
+	Notify *notify.Dispatcher
 
 	lastFirmware time.Time
 }
@@ -78,9 +81,6 @@ func (e *Engine) evaluate(ctx context.Context, now time.Time) {
 func (e *Engine) fire(ctx context.Context, r store.AlertRule, n uint64, req store.SearchReq) {
 	e.Log.Info("alert fired", "rule", r.Name, "count", n)
 	e.Forward.SendAlert(r.Destinations, forward.Alert{Rule: r.Name, Query: r.Query, Count: n, Window: r.WindowMinutes, Threshold: r.Threshold})
-	if e.Mailer == nil || !e.Mailer.Configured() {
-		return
-	}
 	req.Limit = 15
 	rows, _ := e.Logs.Search(ctx, req)
 	compose := func(t i18n.Translator) (string, string) {
@@ -90,6 +90,12 @@ func (e *Engine) fire(ctx context.Context, r store.AlertRule, n uint64, req stor
 			fmt.Fprintf(&b, "%s  %-15s %-10s %s\n", x.TS.Local().Format("2006-01-02 15:04:05"), x.Hostname, x.Category, x.Message)
 		}
 		return t("Alert: %s", r.Name), b.String()
+	}
+	if len(r.Channels) > 0 {
+		e.Notify.Notify(notify.Notification{Source: store.SourceAlert, Severity: r.Severity, Channels: r.Channels, Compose: compose})
+	}
+	if !r.Email || e.Mailer == nil || !e.Mailer.Configured() {
+		return
 	}
 	mctx, cancel := context.WithTimeout(ctx, time.Minute)
 	defer cancel()

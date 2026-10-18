@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/rhisijmuiden/unify-syslog-server/internal/mail"
+	"github.com/rhisijmuiden/unify-syslog-server/internal/notify"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/probeproto"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/store"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/syslogd"
@@ -40,6 +41,7 @@ type Hub struct {
 	Client *http.Client
 	Log    *slog.Logger
 	Mailer *mail.Mailer
+	Notify *notify.Dispatcher
 	// Pin is the public key pin of the server certificate.
 	Pin string
 

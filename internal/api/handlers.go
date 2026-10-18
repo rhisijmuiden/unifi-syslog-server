@@ -677,7 +677,8 @@ func (s *Server) listAlerts(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) saveAlert(w http.ResponseWriter, r *http.Request) {
-	var a store.AlertRule
+	// Rules saved through the API before channels existed omit "email".
+	a := store.AlertRule{Email: true}
 	if err := decode(r, &a); err != nil {
 		jerr(w, 400, "invalid request")
 		return

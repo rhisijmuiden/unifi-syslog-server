@@ -82,6 +82,17 @@ curl -s -H "Authorization: Bearer $TOKEN" -o blocked.csv \
 
 These need an administrator.
 
+## Notification channels
+
+| Method and path | Does |
+|---|---|
+| `GET /api/notify` | Channels (secrets masked) with the last delivery, the last error and the number of waiting notifications |
+| `POST /api/notify`, `PUT /api/notify/{id}` | Create or change a channel; a masked secret keeps the stored value |
+| `DELETE /api/notify/{id}` | Remove a channel and its waiting notifications |
+| `POST /api/notify/test` | Send a test message with the settings in the request body |
+
+Alert rules (`/api/alerts`) take `channels` (channel IDs), `severity` (`info`, `warning`, `critical`) and `email` (default `true`). These need an administrator. See [NOTIFICATIONS.md](NOTIFICATIONS.md).
+
 ## Remote probes
 
 | Method and path | Does |

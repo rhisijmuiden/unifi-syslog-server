@@ -31,6 +31,7 @@ import (
 	"github.com/rhisijmuiden/unify-syslog-server/internal/i18n"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/ingest"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/mail"
+	"github.com/rhisijmuiden/unify-syslog-server/internal/notify"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/probehub"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/store"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/syslogd"
@@ -50,6 +51,7 @@ type Server struct {
 	Enrich   *enrich.Enricher
 	Syncer   *enrich.Syncer
 	Forward  *forward.Manager
+	Notify   *notify.Dispatcher
 	Probes   *probehub.Hub
 	// TLSPin is the public key pin of the server certificate, for probes.
 	TLSPin   string
@@ -226,6 +228,12 @@ func (s *Server) Handler() http.Handler {
 				r.Post("/probes/{id}/code", s.probeCode)
 				r.Get("/settings/probes", s.getProbeSettings)
 				r.Put("/settings/probes", s.putProbeSettings)
+
+				r.Get("/notify", s.listNotify)
+				r.Post("/notify", s.saveNotify)
+				r.Post("/notify/test", s.testNotify)
+				r.Put("/notify/{id}", s.saveNotify)
+				r.Delete("/notify/{id}", s.deleteNotify)
 
 				r.Get("/alerts", s.listAlerts)
 				r.Post("/alerts", s.saveAlert)

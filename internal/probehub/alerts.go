@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/rhisijmuiden/unify-syslog-server/internal/i18n"
+	"github.com/rhisijmuiden/unify-syslog-server/internal/notify"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/store"
 )
 
@@ -71,7 +72,18 @@ func (h *Hub) check(ctx context.Context) {
 			h.Log.Info("probe status changed", "probe", p.Name, "offline", offline)
 		}
 	}
-	if len(changes) == 0 || !cfg.Notify || h.Mailer == nil || !h.Mailer.Configured() {
+	if len(changes) == 0 {
+		return
+	}
+	compose := func(t i18n.Translator) (string, string) { return probeMail(t, changes, cfg) }
+	sev := store.SevInfo
+	for _, c := range changes {
+		if c.kind == "offline" || c.kind == "buffer" {
+			sev = store.SevWarning
+		}
+	}
+	h.Notify.Notify(notify.Notification{Source: store.SourceProbes, Severity: sev, Compose: compose})
+	if !cfg.Notify || h.Mailer == nil || !h.Mailer.Configured() {
 		return
 	}
 	rcpt := cfg.Recipients
@@ -83,7 +95,6 @@ func (h *Hub) check(ctx context.Context) {
 	}
 	mctx, cancel := context.WithTimeout(ctx, time.Minute)
 	defer cancel()
-	compose := func(t i18n.Translator) (string, string) { return probeMail(t, changes, cfg) }
 	if err := h.Mailer.Send(mctx, []string{rcpt}, compose); err != nil {
 		h.Log.Warn("probe mail", "err", err)
 	}
