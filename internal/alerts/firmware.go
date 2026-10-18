@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/rhisijmuiden/unify-syslog-server/internal/i18n"
+	"github.com/rhisijmuiden/unify-syslog-server/internal/notify"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/store"
 )
 
@@ -158,14 +159,22 @@ func (e *Engine) checkFirmware(ctx context.Context, now time.Time) {
 			e.Meta.SetFirmwareAlerted(d.Key, "")
 		}
 	}
-	if len(fresh) == 0 || !cfg.FirmwareNotify || e.Mailer == nil || !e.Mailer.Configured() {
+	if len(fresh) == 0 {
 		return
 	}
-	mctx, cancel := context.WithTimeout(ctx, time.Minute)
-	defer cancel()
 	compose := func(t i18n.Translator) (string, string) { return firmwareMail(t, fresh, rep.Models) }
-	if err := e.Mailer.Send(mctx, []string{cfg.Recipients}, compose); err != nil {
-		e.Log.Warn("firmware mail", "err", err)
+	sent := e.Notify.Notify(notify.Notification{Source: store.SourceFirmware, Severity: store.SevInfo, Compose: compose}) > 0
+	if cfg.FirmwareNotify && e.Mailer != nil && e.Mailer.Configured() {
+		mctx, cancel := context.WithTimeout(ctx, time.Minute)
+		defer cancel()
+		if err := e.Mailer.Send(mctx, []string{cfg.Recipients}, compose); err != nil {
+			e.Log.Warn("firmware mail", "err", err)
+		} else {
+			sent = true
+		}
+	}
+	// Unsent warnings are retried on the next run.
+	if !sent {
 		return
 	}
 	for _, f := range fresh {

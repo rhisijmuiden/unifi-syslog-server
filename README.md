@@ -4,7 +4,7 @@ A central syslog server built specifically for UniFi. All UniFi sites send their
 
 ![Overview dashboard](docs/screenshots/dashboard.png)
 
-**Contents**: [Features](#features) · [Forwarding to Sentinel, Elastic and other tools](#forwarding-to-sentinel-elastic-and-other-tools) · [Remote probes](#remote-probes) · [Feature tour](#feature-tour) · [Installation](#installation) · [Configuring UniFi](#configuring-unifi) · [Users, roles and security](#users-roles-and-security) · [Query language](#query-language) · [Branding](#branding) · [Languages](#languages) · [Backup and restore](#backup-and-restore) · [Updates](#updates-release-channels-and-rollback) · [Command line](#command-line) · [Building from source](#building-from-source) · [Architecture](#architecture)
+**Contents**: [Features](#features) · [Notification channels](#notification-channels) · [Forwarding to Sentinel, Elastic and other tools](#forwarding-to-sentinel-elastic-and-other-tools) · [Remote probes](#remote-probes) · [Feature tour](#feature-tour) · [Installation](#installation) · [Configuring UniFi](#configuring-unifi) · [Users, roles and security](#users-roles-and-security) · [Query language](#query-language) · [Branding](#branding) · [Languages](#languages) · [Backup and restore](#backup-and-restore) · [Updates](#updates-release-channels-and-rollback) · [Command line](#command-line) · [Building from source](#building-from-source) · [Architecture](#architecture)
 
 ## Features
 
@@ -32,7 +32,8 @@ A central syslog server built specifically for UniFi. All UniFi sites send their
 **Act on events**
 
 - **Forwarding** to Microsoft Sentinel, Elasticsearch / Elastic Cloud / OpenSearch, Logstash, syslog (Graylog, Wazuh, QRadar…), Splunk HEC and JSON webhooks, with per-destination filters, an on-disk queue, retries, volume and cost statistics, and ready-made Sentinel and Kibana content. See [below](#forwarding-to-sentinel-elastic-and-other-tools).
-- **Alerts**: email when a search exceeds a threshold within a time window, and optionally an alert record to Microsoft Sentinel or another forwarding destination.
+- **Alerts**: notify when a search exceeds a threshold within a time window, by email, in your chat and messaging channels, and optionally as an alert record to Microsoft Sentinel or another forwarding destination. Each rule has a severity (info, warning, critical).
+- **Notification channels**: Microsoft Teams, Slack, Telegram, SMS via MessageBird / Bird, Pushover and JSON webhooks next to email, with channels per alert rule, a minimum severity per channel, quiet hours, batching against alert storms and a test button. Silent devices, offline probes, outdated firmware and backups can go there too. See [below](#notification-channels).
 
 **Administration and security**
 
@@ -45,12 +46,39 @@ A central syslog server built specifically for UniFi. All UniFi sites send their
 - **Mail**: your own SMTP server with STARTTLS or TLS, minimum TLS 1.2/1.3, and PLAIN, LOGIN, CRAM-MD5, SCRAM-SHA-256 or OAuth2 (Microsoft 365).
 - **Backup**: full and incremental backups to FTP, FTPS, SCP or a local folder, with scheduling, retention policy and restore from the remote location.
 - **Branding**: your company name and logo (separate light and dark mode variants) and favicon in the menu, on the sign-in page and in e-mails.
-- **Languages**: English and Dutch, per user. Entra SSO users get the language of their Microsoft account. E-mails are sent in the language of the recipient.
+- **Languages**: English, Dutch, German and French, per user. Entra SSO users get the language of their Microsoft account. E-mails are sent in the language of the recipient.
 - **Updates**: the Info button shows the version, checks for updates and installs them from the interface. Choose the **Production** channel (stable releases) or **Test** (pre-releases), and roll back to a previous version with one click.
 - **Remote probes**: a small probe at each remote location receives syslog on port 514, buffers it on disk during outages and forwards it over HTTPS. Install it as a Proxmox LXC, on Debian 13 or from a Raspberry Pi image, and update it from the main server. See [below](#remote-probes).
 - **Deployment**: a Proxmox LXC script (Debian 13) and an installer for Debian 13 VMs and physical servers. The web interface runs on **port 8080**.
 
 See the [roadmap](ROADMAP.md) for what is planned next.
+
+## Notification channels
+
+Get alerts where your team already is. Add channels under **Configuration → Notification channels**:
+
+| Channel | How it connects |
+|---|---|
+| **Microsoft Teams** | Adaptive Card in a channel through a Workflows webhook ("Post to a channel when a webhook request is received") |
+| **Slack** | Incoming webhook, or a bot token with `chat:write` |
+| **Telegram** | Bot that posts to a chat, group or forum topic |
+| **SMS** | MessageBird SMS API or the Bird channels API, to one or more phone numbers |
+| **Pushover** | Push notifications to phones and desktops, with priority by severity |
+| **Webhook** | JSON POST to any HTTPS endpoint, optionally signed with HMAC-SHA256 |
+
+- **Channels per rule**: each alert rule picks its channels and its severity, for example Teams for everything and SMS only for critical alerts. E-mail can be switched off per rule.
+- **System events**: silent devices, offline probes, outdated firmware and backups go to every channel that subscribes to them.
+- **Minimum severity** per channel, so an SMS channel only gets critical notifications.
+- **Quiet hours**: notifications are held at night and sent as one summary in the morning; critical ones can still go out right away.
+- **Batching**: notifications within a few minutes become one message, so an alert storm does not flood your phone.
+- **Reliable**: notifications wait in the database and are retried with back-off; the page shows the last delivery, errors and what is waiting. Every channel has a test button.
+- **Language** per channel: English, Dutch, German or French.
+
+| | |
+|---|---|
+| ![Notification channels](docs/screenshots/notifications.png)<br>**Notification channels** with their subscriptions, quiet hours, batching, last delivery and errors. | ![Editing a channel](docs/screenshots/notifications-edit.png)<br>**A channel** with its connection, minimum severity, system events, language, quiet hours and batching. |
+
+See [docs/NOTIFICATIONS.md](docs/NOTIFICATIONS.md) for the setup per channel.
 
 ## Forwarding to Sentinel, Elastic and other tools
 
@@ -88,7 +116,7 @@ Because only matching events leave the server, you only pay for relevant data in
 | | |
 |---|---|
 | ![Microsoft Sentinel destination](docs/screenshots/forwarding-sentinel.png)<br>**Microsoft Sentinel**: tenant and client ID, client secret or certificate, the logs ingestion endpoint and DCR immutable ID, and the table mode. Here: firewall, IPS, VPN and sign-in events, with a price per GB for the cost estimate. | ![Elastic Cloud destination](docs/screenshots/forwarding-elastic.png)<br>**Elastic Cloud**: URL, API key and data stream, *Install index template*, and an extra filter that skips DNS. |
-| ![Syslog destination for Graylog](docs/screenshots/forwarding-syslog.png)<br>**Syslog to Graylog**: RFC 5424 over TCP with octet counting, only for two sites and only *warning or worse*. | ![Alert rules with forwarding destinations](docs/screenshots/alerts.png)<br>**Alerts** can send an alert record to Sentinel or a webhook as well as an e-mail. |
+| ![Syslog destination for Graylog](docs/screenshots/forwarding-syslog.png)<br>**Syslog to Graylog**: RFC 5424 over TCP with octet counting, only for two sites and only *warning or worse*. | ![Alert rules with channels and forwarding destinations](docs/screenshots/alerts.png)<br>**Alerts** have a severity and go to e-mail, notification channels, and Sentinel or a webhook. |
 
 ### Reliable delivery
 
@@ -289,12 +317,17 @@ Under **Administration → Branding** you set a company name and upload a logo f
 
 ## Languages
 
-The interface and e-mails are available in English and Dutch.
+The interface, e-mails and notifications are available in English, Dutch (Nederlands), German (Deutsch) and French (Français).
 
 - The server default is set under **Settings → Default language**; it applies to the sign-in page and to users who have not picked a language.
 - Every user can pick their own language at the bottom of the menu, and admins can set it per user.
 - Entra SSO users get the language of their Microsoft account on every sign-in, until they pick a language themselves. This uses the delegated Graph permission `User.Read` (or the optional `xms_pl` claim) and can be turned off on the SSO page.
 - E-mails go out in the language of the user with the recipient's address, otherwise in the server default.
+- Each [notification channel](#notification-channels) has its own language, so a German team can get its Teams messages in German.
+
+| | |
+|---|---|
+| ![Notification channels in German](docs/screenshots/notifications-de.png)<br>**Deutsch**: the notification channels page in German. | ![Alert rule in French](docs/screenshots/alerts-edit-fr.png)<br>**Français**: editing an alert rule in French. |
 
 To add a language, copy `web/src/locales/nl.json` (interface) and `internal/i18n/locales/nl.json` (e-mails) to `<code>.json`, translate the values and set `_language` to the language's own name. Keys are the English texts; a missing key falls back to English. New files are picked up automatically when building. `npm run i18n:check` in `web/` lists interface texts that a translation is missing.
 

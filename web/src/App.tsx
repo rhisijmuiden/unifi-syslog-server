@@ -3,7 +3,7 @@ import { BrowserRouter, NavLink, Navigate, Route, Routes, useLocation } from 're
 import {
   LayoutDashboard, ScrollText, Tags, Router as RouterIcon, MapPin, BellRing, Users, KeyRound, Mail, DatabaseBackup,
   Settings, History, Info, LogOut, Moon, Sun, Menu, X, Languages, Palette,
-  ShieldX, Wifi, Network, Lock, Siren, Smartphone, Server, Globe, UserRound, ShieldCheck, ListChecks, Send, RadioTower,
+  ShieldX, Wifi, Network, Lock, Siren, Smartphone, Server, Globe, UserRound, ShieldCheck, ListChecks, Send, RadioTower, Megaphone,
 } from 'lucide-react'
 import { api, brandingUrl, can, type Branding, type User } from './api'
 import { roleLabel } from './components/Access'
@@ -34,6 +34,7 @@ import Security from './pages/Security'
 import Allowlist from './pages/Allowlist'
 import Forwarding from './pages/Forwarding'
 import Probes from './pages/Probes'
+import Notifications from './pages/Notifications'
 
 interface AuthCtx {
   user: User
@@ -145,6 +146,7 @@ const nav: { section: string; items: NavItem[] }[] = [
   ] },
   { section: 'Configuration', items: [
     { to: '/alerts', label: 'Alerts', icon: <BellRing />, admin: true },
+    { to: '/notifications', label: 'Notification channels', icon: <Megaphone />, admin: true },
     { to: '/probes', label: 'Remote probes', icon: <RadioTower />, admin: true },
     { to: '/forwarding', label: 'Forwarding', icon: <Send />, admin: true },
     { to: '/controllers', label: 'UniFi controllers', icon: <Server />, admin: true },
@@ -254,6 +256,7 @@ function Shell() {
             <Route path="/account" element={<Account />} />
             {isAdmin && <>
               <Route path="/alerts" element={<Alerts />} />
+              <Route path="/notifications" element={<Notifications />} />
               <Route path="/forwarding" element={<Forwarding />} />
               <Route path="/probes" element={<Probes />} />
               <Route path="/controllers" element={<Controllers />} />

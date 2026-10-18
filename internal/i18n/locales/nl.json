@@ -33,5 +33,7 @@
   "Probe offline: %d": "Probe offline: %d",
   "Probe buffer filling up": "Buffer van probe loopt vol",
   "Probes back to normal": "Probes weer normaal",
-  "never": "nooit"
+  "never": "nooit",
+  "%d notifications": "%d meldingen",
+  "This channel is set up correctly. You will receive notifications from %s here.": "Dit kanaal is goed ingesteld. Je ontvangt hier meldingen van %s."
 }

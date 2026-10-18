@@ -26,6 +26,7 @@ import (
 
 	"github.com/rhisijmuiden/unify-syslog-server/internal/i18n"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/mail"
+	"github.com/rhisijmuiden/unify-syslog-server/internal/notify"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/store"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/version"
 )
@@ -56,6 +57,7 @@ type Manager struct {
 	Meta    *store.Meta
 	Logs    *store.Logs
 	Mailer  *mail.Mailer
+	Notify  *notify.Dispatcher
 	Dir     string
 	KeyPath string // secret key that encrypts stored passwords; travels with meta.db
 	Log     *slog.Logger
@@ -366,12 +368,6 @@ func (m *Manager) prune(ctx context.Context, cfg store.BackupSettings) {
 
 func (m *Manager) notify(rec *store.BackupRecord, err error) {
 	cfg := m.Meta.Backup()
-	if cfg.NotifyOn == "never" || cfg.NotifyOn == "" || m.Mailer == nil || !m.Mailer.Configured() {
-		return
-	}
-	if err == nil && cfg.NotifyOn != "always" {
-		return
-	}
 	compose := func(t i18n.Translator) (string, string) {
 		subject := t("Backup succeeded")
 		body := ""
@@ -383,6 +379,17 @@ func (m *Manager) notify(rec *store.BackupRecord, err error) {
 			body += "\n" + t("Error: %s", err.Error())
 		}
 		return subject, body
+	}
+	sev := store.SevInfo
+	if err != nil {
+		sev = store.SevCritical
+	}
+	m.Notify.Notify(notify.Notification{Source: store.SourceBackup, Severity: sev, Compose: compose})
+	if cfg.NotifyOn == "never" || cfg.NotifyOn == "" || m.Mailer == nil || !m.Mailer.Configured() {
+		return
+	}
+	if err == nil && cfg.NotifyOn != "always" {
+		return
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()

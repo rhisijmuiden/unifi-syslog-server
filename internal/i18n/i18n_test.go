@@ -14,7 +14,7 @@ func TestT(t *testing.T) {
 	if got := T("nl-BE", "Device silent: %s", "AP"); got != "Apparaat stil: AP" {
 		t.Errorf("got %q", got)
 	}
-	if got := T("fr", "Device silent: %s", "AP"); got != "Device silent: AP" {
+	if got := T("ja", "Device silent: %s", "AP"); got != "Device silent: AP" {
 		t.Errorf("fallback: got %q", got)
 	}
 }

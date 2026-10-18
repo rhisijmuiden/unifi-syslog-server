@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/rhisijmuiden/unify-syslog-server/internal/i18n"
+	"github.com/rhisijmuiden/unify-syslog-server/internal/notify"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/store"
 )
 
@@ -40,12 +41,17 @@ func (e *Engine) checkDevices(ctx context.Context, now time.Time) {
 		return
 	}
 	e.Log.Info("device status changed", "silent", len(silent), "back", len(back))
+	compose := func(t i18n.Translator) (string, string) { return deviceMail(t, silent, back, cfg.SilentMinutes) }
+	sev := store.SevInfo
+	if len(silent) > 0 {
+		sev = store.SevWarning
+	}
+	e.Notify.Notify(notify.Notification{Source: store.SourceDevices, Severity: sev, Compose: compose})
 	if !cfg.Notify || e.Mailer == nil || !e.Mailer.Configured() {
 		return
 	}
 	mctx, cancel := context.WithTimeout(ctx, time.Minute)
 	defer cancel()
-	compose := func(t i18n.Translator) (string, string) { return deviceMail(t, silent, back, cfg.SilentMinutes) }
 	if err := e.Mailer.Send(mctx, []string{cfg.Recipients}, compose); err != nil {
 		e.Log.Warn("device mail", "err", err)
 	}
