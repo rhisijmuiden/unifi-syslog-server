@@ -151,7 +151,7 @@ func OpenMeta(path, keyPath string) (*Meta, error) {
 		return nil, err
 	}
 	db.SetMaxOpenConns(4)
-	for _, sc := range []string{schema, unifiSchema, securitySchema, forwardSchema} {
+	for _, sc := range []string{schema, unifiSchema, securitySchema, forwardSchema, probeSchema} {
 		if _, err := db.Exec(sc); err != nil {
 			return nil, fmt.Errorf("migrate: %w", err)
 		}

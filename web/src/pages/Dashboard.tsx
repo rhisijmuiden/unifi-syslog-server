@@ -1,13 +1,14 @@
-import { useNavigate } from 'react-router-dom'
-import { Activity, ShieldX, Siren, TriangleAlert, LayoutDashboard, Gauge } from 'lucide-react'
-import { api, type Bucket, type TopItem } from '../api'
-import { Card, PageHeader, Spinner, Stat, useAsync } from '../components/ui'
+import { Link, useNavigate } from 'react-router-dom'
+import { Activity, ShieldX, Siren, TriangleAlert, LayoutDashboard, Gauge, RadioTower } from 'lucide-react'
+import { api, can, type Bucket, type TopItem } from '../api'
+import { useAuth } from '../App'
+import { Badge, Card, PageHeader, Spinner, Stat, cx, useAsync } from '../components/ui'
 import { BarList, Timeline } from '../components/charts'
 import { WorldMap } from '../components/WorldMap'
 import { countryName, flag } from '../lib/countries'
 import { RangePicker, RefreshButton, SiteFilter, toRange, useUrlState } from '../components/Filters'
 import { t } from '../i18n'
-import { catColor, catLabel, fmtCompact, fmtNum, severityLabel } from '../lib/format'
+import { catColor, catLabel, fmtAgo, fmtBytes, fmtCompact, fmtNum, severityLabel } from '../lib/format'
 
 interface Dash {
   overview: { total: number; blocked: number; threats: number; errors: number; by_category: TopItem[]; by_site: TopItem[]; by_severity: TopItem[]; timeline: Bucket[]; step_sec: number }
@@ -52,6 +53,8 @@ export default function Dashboard() {
             <Stat label={t('Ingest')} value={fmtCompact(data.ingest.parsed)} sub={t('{dropped} dropped · {errors} write errors', { dropped: fmtNum(data.ingest.dropped), errors: fmtNum(data.ingest.insert_errors) })} icon={<Gauge className="size-5" />} accent="#199e70" />
           </div>
 
+          <ProbesOverview />
+
           <Card title={t('Messages per category')} subtitle={t('Click a bar to open that period in the logs')}>
             <Timeline buckets={o!.timeline ?? []} stepSec={o!.step_sec} range={toRange(st)} onSelect={(f, t) => go('', { preset: 'custom', from: localIso(f), to: localIso(t) })} />
           </Card>
@@ -87,6 +90,48 @@ export default function Dashboard() {
         </div>
       )}
     </>
+  )
+}
+
+interface ProbeItem {
+  id: number; name: string; site: string; enrolled: boolean; online: boolean; outdated: boolean; version: string; last_seen: number
+  rate: number; buffer_records: number; buffer_bytes: number; buffer_max: number; devices: number
+}
+
+/** Status of the remote probes; hidden when there are none. */
+function ProbesOverview() {
+  const { user } = useAuth()
+  const { data } = useAsync(() => api.get<ProbeItem[]>('/probes/summary'))
+  const list = (data ?? []).filter((p) => p.enrolled)
+  if (!list.length) return null
+  const offline = list.filter((p) => !p.online).length
+  return (
+    <Card title={t('Remote probes')} pad={false}
+      subtitle={offline ? t('{n} of {total} offline', { n: offline, total: list.length }) : t('All {n} probes online', { n: list.length })}
+      actions={can.admin(user) && <Link to="/probes" className="text-xs text-indigo-400 hover:underline">{t('Manage')}</Link>}>
+      <div className="grid grid-cols-1 divide-y divide-[var(--border)] sm:grid-cols-2 sm:divide-y-0 xl:grid-cols-3">
+        {list.map((p) => {
+          const buf = p.buffer_max ? Math.min(100, (p.buffer_bytes / p.buffer_max) * 100) : 0
+          return (
+            <div key={p.id} className="flex items-center gap-3 px-5 py-3">
+              <span className={cx('grid size-9 shrink-0 place-items-center rounded-xl', p.online ? 'bg-emerald-500/15 text-emerald-500' : 'bg-red-500/15 text-red-500')}><RadioTower className="size-4" /></span>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="truncate text-sm font-medium">{p.name}</span>
+                  <Badge>{p.site === 'default' ? t('Default') : p.site}</Badge>
+                </div>
+                <div className={cx('truncate text-xs', p.online ? 'text-muted' : 'text-red-500')}>
+                  {p.online
+                    ? t('{rate}/s · {devices} devices · buffer {buf}', { rate: p.rate.toFixed(1), devices: p.devices, buf: p.buffer_records ? `${fmtNum(p.buffer_records)} (${fmtBytes(p.buffer_bytes)})` : '0' })
+                    : t('Offline since {ago}', { ago: p.last_seen ? fmtAgo(p.last_seen * 1000) : '–' })}
+                </div>
+                {buf >= 5 && <div className="mt-1 h-1 overflow-hidden rounded-full bg-slate-500/15"><div className={cx('h-full', buf >= 80 ? 'bg-amber-500' : 'bg-indigo-500')} style={{ width: `${buf}%` }} /></div>}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </Card>
   )
 }
 

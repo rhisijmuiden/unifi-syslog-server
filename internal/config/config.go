@@ -14,7 +14,11 @@ import (
 const DefaultPath = "/etc/unify-syslog/config.yaml"
 
 type Config struct {
-	HTTPListen string     `yaml:"http_listen"`
+	HTTPListen string `yaml:"http_listen"`
+	// TLSCert and TLSKey replace the self-signed certificate the web port
+	// also serves HTTPS with (used by remote probes).
+	TLSCert    string     `yaml:"tls_cert"`
+	TLSKey     string     `yaml:"tls_key"`
 	DataDir    string     `yaml:"data_dir"`
 	Syslog     Syslog     `yaml:"syslog"`
 	ClickHouse ClickHouse `yaml:"clickhouse"`

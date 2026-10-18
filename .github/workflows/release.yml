@@ -57,6 +57,11 @@ jobs:
           cache-dependency-path: web/package-lock.json
       - run: go test ./...
       - run: make dist VERSION=${TAG#v}
+      - name: Build the Raspberry Pi image
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq xz-utils file
+          make rpi-image
+          cd dist && sha256sum unify-syslog-probe-rpi-arm64.img.xz >> checksums.txt
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.TAG }}
@@ -65,5 +70,6 @@ jobs:
           make_latest: ${{ steps.meta.outputs.prerelease == 'true' && 'false' || 'true' }}
           files: |
             dist/*.tar.gz
+            dist/*.img.xz
             dist/checksums.txt
           generate_release_notes: true

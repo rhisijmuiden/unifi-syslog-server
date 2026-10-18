@@ -4,7 +4,7 @@ A central syslog server built specifically for UniFi. All UniFi sites send their
 
 ![Overview dashboard](docs/screenshots/dashboard.png)
 
-**Contents**: [Features](#features) · [Forwarding to Sentinel, Elastic and other tools](#forwarding-to-sentinel-elastic-and-other-tools) · [Feature tour](#feature-tour) · [Installation](#installation) · [Configuring UniFi](#configuring-unifi) · [Users, roles and security](#users-roles-and-security) · [Query language](#query-language) · [Branding](#branding) · [Languages](#languages) · [Backup and restore](#backup-and-restore) · [Updates](#updates-release-channels-and-rollback) · [Command line](#command-line) · [Building from source](#building-from-source) · [Architecture](#architecture)
+**Contents**: [Features](#features) · [Forwarding to Sentinel, Elastic and other tools](#forwarding-to-sentinel-elastic-and-other-tools) · [Remote probes](#remote-probes) · [Feature tour](#feature-tour) · [Installation](#installation) · [Configuring UniFi](#configuring-unifi) · [Users, roles and security](#users-roles-and-security) · [Query language](#query-language) · [Branding](#branding) · [Languages](#languages) · [Backup and restore](#backup-and-restore) · [Updates](#updates-release-channels-and-rollback) · [Command line](#command-line) · [Building from source](#building-from-source) · [Architecture](#architecture)
 
 ## Features
 
@@ -47,6 +47,7 @@ A central syslog server built specifically for UniFi. All UniFi sites send their
 - **Branding**: your company name and logo (separate light and dark mode variants) and favicon in the menu, on the sign-in page and in e-mails.
 - **Languages**: English and Dutch, per user. Entra SSO users get the language of their Microsoft account. E-mails are sent in the language of the recipient.
 - **Updates**: the Info button shows the version, checks for updates and installs them from the interface. Choose the **Production** channel (stable releases) or **Test** (pre-releases), and roll back to a previous version with one click.
+- **Remote probes**: a small probe at each remote location receives syslog on port 514, buffers it on disk during outages and forwards it over HTTPS. Install it as a Proxmox LXC, on Debian 13 or from a Raspberry Pi image, and update it from the main server. See [below](#remote-probes).
 - **Deployment**: a Proxmox LXC script (Debian 13) and an installer for Debian 13 VMs and physical servers. The web interface runs on **port 8080**.
 
 See the [roadmap](ROADMAP.md) for what is planned next.
@@ -105,6 +106,24 @@ The [integrations](integrations) folder, also downloadable from the Forwarding p
 - **Logstash**: a sample pipeline.
 
 See [docs/FORWARDING.md](docs/FORWARDING.md) for the setup per tool.
+
+## Remote probes
+
+Sites with an unreliable link, or sites you do not want to open port 514 to, can use a **remote probe**. The probe runs at the site, receives the UniFi syslog on UDP/TCP 514, keeps it on its own disk and forwards it to the main server over HTTPS on port 8080. During an outage it keeps buffering (1 GB and 7 days by default), and afterwards it delivers every message exactly once. Messages from a probe get the probe's site and the field `probe`.
+
+Add a probe under **Configuration → Remote probes → Add probe** and copy the enrollment key. Then install the probe in one of three ways:
+
+```bash
+# Proxmox LXC (Debian 13), on the Proxmox host
+USS_PROBE_KEY='uss1_…' bash -c "$(curl -fsSL https://raw.githubusercontent.com/rhisijmuiden/unifi-syslog-server/main/ct/unify-syslog-probe.sh)"
+
+# Debian 13 VM or physical server, as root
+curl -fsSL https://raw.githubusercontent.com/rhisijmuiden/unifi-syslog-server/main/deploy/install-probe.sh | USS_PROBE_KEY='uss1_…' bash
+```
+
+For a **Raspberry Pi** (3, 4, 5 or Zero 2 W), write `unify-syslog-probe-rpi-arm64.img.xz` from the release with Raspberry Pi Imager. Put the key in `uss-probe.txt` on the boot partition, or paste it on the probe's web page at `http://<pi>:8080`.
+
+The Remote probes page shows the status, rate, buffer, devices and resources of every probe, and the main server can email you when a probe goes offline or its buffer fills up. Probes are updated through the main server, automatically to the server's version or by hand, and roll back by themselves when an update fails. See [docs/PROBES.md](docs/PROBES.md) for all details, including how to use your own HTTPS certificate.
 
 ## Feature tour
 
@@ -184,7 +203,7 @@ Then open `http://<server>:8080`.
 | Path | Contents |
 |---|---|
 | `/etc/unify-syslog/config.yaml` | Ports, ClickHouse connection and ingest settings. |
-| `/var/lib/unify-syslog/` | Metadata (`meta.db`), the encryption key (`secret.key`), local backups and the forwarding queues (`forward/`). |
+| `/var/lib/unify-syslog/` | Metadata (`meta.db`), the encryption key (`secret.key`), local backups, the forwarding queues (`forward/`), the HTTPS certificate (`tls/`) and the cached probe releases (`probes/`). |
 | `/opt/unify-syslog/` | The program. |
 
 ## Configuring UniFi
@@ -309,7 +328,9 @@ Requirements: Go 1.26 and Node 22.
 make web      # build the React UI (web/dist, embedded in the binary)
 make build    # bin/unify-syslog
 make test
-make dist     # release tarballs for amd64 and arm64 with checksums.txt
+make probe    # bin/unify-syslog-probe
+make dist     # release tarballs (server: amd64, arm64; probe: amd64, arm64, arm) with checksums.txt
+make rpi-image  # after make dist: the Raspberry Pi image (needs root)
 ```
 
 Releases are made with the **release** workflow in GitHub Actions (*Run workflow*): enter the version and choose the channel. `production` needs a plain version (`v0.4.0`) and becomes the latest release; `test` needs a pre-release suffix (`v0.4.0-beta.1`) and is published as a GitHub pre-release, which only servers on the Test channel are offered. The install script and the updater use these releases.
@@ -318,6 +339,7 @@ Releases are made with the **release** workflow in GitHub Actions (*Run workflow
 
 ```
 UniFi devices ──UDP/TCP 514──▶ syslogd ─▶ ingest workers (UniFi parser, site)
+remote probes ─HTTPS 8080─▶ probe API ──────┘
                                             │ batches of 20k / 1 s
                                             ▼
                      ClickHouse  logs (MergeTree, TTL) + logs_hourly (MV)

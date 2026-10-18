@@ -108,9 +108,16 @@ func (p *Pipeline) parseLoop(ctx context.Context, out chan<- *unifi.Event) {
 			loc := p.Location()
 			e := unifi.Parse(m.Data, m.SourceIP, m.Received, loc)
 			p.rangesMu.RLock()
-			site, name := p.Meta.Resolve(m.SourceIP, e.Hostname, e.DeviceModel, e.DeviceMAC, e.DeviceVersion, p.ranges)
+			key := m.SourceIP
+			if m.Probe != "" {
+				key += "@" + m.Probe
+			}
+			site, name := p.Meta.Resolve(key, e.Hostname, e.DeviceModel, e.DeviceMAC, e.DeviceVersion, p.ranges, m.Site)
 			p.rangesMu.RUnlock()
 			e.Site = site
+			if m.Probe != "" {
+				e.SetField("probe", m.Probe)
+			}
 			p.Meta.TouchDevice(e.Hostname, e.DeviceModel, e.DeviceMAC, e.DeviceVersion, site, m.SourceIP, m.Received)
 			// Remote locations usually arrive NATed from one WAN address, so the
 			// source name labels the sender, it does not replace device hostnames.

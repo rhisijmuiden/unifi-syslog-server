@@ -25,5 +25,13 @@
   "%s (%s, site %s): %s, %s": "%s (%s, locatie %s): %s, %s",
   "Models with mixed firmware:": "Modellen met gemengde firmware:",
   "Outdated firmware: %s": "Verouderde firmware: %s",
-  "%d devices run outdated firmware": "%d apparaten draaien verouderde firmware"
+  "%d devices run outdated firmware": "%d apparaten draaien verouderde firmware",
+  "Probe %s (site %s) is offline: no contact for more than %d minutes, last contact %s.": "Probe %s (locatie %s) is offline: langer dan %d minuten geen contact, laatste contact %s.",
+  "Probe %s (site %s) is back online.": "Probe %s (locatie %s) is weer online.",
+  "The buffer of probe %s (site %s) is %d%% full (%d messages waiting). The oldest messages are dropped when it is full.": "De buffer van probe %s (locatie %s) is %d%% vol (%d berichten wachten). Als hij vol is vervallen de oudste berichten.",
+  "The buffer of probe %s (site %s) is emptying again.": "De buffer van probe %s (locatie %s) loopt weer leeg.",
+  "Probe offline: %d": "Probe offline: %d",
+  "Probe buffer filling up": "Buffer van probe loopt vol",
+  "Probes back to normal": "Probes weer normaal",
+  "never": "nooit"
 }
