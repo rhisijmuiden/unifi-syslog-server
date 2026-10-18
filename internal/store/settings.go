@@ -10,10 +10,12 @@ type GeneralSettings struct {
 	RetentionDays int    `json:"retention_days"`
 	BaseURL       string `json:"base_url"`
 	InstanceName  string `json:"instance_name"`
+	Language      string `json:"language"` // default interface and e-mail language
 }
 
 type SSOSettings struct {
 	Enabled       bool   `json:"enabled"`
+	SyncLanguage  bool   `json:"sync_language"` // take the language of the Microsoft account
 	TenantID      string `json:"tenant_id"`
 	ClientID      string `json:"client_id"`
 	ClientSecret  string `json:"client_secret"`
@@ -62,11 +64,11 @@ type BackupTarget struct {
 
 type BackupSettings struct {
 	Enabled          bool           `json:"enabled"`
-	Time             string         `json:"time"`               // HH:MM local time for the daily run
-	FullEveryDays    int            `json:"full_every_days"`    // full backup cadence; incrementals in between
-	IncrementalHours int            `json:"incremental_hours"`  // extra incrementals during the day (0 = only daily)
-	KeepChains       int            `json:"keep_chains"`        // number of full backups (with their incrementals) to keep
-	IncludeLogs      bool           `json:"include_logs"`       // include ClickHouse log data, not only configuration
+	Time             string         `json:"time"`              // HH:MM local time for the daily run
+	FullEveryDays    int            `json:"full_every_days"`   // full backup cadence; incrementals in between
+	IncrementalHours int            `json:"incremental_hours"` // extra incrementals during the day (0 = only daily)
+	KeepChains       int            `json:"keep_chains"`       // number of full backups (with their incrementals) to keep
+	IncludeLogs      bool           `json:"include_logs"`      // include ClickHouse log data, not only configuration
 	NotifyTo         string         `json:"notify_to"`
 	NotifyOn         string         `json:"notify_on"` // never | failure | always
 	Targets          []BackupTarget `json:"targets"`
@@ -80,13 +82,13 @@ type UpdateSettings struct {
 }
 
 func (m *Meta) General() GeneralSettings {
-	g := GeneralSettings{Timezone: "Europe/Amsterdam", RetentionDays: 90, InstanceName: "UniFi Syslog Server"}
+	g := GeneralSettings{Timezone: "Europe/Amsterdam", RetentionDays: 90, InstanceName: "UniFi Syslog Server", Language: "en"}
 	m.GetSetting("general", &g)
 	return g
 }
 
 func (m *Meta) SSO() SSOSettings {
-	s := SSOSettings{DefaultRole: "viewer", AutoProvision: true, ButtonLabel: "Sign in with Microsoft"}
+	s := SSOSettings{DefaultRole: "viewer", AutoProvision: true, ButtonLabel: "Sign in with Microsoft", SyncLanguage: true}
 	m.GetSetting("sso", &s)
 	s.ClientSecret = m.Decrypt(s.ClientSecret)
 	return s

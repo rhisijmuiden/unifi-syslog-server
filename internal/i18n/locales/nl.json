@@ -1,0 +1,22 @@
+{
+  "Sent automatically by %s": "Automatisch verzonden door %s",
+  "Default": "Standaard",
+  "%s (%s, site %s, last seen %s)": "%s (%s, locatie %s, laatst gezien %s)",
+  "No logs received (for more than %d minutes):": "Geen logs ontvangen (langer dan %d minuten):",
+  "Back online:": "Weer online:",
+  "%d silent, %d back online": "%d stil, %d weer online",
+  "Device silent: %s": "Apparaat stil: %s",
+  "%d devices stopped sending logs": "%d apparaten sturen geen logs meer",
+  "Device back online: %s": "Apparaat weer online: %s",
+  "%d devices back online": "%d apparaten weer online",
+  "Rule: %s\nQuery: %s\nCount: %d in the last %d minutes (threshold %d)\n\nLatest events:\n": "Regel: %s\nZoekopdracht: %s\nAantal: %d in de laatste %d minuten (drempel %d)\n\nLaatste gebeurtenissen:\n",
+  "Alert: %s": "Melding: %s",
+  "Backup succeeded": "Back-up geslaagd",
+  "Backup FAILED": "Back-up MISLUKT",
+  "Type: %s\nFile: %s\nSize: %d bytes\nRows: %d\nTargets: %s\n": "Type: %s\nBestand: %s\nGrootte: %d bytes\nRijen: %d\nDoelen: %s\n",
+  "full": "volledig",
+  "incremental": "incrementeel",
+  "Error: %s": "Fout: %s",
+  "Test message": "Testbericht",
+  "This is a test message from %s.\nIf you are reading this, the mail configuration works.\n\nSent: %s": "Dit is een testbericht van %s.\nAls je dit leest, werkt de mailconfiguratie.\n\nVerzonden: %s"
+}

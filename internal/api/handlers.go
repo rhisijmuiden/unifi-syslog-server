@@ -18,6 +18,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/rhisijmuiden/unify-syslog-server/internal/backup"
+	"github.com/rhisijmuiden/unify-syslog-server/internal/i18n"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/mail"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/query"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/store"
@@ -396,6 +397,9 @@ func (s *Server) putGeneral(w http.ResponseWriter, r *http.Request) {
 		jerr(w, 400, "retention must be between 1 and 3650 days")
 		return
 	}
+	if g.Language = i18n.Normalize(g.Language); g.Language == "" {
+		g.Language = "en"
+	}
 	old := s.Meta.General()
 	if old.RetentionDays != g.RetentionDays {
 		if err := s.Logs.SetRetention(r.Context(), g.RetentionDays); err != nil {
@@ -472,13 +476,23 @@ func (s *Server) testSMTP(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 45*time.Second)
 	defer cancel()
-	err := mail.SendWith(ctx, v.Settings, s.Meta.General().InstanceName, []string{v.To}, "Test message",
-		"This is a test message from "+s.Meta.General().InstanceName+".\nIf you are reading this, the mail configuration works.\n\nSent: "+time.Now().Format(time.RFC1123))
+	rcpt := mail.Recipients([]string{v.To}, v.Settings.DefaultTo)
+	lang := ""
+	if len(rcpt) > 0 {
+		lang = s.Meta.LanguageForEmail(rcpt[0])
+	}
+	if lang == "" {
+		lang = s.language(user(r))
+	}
+	brand := s.Mailer.Brand()
+	t := i18n.For(lang)
+	err := mail.SendWith(ctx, v.Settings, brand, lang, rcpt, t("Test message"),
+		t("This is a test message from %s.\nIf you are reading this, the mail configuration works.\n\nSent: %s", brand.Instance, time.Now().Format(time.RFC1123)))
 	if err != nil {
 		jerr(w, 400, err.Error())
 		return
 	}
-	jsonOut(w, map[string]string{"message": "Test message sent to " + v.To})
+	jsonOut(w, map[string]string{"message": "Test message sent to " + strings.Join(rcpt, ", ")})
 }
 
 func (s *Server) getBackup(w http.ResponseWriter, r *http.Request) {
@@ -678,6 +692,8 @@ func (s *Server) createUser(w http.ResponseWriter, r *http.Request) {
 	}
 	u := b.User
 	u.Provider = "local"
+	u.Language = i18n.Normalize(u.Language)
+	u.LanguageManual = u.Language != ""
 	if err := s.Meta.CreateUser(&u, b.Password); err != nil {
 		jerr(w, 400, "user already exists")
 		return
@@ -707,6 +723,9 @@ func (s *Server) updateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	u.Email, u.Name, u.Role, u.Disabled = b.Email, b.Name, b.Role, b.Disabled
+	if lang := i18n.Normalize(b.Language); lang != u.Language {
+		u.Language, u.LanguageManual = lang, lang != ""
+	}
 	if err := s.Meta.UpdateUser(u); err != nil {
 		jerr(w, 500, err.Error())
 		return

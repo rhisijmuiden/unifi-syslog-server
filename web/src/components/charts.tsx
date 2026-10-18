@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import type { Bucket, TopItem } from '../api'
+import { t } from '../i18n'
 import { catColor, catLabel, chartInk, fmtCompact, fmtNum, otherColor, primaryCategories } from '../lib/format'
 
 function tickFmt(stepSec: number) {
@@ -43,11 +44,11 @@ function TipBox({ active, payload, label, stepSec }: { active?: boolean; payload
       <div className="mb-1 font-medium">{tickFmt(stepSec)(label ?? 0)}</div>
       {[...payload].reverse().filter((p) => p.value).map((p) => (
         <div key={p.dataKey} className="flex items-center justify-between gap-4">
-          <span className="flex items-center gap-1.5"><span className="size-2 rounded-sm" style={{ background: p.color }} />{p.dataKey === 'count' ? 'Messages' : catLabel(p.dataKey)}</span>
+          <span className="flex items-center gap-1.5"><span className="size-2 rounded-sm" style={{ background: p.color }} />{p.dataKey === 'count' ? t('Messages') : catLabel(p.dataKey)}</span>
           <span className="font-medium tabular-nums">{fmtNum(p.value)}</span>
         </div>
       ))}
-      {payload.length > 1 && <div className="mt-1 flex justify-between border-t border-app pt-1 font-medium"><span>Total</span><span className="tabular-nums">{fmtNum(total)}</span></div>}
+      {payload.length > 1 && <div className="mt-1 flex justify-between border-t border-app pt-1 font-medium"><span>{t('Total')}</span><span className="tabular-nums">{fmtNum(total)}</span></div>}
     </div>
   )
 }
@@ -99,7 +100,7 @@ export function Sparkline({ values, color = '#3987e5' }: { values: number[]; col
 }
 
 // Horizontal magnitude bars: one hue, ranked. Labels in text ink.
-export function BarList({ items, onClick, format = (k: string) => k, color = '#3987e5', empty = 'No data', mono = true }: { items: TopItem[]; onClick?: (k: string) => void; format?: (k: string) => React.ReactNode; color?: string | ((k: string) => string); empty?: string; mono?: boolean }) {
+export function BarList({ items, onClick, format = (k: string) => k, color = '#3987e5', empty = t('No data'), mono = true }: { items: TopItem[]; onClick?: (k: string) => void; format?: (k: string) => React.ReactNode; color?: string | ((k: string) => string); empty?: string; mono?: boolean }) {
   if (!items.length) return <p className="py-6 text-center text-sm text-muted">{empty}</p>
   const max = Math.max(...items.map((i) => i.count))
   return (

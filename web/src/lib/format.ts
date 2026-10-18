@@ -1,8 +1,9 @@
-export const nf = new Intl.NumberFormat('en-GB')
-export const fmtNum = (n: number | undefined) => nf.format(n ?? 0)
+import { locale, t } from '../i18n'
+
+export const fmtNum = (n: number | undefined) => new Intl.NumberFormat(locale()).format(n ?? 0)
 
 export function fmtCompact(n: number) {
-  return new Intl.NumberFormat('en-GB', { notation: 'compact', maximumFractionDigits: 1 }).format(n)
+  return new Intl.NumberFormat(locale(), { notation: 'compact', maximumFractionDigits: 1 }).format(n)
 }
 
 export function fmtBytes(b: number) {
@@ -14,17 +15,17 @@ export function fmtBytes(b: number) {
 
 export function fmtTime(s: string | number | Date, withDate = true) {
   const d = new Date(s)
-  return d.toLocaleString('en-GB', withDate
+  return d.toLocaleString(locale(), withDate
     ? { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }
     : { hour: '2-digit', minute: '2-digit', second: '2-digit' })
 }
 
 export function fmtAgo(s: string | number | Date) {
   const sec = Math.round((Date.now() - new Date(s).getTime()) / 1000)
-  if (sec < 60) return `${Math.max(sec, 0)} s ago`
-  if (sec < 3600) return `${Math.round(sec / 60)} min ago`
-  if (sec < 86400) return `${Math.round(sec / 3600)} h ago`
-  return `${Math.round(sec / 86400)} days ago`
+  if (sec < 60) return t('{n} s ago', { n: Math.max(sec, 0) })
+  if (sec < 3600) return t('{n} min ago', { n: Math.round(sec / 60) })
+  if (sec < 86400) return t('{n} h ago', { n: Math.round(sec / 3600) })
+  return t('{n} days ago', { n: Math.round(sec / 86400) })
 }
 
 export function fmtDuration(sec: number) {
@@ -70,7 +71,7 @@ export const catColor = (c: string) => {
   const s = categoryMeta[c]?.slot
   return s ? slot[s][isDark() ? 1 : 0] : otherColor()
 }
-export const catLabel = (c: string) => categoryMeta[c]?.label ?? (c === 'other' ? 'Other' : c)
+export const catLabel = (c: string) => (categoryMeta[c] ? t(categoryMeta[c].label) : c === 'other' ? t('Other') : c)
 export const chartInk = () => (isDark() ? { grid: '#1e2638', axis: '#8591a8', tip: '#151b2c' } : { grid: '#e3e8f0', axis: '#64748b', tip: '#ffffff' })
 
 export function actionClass(a: string) {

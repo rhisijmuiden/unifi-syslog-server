@@ -6,6 +6,7 @@ import { useAuth } from '../App'
 import { useUrlState } from '../components/Filters'
 import { Badge, Button, Card, Empty, Field, Input, Modal, PageHeader, Select, Spinner, Stat, Toggle, cx, useAsync, useToast } from '../components/ui'
 import { fmtAgo, fmtNum, fmtTime } from '../lib/format'
+import { t } from '../i18n'
 
 interface Device {
   key: string; mac: string; hostname: string; model: string; version: string; prev_version: string; version_changed: number
@@ -22,13 +23,13 @@ function kind(d: Device) {
   return { label: 'Other', icon: <Server className="size-4" /> }
 }
 
-const siteLabel = (s: string) => (!s || s === 'default' ? 'Default' : s)
+const siteLabel = (s: string) => (!s || s === 'default' ? t('Default') : s)
 const recentUpgrade = (d: Device) => d.version_changed > 0 && Date.now() / 1000 - d.version_changed < 7 * 86400
 
 function StatusDot({ d }: { d: Device }) {
   const c = { active: 'bg-emerald-500 shadow-[0_0_8px] shadow-emerald-500/60', silent: 'bg-amber-500', inactive: 'bg-slate-500' }[d.status]
-  const t = { active: 'Active', silent: 'No longer sending logs', inactive: 'Inactive (not monitored)' }[d.status]
-  return <span title={t} className={cx('inline-block size-2.5 rounded-full', c)} />
+  const tip = { active: 'Active', silent: 'No longer sending logs', inactive: 'Inactive (not monitored)' }[d.status]
+  return <span title={t(tip)} className={cx('inline-block size-2.5 rounded-full', c)} />
 }
 
 export default function Devices() {
@@ -64,12 +65,12 @@ export default function Devices() {
 
   return (
     <>
-      <PageHeader title="Devices" subtitle="Inventory of all UniFi gateways, switches and access points" icon={<RouterIcon className="size-5" />}
+      <PageHeader title={t('Devices')} subtitle={t('Inventory of all UniFi gateways, switches and access points')} icon={<RouterIcon className="size-5" />}
         actions={<>
-          <div className="relative"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted" /><input value={st.q} onChange={(e) => set({ q: e.target.value })} placeholder="Search…" className="input !pl-9 w-56" /></div>
-          <Select value={st.site} onChange={(site) => set({ site })} className="w-44" options={[{ value: '', label: 'All sites' }, ...sites.map((s) => ({ value: s, label: siteLabel(s) }))]} />
-          <Select value={st.days} onChange={(days) => set({ days })} className="w-44" options={[{ value: '1', label: 'Messages 24 hours' }, { value: '7', label: 'Messages 7 days' }, { value: '30', label: 'Messages 30 days' }]} />
-          {isAdmin && <Button onClick={() => setSettings(true)} icon={<Settings2 className="size-4" />}>Monitoring</Button>}
+          <div className="relative"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted" /><input value={st.q} onChange={(e) => set({ q: e.target.value })} placeholder={t('Search…')} className="input !pl-9 w-56" /></div>
+          <Select value={st.site} onChange={(site) => set({ site })} className="w-44" options={[{ value: '', label: t('All sites') }, ...sites.map((s) => ({ value: s, label: siteLabel(s) }))]} />
+          <Select value={st.days} onChange={(days) => set({ days })} className="w-44" options={[{ value: '1', label: t('Messages 24 hours') }, { value: '7', label: t('Messages 7 days') }, { value: '30', label: t('Messages 30 days') }]} />
+          {isAdmin && <Button onClick={() => setSettings(true)} icon={<Settings2 className="size-4" />}>{t('Monitoring')}</Button>}
         </>} />
 
       <div className="mb-6 grid grid-cols-2 gap-4 xl:grid-cols-4">
@@ -79,24 +80,24 @@ export default function Devices() {
           { s: 'silent', label: 'Silent', value: count('silent'), accent: '#f59e0b', icon: <BellOff className="size-5" />, sub: 'No longer sending logs' },
         ].map((x) => (
           <button key={x.label} onClick={() => set({ status: st.status === x.s ? '' : x.s })} className={cx('cursor-pointer rounded-2xl text-left', st.status === x.s && x.s && 'ring-2 ring-indigo-500/50')}>
-            <Stat label={x.label} value={fmtNum(x.value)} accent={x.accent} icon={x.icon} sub={x.sub} />
+            <Stat label={t(x.label)} value={fmtNum(x.value)} accent={x.accent} icon={x.icon} sub={x.sub && t(x.sub)} />
           </button>
         ))}
-        <Stat label="Firmware" value={mixed ? `${mixed} ${mixed === 1 ? 'model' : 'models'}` : 'Consistent'} accent={mixed ? '#f59e0b' : '#06b6d4'} icon={<Layers className="size-5" />}
-          sub={mixed ? 'with mixed versions' : 'Each model runs one version'} />
+        <Stat label={t('Firmware')} value={mixed ? (mixed === 1 ? t('1 model') : t('{n} models', { n: mixed })) : t('Consistent')} accent={mixed ? '#f59e0b' : '#06b6d4'} icon={<Layers className="size-5" />}
+          sub={mixed ? t('with mixed versions') : t('Each model runs one version')} />
       </div>
 
       <div className="grid grid-cols-1 gap-6 2xl:grid-cols-4">
         <Card pad={false} className="2xl:col-span-3">
           {loading && !data ? <div className="grid place-items-center py-20"><Spinner /></div>
-            : !list.length ? <Empty icon={<RouterIcon className="size-8" />} title={all.length ? 'No devices found' : 'No devices yet'} text={all.length ? 'Adjust the filters.' : 'In the UniFi Network app, go to Settings → System → Logging and configure a remote syslog server with the IP of this server, port 514.'} />
+            : !list.length ? <Empty icon={<RouterIcon className="size-8" />} title={all.length ? t('No devices found') : t('No devices yet')} text={all.length ? t('Adjust the filters.') : t('In the UniFi Network app, go to Settings → System → Logging and configure a remote syslog server with the IP of this server, port 514.')} />
             : (
               <div className="overflow-x-auto scroll-thin">
                 <table className="w-full text-sm">
                   <thead className="text-left text-[11px] uppercase tracking-wide text-muted"><tr className="border-b border-app">
-                    <th className="w-8 py-3 pl-5" /><th className="px-3 py-3 font-medium">Device</th><th className="px-3 py-3 font-medium">Type</th><th className="px-3 py-3 font-medium">Firmware</th>
-                    <th className="px-3 py-3 font-medium">MAC</th><th className="px-3 py-3 font-medium">Site</th>
-                    <th className="px-3 py-3 font-medium text-right">Messages</th><th className="px-3 py-3 font-medium text-right">Errors</th><th className="px-3 py-3 font-medium">Last seen</th>
+                    <th className="w-8 py-3 pl-5" /><th className="px-3 py-3 font-medium">{t('Device')}</th><th className="px-3 py-3 font-medium">{t('Type')}</th><th className="px-3 py-3 font-medium">{t('Firmware')}</th>
+                    <th className="px-3 py-3 font-medium">MAC</th><th className="px-3 py-3 font-medium">{t('Site')}</th>
+                    <th className="px-3 py-3 font-medium text-right">{t('Messages')}</th><th className="px-3 py-3 font-medium text-right">{t('Errors')}</th><th className="px-3 py-3 font-medium">{t('Last seen')}</th>
                     {isAdmin && <th className="px-5 py-3" />}
                   </tr></thead>
                   <tbody>
@@ -107,13 +108,13 @@ export default function Devices() {
                           <td className="py-2.5 pl-5"><StatusDot d={d} /></td>
                           <td className="px-3 py-2.5">
                             <div className="font-medium">{d.name || d.hostname}</div>
-                            <div className="text-xs text-muted">{[d.name && d.hostname, d.model !== d.hostname && d.model].filter(Boolean).join(' · ')}{!d.monitored && <span className="ml-1 inline-flex items-center gap-1"><BellOff className="size-3" />not monitored</span>}</div>
+                            <div className="text-xs text-muted">{[d.name && d.hostname, d.model !== d.hostname && d.model].filter(Boolean).join(' · ')}{!d.monitored && <span className="ml-1 inline-flex items-center gap-1"><BellOff className="size-3" />{t('not monitored')}</span>}</div>
                             {d.notes && <div className="mt-0.5 max-w-xs truncate text-[11px] italic text-muted">{d.notes}</div>}
                           </td>
-                          <td className="px-3 py-2.5 whitespace-nowrap"><span className="inline-flex items-center gap-1.5 text-muted">{k.icon}{k.label}</span></td>
+                          <td className="px-3 py-2.5 whitespace-nowrap"><span className="inline-flex items-center gap-1.5 text-muted">{k.icon}{t(k.label)}</span></td>
                           <td className="px-3 py-2.5 whitespace-nowrap">
                             <span className="font-mono text-xs">{d.version}</span>
-                            {recentUpgrade(d) && <span title={`Was ${d.prev_version}, changed on ${fmtTime(d.version_changed * 1000)}`} className="ml-1.5 inline-flex"><Badge className="bg-cyan-500/15 text-cyan-500 ring-cyan-500/30"><ArrowUpCircle className="size-3" />updated</Badge></span>}
+                            {recentUpgrade(d) && <span title={t('Was {version}, changed on {time}', { version: d.prev_version, time: fmtTime(d.version_changed * 1000) })} className="ml-1.5 inline-flex"><Badge className="bg-cyan-500/15 text-cyan-500 ring-cyan-500/30"><ArrowUpCircle className="size-3" />{t('updated')}</Badge></span>}
                           </td>
                           <td className="px-3 py-2.5 font-mono text-xs">{d.mac}</td>
                           <td className="px-3 py-2.5"><div>{siteLabel(d.site)}</div><div className="font-mono text-[11px] text-muted">{d.source_ip}</div></td>
@@ -125,7 +126,7 @@ export default function Devices() {
                           </td>
                           {isAdmin && (
                             <td className="px-5 py-2.5 text-right" onClick={(e) => e.stopPropagation()}>
-                              <button title="Edit" onClick={() => setEdit(d)} className="cursor-pointer rounded-lg p-1.5 text-muted opacity-0 transition hover:bg-[var(--panel)] hover:text-[var(--text)] group-hover:opacity-100"><Pencil className="size-4" /></button>
+                              <button title={t('Edit')} onClick={() => setEdit(d)} className="cursor-pointer rounded-lg p-1.5 text-muted opacity-0 transition hover:bg-[var(--panel)] hover:text-[var(--text)] group-hover:opacity-100"><Pencil className="size-4" /></button>
                             </td>
                           )}
                         </tr>
@@ -137,14 +138,14 @@ export default function Devices() {
             )}
         </Card>
 
-        <Card title="Firmware per model" subtitle="Models with multiple versions are listed first">
-          {!firmware.length ? <p className="py-4 text-center text-sm text-muted">No firmware data.</p> : (
+        <Card title={t('Firmware per model')} subtitle={t('Models with multiple versions are listed first')}>
+          {!firmware.length ? <p className="py-4 text-center text-sm text-muted">{t('No firmware data.')}</p> : (
             <ul className="space-y-3">
               {firmware.map((f) => (
                 <li key={f.model}>
                   <div className="flex items-center justify-between text-sm">
                     <span className="font-medium">{f.model}</span>
-                    {f.versions.length > 1 && <Badge className="bg-amber-500/15 text-amber-500 ring-amber-500/30">{f.versions.length} versions</Badge>}
+                    {f.versions.length > 1 && <Badge className="bg-amber-500/15 text-amber-500 ring-amber-500/30">{t('{n} versions', { n: f.versions.length })}</Badge>}
                   </div>
                   <div className="mt-1 flex flex-wrap gap-1.5">
                     {f.versions.map(([v, n], i) => (
@@ -173,31 +174,31 @@ function EditDevice({ d, onClose, onSaved }: { d: Device; onClose: () => void; o
   const path = '/devices/' + encodeURIComponent(d.key)
   const save = async () => {
     setBusy(true)
-    try { await api.put(path, f); toast('ok', 'Saved'); onSaved() } catch (e) { toast('err', (e as Error).message) } finally { setBusy(false) }
+    try { await api.put(path, f); toast('ok', t('Saved')); onSaved() } catch (e) { toast('err', (e as Error).message) } finally { setBusy(false) }
   }
   const remove = async () => {
-    if (!confirm(`Remove ${d.name || d.hostname} from the inventory? It will reappear as soon as it sends logs again.`)) return
-    try { await api.del(path); toast('ok', 'Removed'); onSaved() } catch (e) { toast('err', (e as Error).message) }
+    if (!confirm(t('Remove {name} from the inventory? It will reappear as soon as it sends logs again.', { name: d.name || d.hostname }))) return
+    try { await api.del(path); toast('ok', t('Removed')); onSaved() } catch (e) { toast('err', (e as Error).message) }
   }
   return (
     <Modal open onClose={onClose} title={d.name || d.hostname}
       footer={<>
-        <Button variant="danger" onClick={remove} icon={<Trash2 className="size-4" />} className="mr-auto">Remove</Button>
-        <Button onClick={onClose}>Cancel</Button>
-        <Button variant="primary" onClick={save} loading={busy}>Save</Button>
+        <Button variant="danger" onClick={remove} icon={<Trash2 className="size-4" />} className="mr-auto">{t('Remove')}</Button>
+        <Button onClick={onClose}>{t('Cancel')}</Button>
+        <Button variant="primary" onClick={save} loading={busy}>{t('Save')}</Button>
       </>}>
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-3 rounded-xl bg-[var(--panel-2)] p-3 text-xs">
-          <div><div className="text-muted">Hostname</div><div className="font-medium">{d.hostname}</div></div>
-          <div><div className="text-muted">Model</div><div className="font-medium">{d.model || '–'}</div></div>
+          <div><div className="text-muted">{t('Hostname')}</div><div className="font-medium">{d.hostname}</div></div>
+          <div><div className="text-muted">{t('Model')}</div><div className="font-medium">{d.model || '–'}</div></div>
           <div><div className="text-muted">MAC</div><div className="font-mono">{d.mac || '–'}</div></div>
-          <div><div className="text-muted">Firmware</div><div className="font-mono">{d.version || '–'}{d.prev_version && <span className="text-muted"> (was {d.prev_version})</span>}</div></div>
-          <div><div className="text-muted">First seen</div><div>{fmtTime(d.first_seen * 1000)}</div></div>
-          <div><div className="text-muted">Last seen</div><div>{fmtTime(d.last_seen * 1000)}</div></div>
+          <div><div className="text-muted">{t('Firmware')}</div><div className="font-mono">{d.version || '–'}{d.prev_version && <span className="text-muted"> ({t('was {version}', { version: d.prev_version })})</span>}</div></div>
+          <div><div className="text-muted">{t('First seen')}</div><div>{fmtTime(d.first_seen * 1000)}</div></div>
+          <div><div className="text-muted">{t('Last seen')}</div><div>{fmtTime(d.last_seen * 1000)}</div></div>
         </div>
-        <Field label="Name" hint="Shown instead of the hostname"><Input value={f.name} placeholder={d.hostname} onChange={(e) => setF({ ...f, name: e.target.value })} /></Field>
-        <Field label="Notes"><Input value={f.notes} placeholder="For example: reception ceiling, 1st floor" onChange={(e) => setF({ ...f, notes: e.target.value })} /></Field>
-        <Toggle checked={f.monitored} onChange={(monitored) => setF({ ...f, monitored })} label="Monitor" description="Alert when this device stops sending logs" />
+        <Field label={t('Name')} hint={t('Shown instead of the hostname')}><Input value={f.name} placeholder={d.hostname} onChange={(e) => setF({ ...f, name: e.target.value })} /></Field>
+        <Field label={t('Notes')}><Input value={f.notes} placeholder={t('For example: reception ceiling, 1st floor')} onChange={(e) => setF({ ...f, notes: e.target.value })} /></Field>
+        <Toggle checked={f.monitored} onChange={(monitored) => setF({ ...f, monitored })} label={t('Monitor')} description={t('Alert when this device stops sending logs')} />
       </div>
     </Modal>
   )
@@ -212,19 +213,19 @@ function MonitorSettings({ onClose, onSaved }: { onClose: () => void; onSaved: (
   const save = async () => {
     if (!v) return
     setBusy(true)
-    try { await api.put('/settings/inventory', v); toast('ok', 'Saved'); onSaved() } catch (e) { toast('err', (e as Error).message) } finally { setBusy(false) }
+    try { await api.put('/settings/inventory', v); toast('ok', t('Saved')); onSaved() } catch (e) { toast('err', (e as Error).message) } finally { setBusy(false) }
   }
   return (
-    <Modal open onClose={onClose} title="Device monitoring"
-      footer={<><Button onClick={onClose}>Cancel</Button><Button variant="primary" onClick={save} loading={busy} disabled={!v}>Save</Button></>}>
+    <Modal open onClose={onClose} title={t('Device monitoring')}
+      footer={<><Button onClick={onClose}>{t('Cancel')}</Button><Button variant="primary" onClick={save} loading={busy} disabled={!v}>{t('Save')}</Button></>}>
       {!v ? <div className="grid place-items-center py-10"><Spinner /></div> : (
         <div className="space-y-4">
-          <Field label="Silent after (minutes)" hint="A device that sends no logs at all for this long counts as silent. Switches sometimes log very little; choose a longer time for them.">
+          <Field label={t('Silent after (minutes)')} hint={t('A device that sends no logs at all for this long counts as silent. Switches sometimes log very little; choose a longer time for them.')}>
             <Input type="number" min={5} value={v.silent_minutes} onChange={(e) => setF({ ...v, silent_minutes: Number(e.target.value) })} />
           </Field>
-          <Toggle checked={v.notify} onChange={(notify) => setF({ ...v, notify })} label="Send email" description="When a device goes silent and when it becomes active again" />
+          <Toggle checked={v.notify} onChange={(notify) => setF({ ...v, notify })} label={t('Send email')} description={t('When a device goes silent and when it becomes active again')} />
           {v.notify && (
-            <Field label="Recipients" hint="Comma-separated. Empty = the mail server's default recipient.">
+            <Field label={t('Recipients')} hint={t('Comma-separated. Empty = the mail server\'s default recipient.')}>
               <Input value={v.recipients} placeholder="admin@example.com" onChange={(e) => setF({ ...v, recipients: e.target.value })} />
             </Field>
           )}

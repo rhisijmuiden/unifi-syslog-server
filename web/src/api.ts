@@ -1,3 +1,5 @@
+import { t } from './i18n'
+
 export class ApiError extends Error {
   status: number
   constructor(status: number, msg: string) {
@@ -18,11 +20,21 @@ async function req<T>(method: string, url: string, body?: unknown): Promise<T> {
   }
   const text = await r.text()
   const data = text ? JSON.parse(text) : null
-  if (!r.ok) throw new ApiError(r.status, data?.error ?? r.statusText)
+  if (!r.ok) throw new ApiError(r.status, t(data?.error ?? r.statusText))
+  return data as T
+}
+
+/** Uploads a file as the raw request body. */
+async function upload<T>(url: string, file: Blob): Promise<T> {
+  const r = await fetch('/api' + url, { method: 'PUT', credentials: 'same-origin', headers: { 'X-USS': '1', 'Content-Type': file.type || 'application/octet-stream' }, body: file })
+  const text = await r.text()
+  const data = text ? JSON.parse(text) : null
+  if (!r.ok) throw new ApiError(r.status, t(data?.error ?? r.statusText))
   return data as T
 }
 
 export const api = {
+  upload,
   get: <T,>(u: string) => req<T>('GET', u),
   post: <T,>(u: string, b?: unknown) => req<T>('POST', u, b ?? {}),
   put: <T,>(u: string, b: unknown) => req<T>('PUT', u, b),
@@ -39,7 +51,18 @@ export interface User {
   disabled: boolean
   created_at: number
   last_login: number
+  language: string
+  language_manual: boolean
 }
+
+export type BrandingAssetName = 'logo_light' | 'logo_dark' | 'favicon'
+export interface Branding {
+  company_name: string
+  version: string
+  assets: Partial<Record<BrandingAssetName, boolean>>
+}
+
+export const brandingUrl = (b: Branding, a: BrandingAssetName) => `/api/branding/${a}?v=${b.version}`
 
 export interface LogRow {
   ts: string

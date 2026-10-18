@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Mail, Save, Send } from 'lucide-react'
 import { api } from '../api'
 import { Button, Card, Field, Input, PageHeader, Select, Spinner, Toggle, useToast } from '../components/ui'
+import { t } from '../i18n'
 
 interface SMTP {
   enabled: boolean; host: string; port: number; security: string; auth: string; username: string; password: string
@@ -28,7 +29,7 @@ export default function MailPage() {
   const up = (p: Partial<SMTP>) => setS({ ...s, ...p })
   const save = async () => {
     setBusy(true)
-    try { setS(await api.put<SMTP>('/settings/smtp', s)); toast('ok', 'Mail settings saved') } catch (e) { toast('err', (e as Error).message) } finally { setBusy(false) }
+    try { setS(await api.put<SMTP>('/settings/smtp', s)); toast('ok', t('Mail settings saved')) } catch (e) { toast('err', (e as Error).message) } finally { setBusy(false) }
   }
   const test = async () => {
     setTesting(true)
@@ -36,56 +37,56 @@ export default function MailPage() {
   }
   return (
     <>
-      <PageHeader title="Mail server" subtitle="Your own SMTP server for alerts and backup reports" icon={<Mail className="size-5" />}
-        actions={<Button variant="primary" loading={busy} onClick={save} icon={<Save className="size-4" />}>Save</Button>} />
+      <PageHeader title={t('Mail server')} subtitle={t('Your own SMTP server for alerts and backup reports')} icon={<Mail className="size-5" />}
+        actions={<Button variant="primary" loading={busy} onClick={save} icon={<Save className="size-4" />}>{t('Save')}</Button>} />
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
         <div className="space-y-6 xl:col-span-2">
-          <Card title="Server">
+          <Card title={t('Server')}>
             <div className="space-y-5">
-              <Toggle checked={s.enabled} onChange={(enabled) => up({ enabled })} label="Send email" />
+              <Toggle checked={s.enabled} onChange={(enabled) => up({ enabled })} label={t('Send email')} />
               <div className="flex flex-wrap gap-2">
-                {Object.entries(presets).map(([k, v]) => <Button key={k} variant="ghost" className="!px-2.5 !py-1 text-xs ring-1 ring-[var(--border)]" onClick={() => up(v)}>{k}</Button>)}
+                {Object.entries(presets).map(([k, v]) => <Button key={k} variant="ghost" className="!px-2.5 !py-1 text-xs ring-1 ring-[var(--border)]" onClick={() => up(v)}>{t(k)}</Button>)}
               </div>
               <div className="grid gap-4 md:grid-cols-3">
-                <Field label="Host" className="md:col-span-2"><Input value={s.host} onChange={(e) => up({ host: e.target.value.trim() })} placeholder="smtp.example.com" /></Field>
-                <Field label="Port"><Input type="number" value={s.port} onChange={(e) => up({ port: Number(e.target.value) })} /></Field>
-                <Field label="Security"><Select value={s.security} onChange={(security) => up({ security })} options={[
-                  { value: 'starttls', label: 'STARTTLS (required)' }, { value: 'starttls-optional', label: 'STARTTLS (if available)' }, { value: 'tls', label: 'SSL/TLS (implicit, 465)' }, { value: 'none', label: 'None (not recommended)' }]} /></Field>
-                <Field label="Minimum TLS version"><Select value={s.min_tls} onChange={(min_tls) => up({ min_tls })} options={[{ value: '1.2', label: 'TLS 1.2' }, { value: '1.3', label: 'TLS 1.3' }]} /></Field>
-                <Field label="Authentication"><Select value={s.auth} onChange={(auth) => up({ auth })} options={[
-                  { value: 'auto', label: 'Automatic (strongest)' }, { value: 'plain', label: 'PLAIN' }, { value: 'login', label: 'LOGIN' }, { value: 'cram-md5', label: 'CRAM-MD5' },
-                  { value: 'scram-sha-256', label: 'SCRAM-SHA-256' }, { value: 'scram-sha-1', label: 'SCRAM-SHA-1' }, { value: 'xoauth2', label: 'OAuth2 (XOAUTH2)' }, { value: 'none', label: 'None' }]} /></Field>
+                <Field label={t('Host')} className="md:col-span-2"><Input value={s.host} onChange={(e) => up({ host: e.target.value.trim() })} placeholder="smtp.example.com" /></Field>
+                <Field label={t('Port')}><Input type="number" value={s.port} onChange={(e) => up({ port: Number(e.target.value) })} /></Field>
+                <Field label={t('Security')}><Select value={s.security} onChange={(security) => up({ security })} options={[
+                  { value: 'starttls', label: t('STARTTLS (required)') }, { value: 'starttls-optional', label: t('STARTTLS (if available)') }, { value: 'tls', label: t('SSL/TLS (implicit, 465)') }, { value: 'none', label: t('None (not recommended)') }]} /></Field>
+                <Field label={t('Minimum TLS version')}><Select value={s.min_tls} onChange={(min_tls) => up({ min_tls })} options={[{ value: '1.2', label: 'TLS 1.2' }, { value: '1.3', label: 'TLS 1.3' }]} /></Field>
+                <Field label={t('Authentication')}><Select value={s.auth} onChange={(auth) => up({ auth })} options={[
+                  { value: 'auto', label: t('Automatic (strongest)') }, { value: 'plain', label: 'PLAIN' }, { value: 'login', label: 'LOGIN' }, { value: 'cram-md5', label: 'CRAM-MD5' },
+                  { value: 'scram-sha-256', label: 'SCRAM-SHA-256' }, { value: 'scram-sha-1', label: 'SCRAM-SHA-1' }, { value: 'xoauth2', label: 'OAuth2 (XOAUTH2)' }, { value: 'none', label: t('None') }]} /></Field>
                 {s.auth !== 'none' && <>
-                  <Field label="Username"><Input value={s.username} autoComplete="off" onChange={(e) => up({ username: e.target.value })} /></Field>
-                  {s.auth !== 'xoauth2' && <Field label="Password"><Input type="password" autoComplete="new-password" value={s.password} onChange={(e) => up({ password: e.target.value })} /></Field>}
+                  <Field label={t('Username')}><Input value={s.username} autoComplete="off" onChange={(e) => up({ username: e.target.value })} /></Field>
+                  {s.auth !== 'xoauth2' && <Field label={t('Password')}><Input type="password" autoComplete="new-password" value={s.password} onChange={(e) => up({ password: e.target.value })} /></Field>}
                 </>}
-                <Field label="HELO name (optional)"><Input value={s.helo} onChange={(e) => up({ helo: e.target.value })} /></Field>
+                <Field label={t('HELO name (optional)')}><Input value={s.helo} onChange={(e) => up({ helo: e.target.value })} /></Field>
               </div>
-              <Toggle checked={s.skip_verify} onChange={(skip_verify) => up({ skip_verify })} label="Skip certificate verification" description="Only for internal servers with a self-signed certificate" />
+              <Toggle checked={s.skip_verify} onChange={(skip_verify) => up({ skip_verify })} label={t('Skip certificate verification')} description={t('Only for internal servers with a self-signed certificate')} />
             </div>
           </Card>
           {s.auth === 'xoauth2' && (
-            <Card title="OAuth2 (Microsoft 365)" subtitle="Client credentials flow. The app needs the SMTP.SendAsApp application role and an Exchange service principal.">
+            <Card title="OAuth2 (Microsoft 365)" subtitle={t('Client credentials flow. The app needs the SMTP.SendAsApp application role and an Exchange service principal.')}>
               <div className="grid gap-4 md:grid-cols-2">
-                <Field label="Tenant ID"><Input value={s.oauth_tenant} onChange={(e) => up({ oauth_tenant: e.target.value.trim() })} /></Field>
-                <Field label="Client ID"><Input value={s.oauth_client_id} onChange={(e) => up({ oauth_client_id: e.target.value.trim() })} /></Field>
-                <Field label="Client secret"><Input type="password" value={s.oauth_secret} onChange={(e) => up({ oauth_secret: e.target.value })} /></Field>
-                <Field label="Scope"><Input value={s.oauth_scope} placeholder="https://outlook.office365.com/.default" onChange={(e) => up({ oauth_scope: e.target.value })} /></Field>
+                <Field label={t('Tenant ID')}><Input value={s.oauth_tenant} onChange={(e) => up({ oauth_tenant: e.target.value.trim() })} /></Field>
+                <Field label={t('Client ID')}><Input value={s.oauth_client_id} onChange={(e) => up({ oauth_client_id: e.target.value.trim() })} /></Field>
+                <Field label={t('Client secret')}><Input type="password" value={s.oauth_secret} onChange={(e) => up({ oauth_secret: e.target.value })} /></Field>
+                <Field label={t('Scope')}><Input value={s.oauth_scope} placeholder="https://outlook.office365.com/.default" onChange={(e) => up({ oauth_scope: e.target.value })} /></Field>
               </div>
             </Card>
           )}
-          <Card title="Sender">
+          <Card title={t('Sender')}>
             <div className="grid gap-4 md:grid-cols-3">
-              <Field label="From address"><Input value={s.from_address} onChange={(e) => up({ from_address: e.target.value.trim() })} placeholder="syslog@example.com" /></Field>
-              <Field label="From name"><Input value={s.from_name} onChange={(e) => up({ from_name: e.target.value })} /></Field>
-              <Field label="Default recipient"><Input value={s.default_to} onChange={(e) => up({ default_to: e.target.value })} placeholder="it@example.com" /></Field>
+              <Field label={t('From address')}><Input value={s.from_address} onChange={(e) => up({ from_address: e.target.value.trim() })} placeholder="syslog@example.com" /></Field>
+              <Field label={t('From name')}><Input value={s.from_name} onChange={(e) => up({ from_name: e.target.value })} /></Field>
+              <Field label={t('Default recipient')}><Input value={s.default_to} onChange={(e) => up({ default_to: e.target.value })} placeholder="it@example.com" /></Field>
             </div>
           </Card>
         </div>
-        <Card title="Test message" subtitle="Tests with the current (unsaved) settings">
+        <Card title={t('Test message')} subtitle={t('Tests with the current (unsaved) settings')}>
           <div className="space-y-3">
-            <Field label="To"><Input value={to} onChange={(e) => setTo(e.target.value)} placeholder="you@example.com" /></Field>
-            <Button className="w-full" onClick={test} loading={testing} disabled={!to} icon={<Send className="size-4" />}>Send test message</Button>
+            <Field label={t('To')}><Input value={to} onChange={(e) => setTo(e.target.value)} placeholder="you@example.com" /></Field>
+            <Button className="w-full" onClick={test} loading={testing} disabled={!to} icon={<Send className="size-4" />}>{t('Send test message')}</Button>
           </div>
         </Card>
       </div>
