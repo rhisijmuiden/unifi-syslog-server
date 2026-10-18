@@ -26,6 +26,7 @@ import (
 	"github.com/rhisijmuiden/unify-syslog-server/internal/backup"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/config"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/enrich"
+	"github.com/rhisijmuiden/unify-syslog-server/internal/forward"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/geoip"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/i18n"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/ingest"
@@ -47,6 +48,7 @@ type Server struct {
 	Pipeline *ingest.Pipeline
 	Enrich   *enrich.Enricher
 	Syncer   *enrich.Syncer
+	Forward  *forward.Manager
 	Geo      *geoip.Manager
 	SysStats *syslogd.Stats
 	IngStats *ingest.Stats
@@ -195,6 +197,15 @@ func (s *Server) Handler() http.Handler {
 				r.Get("/backup/list", s.backupList)
 				r.Post("/backup/restore", s.restore)
 				r.Get("/backup/download/{name}", s.backupDownload)
+
+				r.Get("/forward", s.listForward)
+				r.Post("/forward", s.saveForward)
+				r.Post("/forward/test", s.testForward)
+				r.Post("/forward/template", s.installTemplate)
+				r.Get("/forward/content", s.forwardContent)
+				r.Get("/forward/content/*", s.forwardContentFile)
+				r.Put("/forward/{id}", s.saveForward)
+				r.Delete("/forward/{id}", s.deleteForward)
 
 				r.Get("/alerts", s.listAlerts)
 				r.Post("/alerts", s.saveAlert)

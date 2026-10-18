@@ -13,7 +13,8 @@ A central syslog server built specifically for UniFi. All UniFi sites send their
 - **Categories**: create your own categories (a saved search with a color) to filter logs.
 - **Sites**: map source IPs to a site, manually or via IP ranges. Sites behind NAT work too. An overview shows, per site, the status, devices and logs, blocks, IPS alerts and errors of the last 24 hours.
 - **Devices**: a persistent inventory of all UniFi devices (by MAC address, so also behind NAT), with a custom name and notes, firmware per model and updated firmware. Devices that have not sent logs for too long are marked as *silent* and, optionally, reported by email, as is their return. **Firmware warnings** flag devices that run older firmware than other devices of the same model, or for which UniFi Network offers an update, optionally by email.
-- **Alerts**: email when a search exceeds a threshold.
+- **Alerts**: email when a search exceeds a threshold, and optionally an alert record to Microsoft Sentinel or another forwarding destination.
+- **Forwarding**: send selected events to **Microsoft Sentinel** (Logs Ingestion API with a data collection rule, into `UnifiSyslog_CL` or firewall and IPS into `CommonSecurityLog`), **Elasticsearch / Elastic Cloud / OpenSearch** (Bulk API into a data stream, Elastic Common Schema), **Logstash**, **syslog** (RFC 5424 or CEF over UDP, TCP or TLS for Graylog, Wazuh, QRadar…), **Splunk HEC** or a JSON **webhook**. Per destination: filters by category, site, device, severity and saved search; batching, an on-disk queue and automatic retries; a status page with volume, errors and estimated daily cost. Ready-made Sentinel and Kibana content is included, see [docs/FORWARDING.md](docs/FORWARDING.md).
 - **Microsoft Entra SSO** (OIDC + PKCE), with Entra groups mapped to roles and sites automatically.
 - **Roles and permissions**: administrator, analyst and read-only viewer, each limited to one or more sites if you want, so customers or branch offices only see their own logs.
 - **Security**: two-factor authentication (TOTP) for local accounts, optionally mandatory; a source allowlist that only accepts syslog from known IP addresses or networks; an audit log of who viewed, changed, exported or restored what.
@@ -88,7 +89,7 @@ Then open `http://<server>:8080`.
 | Path | Contents |
 |---|---|
 | `/etc/unify-syslog/config.yaml` | Ports, ClickHouse connection and ingest settings. |
-| `/var/lib/unify-syslog/` | Metadata (`meta.db`), the encryption key (`secret.key`) and local backups. |
+| `/var/lib/unify-syslog/` | Metadata (`meta.db`), the encryption key (`secret.key`), local backups and the forwarding queues (`forward/`). |
 | `/opt/unify-syslog/` | The program. |
 
 ## Configuring UniFi
@@ -183,6 +184,18 @@ Configure backups under **Backup** in the web interface.
 
 A backup contains the encryption key, so store backups in a trusted location.
 
+## Forwarding to Sentinel, Elastic and other tools
+
+Add destinations under **Forwarding**. Each destination has its own filter (categories, sites, devices, minimum severity, a saved search and an extra query; all must match), its own queue on disk and its own delivery loop, so a destination that is down never slows down ingestion or the other destinations. Events wait on disk until they are delivered; beyond the configured queue size the oldest are dropped and counted. **Send test event** checks the settings before you save them.
+
+The [integrations](integrations) folder, also downloadable from the Forwarding page, contains:
+
+- **Microsoft Sentinel**: an ARM template for the custom table, data collection endpoint and rule (with the role assignment for the app), KQL hunting queries, a workbook and analytics rules.
+- **Elastic**: the index template (also installed with one click from the interface), Kibana saved objects (data view, searches, visualizations and a dashboard) and Elastic Security detection rules.
+- **Logstash**: a sample pipeline.
+
+See [docs/FORWARDING.md](docs/FORWARDING.md) for the setup per tool.
+
 ## Updates, release channels and rollback
 
 *Info & updates* has two release channels:
@@ -225,6 +238,8 @@ UniFi devices ──UDP/TCP 514──▶ syslogd ─▶ ingest workers (UniFi pa
                                             │ batches of 20k / 1 s
                                             ▼
                      ClickHouse  logs (MergeTree, TTL) + logs_hourly (MV)
-                                            ▲
-     Browser ──HTTP 8080──▶ API + React UI ─┘   SQLite: users, settings, sites
+                                            ▲         │ filter per destination
+     Browser ──HTTP 8080──▶ API + React UI ─┘         ▼
+                    SQLite: users, settings,   on-disk queue ─▶ Sentinel, Elastic,
+                    sites, destinations                         Logstash, syslog, Splunk, webhook
 ```

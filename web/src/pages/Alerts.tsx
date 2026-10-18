@@ -5,8 +5,9 @@ import { Badge, Button, Card, Empty, Field, Input, Modal, PageHeader, Spinner, T
 import { fmtTime } from '../lib/format'
 import { t } from '../i18n'
 
-interface Rule { id?: number; name: string; query: string; threshold: number; window_minutes: number; cooldown_minutes: number; recipients: string; enabled: boolean; last_fired?: number }
-const blank: Rule = { name: '', query: '', threshold: 10, window_minutes: 5, cooldown_minutes: 30, recipients: '', enabled: true }
+interface Rule { id?: number; name: string; query: string; threshold: number; window_minutes: number; cooldown_minutes: number; recipients: string; enabled: boolean; last_fired?: number; destinations: number[] }
+interface Destination { id: number; name: string; kind: string; enabled: boolean }
+const blank: Rule = { name: '', query: '', threshold: 10, window_minutes: 5, cooldown_minutes: 30, recipients: '', enabled: true, destinations: [] }
 
 const presets: Partial<Rule>[] = [
   { name: 'Brute-force SSH', query: 'category:auth event:login_failed', threshold: 20, window_minutes: 5 },
@@ -18,6 +19,8 @@ const presets: Partial<Rule>[] = [
 export default function Alerts() {
   const toast = useToast()
   const rules = useAsync(() => api.get<Rule[]>('/alerts'))
+  const dests = useAsync(() => api.get<Destination[]>('/forward'))
+  const destName = (id: number) => dests.data?.find((d) => d.id === id)?.name
   const [edit, setEdit] = useState<Rule>()
   const save = async () => {
     try {
@@ -46,6 +49,7 @@ export default function Alerts() {
                     <div className="flex items-center gap-2 font-medium">{r.name}{!r.enabled && <Badge>{t('off')}</Badge>}</div>
                     <code className="mt-1 block truncate font-mono text-xs text-muted">{r.query}</code>
                     <div className="mt-1 text-xs text-muted">{t('≥ {n} in {min} min · to {to}', { n: r.threshold, min: r.window_minutes, to: r.recipients || t('default recipient') })}{r.last_fired ? ' · ' + t('last {time}', { time: fmtTime(r.last_fired * 1000) }) : ''}</div>
+                    {(r.destinations ?? []).length > 0 && <div className="mt-1 flex flex-wrap gap-1">{r.destinations.map((id) => destName(id) && <Badge key={id} className="bg-indigo-500/10 text-indigo-400 ring-indigo-500/30">{destName(id)}</Badge>)}</div>}
                   </div>
                   <div className="flex gap-1">
                     <button onClick={() => setEdit(r)} className="cursor-pointer rounded-lg p-2 hover:bg-[var(--panel-2)]"><Pencil className="size-4" /></button>
@@ -56,7 +60,7 @@ export default function Alerts() {
             </ul>
           )}
       </Card>
-      <p className="mt-3 text-xs text-muted">{t('Alerts are evaluated every minute and sent via the configured mail server.')}</p>
+      <p className="mt-3 text-xs text-muted">{t('Alerts are evaluated every minute and sent via the configured mail server and to the chosen forwarding destinations.')}</p>
 
       <Modal open={!!edit} onClose={() => setEdit(undefined)} title={edit?.id ? t('Edit alert') : t('New alert')}
         footer={<><Button onClick={() => setEdit(undefined)}>{t('Cancel')}</Button><Button variant="primary" onClick={save} disabled={!edit?.name || !edit?.query}>{t('Save')}</Button></>}>
@@ -70,6 +74,21 @@ export default function Alerts() {
               <Field label={t('Cooldown (min)')}><Input type="number" min={1} value={edit.cooldown_minutes} onChange={num('cooldown_minutes')} /></Field>
             </div>
             <Field label={t('Recipients')} hint={t('Comma-separated. Empty = default recipient from the mail settings.')}><Input value={edit.recipients} onChange={(e) => setEdit({ ...edit, recipients: e.target.value })} placeholder="noc@example.com" /></Field>
+            {(dests.data ?? []).length > 0 && (
+              <Field label={t('Also send to')} hint={t('Forwarding destinations that receive the alert, e.g. Microsoft Sentinel')}>
+                <div className="flex flex-wrap gap-1.5">
+                  {dests.data!.map((d) => {
+                    const on = (edit.destinations ?? []).includes(d.id)
+                    return (
+                      <button key={d.id} type="button" onClick={() => setEdit({ ...edit, destinations: on ? edit.destinations.filter((x) => x !== d.id) : [...(edit.destinations ?? []), d.id] })}
+                        className={'rounded-lg px-2.5 py-1 text-xs ring-1 transition cursor-pointer ' + (on ? 'bg-indigo-500/15 text-indigo-400 ring-indigo-500/40' : 'ring-[var(--border)] text-muted hover:text-[var(--text)]')}>
+                        {d.name}{!d.enabled && ' (' + t('off') + ')'}
+                      </button>
+                    )
+                  })}
+                </div>
+              </Field>
+            )}
             <Toggle checked={edit.enabled} onChange={(enabled) => setEdit({ ...edit, enabled })} label={t('Enabled')} />
           </div>
         )}

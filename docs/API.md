@@ -69,6 +69,19 @@ curl -s -H "Authorization: Bearer $TOKEN" -o blocked.csv \
 | `GET /api/info` | Version, uptime and storage |
 | `GET /api/health` | `{"status":"ok"}` when ClickHouse is reachable (no token needed) |
 
+## Forwarding
+
+| Method and path | Does |
+|---|---|
+| `GET /api/forward` | Destinations (secrets masked) with live status, queue, 24-hour and total counters, events per hour and the estimated daily volume |
+| `POST /api/forward`, `PUT /api/forward/{id}` | Create or change a destination; a masked secret keeps the stored value |
+| `DELETE /api/forward/{id}` | Remove a destination and its queue |
+| `POST /api/forward/test` | Send one test event with the settings in the request body |
+| `POST /api/forward/template` | Install the index template for an Elasticsearch/OpenSearch destination |
+| `GET /api/forward/content`, `GET /api/forward/content/{path}` | List and download the bundled Sentinel, Elastic and Logstash content |
+
+These need an administrator.
+
 Admins can also use the configuration endpoints the interface uses (users, settings, backups and so on) with a read-and-write token. These are not a stable interface and may change between versions.
 
 ## Errors

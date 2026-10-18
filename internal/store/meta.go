@@ -151,7 +151,7 @@ func OpenMeta(path, keyPath string) (*Meta, error) {
 		return nil, err
 	}
 	db.SetMaxOpenConns(4)
-	for _, sc := range []string{schema, unifiSchema, securitySchema} {
+	for _, sc := range []string{schema, unifiSchema, securitySchema, forwardSchema} {
 		if _, err := db.Exec(sc); err != nil {
 			return nil, fmt.Errorf("migrate: %w", err)
 		}
@@ -189,6 +189,7 @@ var addedColumns = []struct{ table, column, def string }{
 	{"audit", "ip", "TEXT NOT NULL DEFAULT ''"},
 	{"audit", "kind", "TEXT NOT NULL DEFAULT ''"},
 	{"audit", "via", "TEXT NOT NULL DEFAULT ''"},
+	{"alert_rules", "forward_to", "TEXT NOT NULL DEFAULT ''"},
 }
 
 func migrateColumns(db *sql.DB) error {
@@ -382,10 +383,12 @@ type AlertRule struct {
 	Recipients      string `json:"recipients"`
 	Enabled         bool   `json:"enabled"`
 	LastFired       int64  `json:"last_fired"`
+	// Destinations are forwarding destinations that also receive the alert.
+	Destinations []int64 `json:"destinations"`
 }
 
 func (m *Meta) AlertRules() ([]AlertRule, error) {
-	rows, err := m.DB.Query(`SELECT id,name,query,threshold,window_minutes,cooldown_minutes,recipients,enabled,last_fired FROM alert_rules ORDER BY id`)
+	rows, err := m.DB.Query(`SELECT id,name,query,threshold,window_minutes,cooldown_minutes,recipients,enabled,last_fired,forward_to FROM alert_rules ORDER BY id`)
 	if err != nil {
 		return nil, err
 	}
@@ -393,9 +396,11 @@ func (m *Meta) AlertRules() ([]AlertRule, error) {
 	out := []AlertRule{}
 	for rows.Next() {
 		var a AlertRule
-		if err := rows.Scan(&a.ID, &a.Name, &a.Query, &a.Threshold, &a.WindowMinutes, &a.CooldownMinutes, &a.Recipients, &a.Enabled, &a.LastFired); err != nil {
+		var fwd string
+		if err := rows.Scan(&a.ID, &a.Name, &a.Query, &a.Threshold, &a.WindowMinutes, &a.CooldownMinutes, &a.Recipients, &a.Enabled, &a.LastFired, &fwd); err != nil {
 			return nil, err
 		}
+		a.Destinations = splitIDs(fwd)
 		out = append(out, a)
 	}
 	return out, rows.Err()
@@ -409,16 +414,16 @@ func (m *Meta) SaveAlertRule(a *AlertRule) error {
 		a.WindowMinutes = 5
 	}
 	if a.ID == 0 {
-		res, err := m.DB.Exec(`INSERT INTO alert_rules(name,query,threshold,window_minutes,cooldown_minutes,recipients,enabled,created_at) VALUES(?,?,?,?,?,?,?,?)`,
-			a.Name, a.Query, a.Threshold, a.WindowMinutes, a.CooldownMinutes, a.Recipients, a.Enabled, time.Now().Unix())
+		res, err := m.DB.Exec(`INSERT INTO alert_rules(name,query,threshold,window_minutes,cooldown_minutes,recipients,enabled,forward_to,created_at) VALUES(?,?,?,?,?,?,?,?,?)`,
+			a.Name, a.Query, a.Threshold, a.WindowMinutes, a.CooldownMinutes, a.Recipients, a.Enabled, joinIDs(a.Destinations), time.Now().Unix())
 		if err != nil {
 			return err
 		}
 		a.ID, _ = res.LastInsertId()
 		return nil
 	}
-	_, err := m.DB.Exec(`UPDATE alert_rules SET name=?,query=?,threshold=?,window_minutes=?,cooldown_minutes=?,recipients=?,enabled=? WHERE id=?`,
-		a.Name, a.Query, a.Threshold, a.WindowMinutes, a.CooldownMinutes, a.Recipients, a.Enabled, a.ID)
+	_, err := m.DB.Exec(`UPDATE alert_rules SET name=?,query=?,threshold=?,window_minutes=?,cooldown_minutes=?,recipients=?,enabled=?,forward_to=? WHERE id=?`,
+		a.Name, a.Query, a.Threshold, a.WindowMinutes, a.CooldownMinutes, a.Recipients, a.Enabled, joinIDs(a.Destinations), a.ID)
 	return err
 }
 
