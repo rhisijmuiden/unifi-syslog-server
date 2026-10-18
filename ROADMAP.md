@@ -87,20 +87,25 @@ Goal: safe to use with several administrators and customers.
 | API tokens | REST API for scripts and integrations, with per-user tokens |
 | Source allowlist | Only accept syslog from known IPs or subnets |
 
-## 1.4 Microsoft Sentinel integration
+## 1.4 Forwarding to Microsoft Sentinel, ELK and other log tools
 
-Goal: forward selected UniFi events directly and reliably to Microsoft Sentinel.
+Goal: forward selected UniFi events directly and reliably to Microsoft Sentinel, the ELK stack (Elasticsearch, Logstash, Kibana) or another log analytics tool. All destinations share the same filters, queue and status page.
 
 | Item | Description |
 |---|---|
 | Logs Ingestion API | Connect through the Azure Monitor Logs Ingestion API with a Data Collection Rule (DCR). The legacy HTTP Data Collector API is not used because Microsoft is retiring it |
 | Entra authentication | App registration with client secret or certificate, in the same Entra tenant as SSO |
-| Forwarding filters | Choose per rule what goes to Sentinel: by category (firewall, IPS, VPN, Wi-Fi), site, device, severity or a saved search, so you only pay for relevant data |
+| Forwarding filters | Choose per destination what is sent: by category (firewall, IPS, VPN, Wi-Fi), site, device, severity or a saved search, so you only pay for relevant data in Sentinel or Elastic |
 | Alerts to Sentinel | Alert rules can use Sentinel as a channel next to e-mail and Teams |
 | Table choice | A custom table (`UnifiSyslog_CL`) with all UniFi fields, or firewall and IPS events to the standard `CommonSecurityLog` table so existing Sentinel analytics rules work right away |
 | Reliability | Batching, an on-disk queue and automatic retries, so no events are lost |
 | Status and cost | Dashboard with forwarded events, errors and estimated daily volume |
 | Sentinel content | Bundled KQL queries, a workbook and sample analytics rules for UniFi data |
+| Elasticsearch | Direct delivery through the Bulk API into a data stream, with fields mapped to the Elastic Common Schema (ECS) so Elastic Security and existing dashboards understand them. API key authentication; also works with Elastic Cloud and OpenSearch |
+| Logstash | Send JSON over TCP or HTTP to a Logstash input, for teams that keep their own pipelines and enrichment in Logstash |
+| Kibana content | Bundled index template, Kibana dashboards and sample detection rules for UniFi data |
+| Other log tools | Syslog forwarding (RFC 5424 over TCP, optionally TLS) and a generic JSON webhook, so Graylog, Wazuh, QRadar and similar tools work too. Splunk through the HTTP Event Collector |
+| Multiple destinations | For example firewall and IPS events to Sentinel, and everything to Elastic for long-term storage |
 
 ## 1.5 Remote probes
 
@@ -138,7 +143,6 @@ Goal: insight and accountability, not just storage.
 | Anomaly detection | Flag unusual patterns automatically (sudden spikes, new countries, new devices) |
 | Scheduled reports | Weekly or monthly report per site by e-mail (PDF) |
 | NIS2 compliance | Fixed retention periods, immutable storage and export for audits |
-| Export and forwarding | Forward logs to another SIEM (e.g. Wazuh, Splunk) or export as CSV/JSON |
 | Natural-language search | Optional: ask questions like "which clients had Wi-Fi problems at site X yesterday" |
 
 ---
