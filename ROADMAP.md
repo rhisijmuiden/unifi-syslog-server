@@ -29,7 +29,7 @@ Goal: move from "looking at logs" to "knowing in time that something is wrong".
 |---|---|---|
 | Site overview | A card per site with status, devices and the last 24 hours of logs, blocks, IPS events and errors | Shipped in v0.2.0 |
 | Device inventory | Persistent inventory keyed by MAC address (works behind NAT), custom names and notes, firmware per model, and e-mail when a device goes silent or comes back | Shipped in v0.2.0 |
-| Notification channels | Next to e-mail: **Microsoft Teams** (Workflows webhook into a channel), **Telegram** (bot to a chat or group), **SMS via MessageBird** (Bird) and a generic webhook. Easy to extend later, e.g. Slack or Pushover | Planned |
+| Notification channels | Next to e-mail: **Microsoft Teams** (Workflows webhook into a channel), **Telegram** (bot to a chat or group), **Slack** (incoming webhook or app into a channel), **SMS via MessageBird** (Bird) and a generic webhook. Easy to extend later, e.g. Pushover | Planned |
 | Channels per rule | Choose per alert rule which channels and recipients are used, e.g. Teams for everything and SMS only for critical alerts | Planned |
 | Quiet hours and batching | Quiet hours per channel (no SMS at night unless critical), batching to avoid alert storms, and a test button per channel | Planned |
 | Richer alert rules | More conditions on top of the existing threshold alerts | Planned |
@@ -151,6 +151,6 @@ Goal: insight and accountability, not just storage.
 
 ## Up next
 
-1. **Notification channels** (1.1): Teams, Telegram and SMS via MessageBird next to e-mail, so the server tells you when something is wrong.
+1. **Notification channels** (1.1): Teams, Slack, Telegram and SMS via MessageBird next to e-mail, so the server tells you when something is wrong.
 2. **UniFi Network API integration** (1.2): names instead of addresses make the logs far easier to read.
 3. **Remote probes** (1.5): no lost logs from remote sites and no unencrypted syslog over the internet.
