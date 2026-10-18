@@ -70,5 +70,5 @@ jobs:
             echo '===== journal'; cat probe-journal.txt; echo '===== status'; cat status.json; } > diag.txt 2>&1 || true
           cat diag.txt
           git config user.name ci; git config user.email ci@localhost
-          git checkout -q --orphan diag && git rm -rq --cached . && git add -f diag.txt
+          git checkout -q --orphan diag && git rm -rqf --cached . && git add -f diag.txt
           git commit -qm "diagnostics ${GITHUB_RUN_ID}" && git push -fq origin HEAD:refs/heads/ci-diagnostics-rpi

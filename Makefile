@@ -25,12 +25,12 @@ dist: web
 	rm -rf dist && mkdir -p dist
 	for arch in amd64 arm64; do \
 		CGO_ENABLED=0 GOOS=linux GOARCH=$$arch go build -trimpath -ldflags "$(LDFLAGS)" -o dist/unify-syslog ./cmd/unify-syslog && \
-		tar -C dist -czf dist/unify-syslog-server_linux_$$arch.tar.gz unify-syslog && rm dist/unify-syslog; \
+		tar --owner=0 --group=0 --numeric-owner -C dist -czf dist/unify-syslog-server_linux_$$arch.tar.gz unify-syslog && rm dist/unify-syslog; \
 	done
 	# The probe also runs on 32-bit Raspberry Pi OS (GOARM=6 covers every Pi).
 	for arch in amd64 arm64 arm; do \
 		CGO_ENABLED=0 GOOS=linux GOARCH=$$arch GOARM=6 go build -trimpath -ldflags "$(LDFLAGS)" -o dist/unify-syslog-probe ./cmd/unify-syslog-probe && \
-		tar -C dist -czf dist/unify-syslog-probe_linux_$$arch.tar.gz unify-syslog-probe && rm dist/unify-syslog-probe; \
+		tar --owner=0 --group=0 --numeric-owner -C dist -czf dist/unify-syslog-probe_linux_$$arch.tar.gz unify-syslog-probe && rm dist/unify-syslog-probe; \
 	done
 	cd dist && sha256sum *.tar.gz > checksums.txt
 

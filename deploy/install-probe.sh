@@ -112,7 +112,7 @@ else
 fi
 
 install -d -m 0755 "$APP_DIR"
-tar -xzf "$TARBALL" -C "$APP_DIR" unify-syslog-probe
+tar --no-same-owner -xzf "$TARBALL" -C "$APP_DIR" unify-syslog-probe
 chmod 0755 "$APP_DIR/unify-syslog-probe"
 ln -sf "$APP_DIR/unify-syslog-probe" /usr/local/bin/unify-syslog-probe
 "$APP_DIR/unify-syslog-probe" install-files >>"$LOG"

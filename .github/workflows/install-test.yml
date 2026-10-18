@@ -55,7 +55,7 @@ jobs:
           { echo '===== installer output'; cat install-out.txt 2>/dev/null; echo '===== host dmesg'; sudo dmesg | tail -40; } >> diag.txt
           cat diag.txt
           git config user.name ci; git config user.email ci@localhost
-          git checkout -q --orphan diag && git rm -rq --cached . && git add -f diag.txt
+          git checkout -q --orphan diag && git rm -rqf --cached . && git add -f diag.txt
           git commit -qm "diagnostics ${GITHUB_RUN_ID}" && git push -fq origin HEAD:refs/heads/ci-diagnostics-${{ matrix.scenario }}
 
   # A main server built from this commit (Debian 13 container) and a probe in a
@@ -178,5 +178,5 @@ jobs:
             echo '===== probes'; cat probes.json 2>/dev/null; } > diag.txt 2>&1 || true
           cat diag.txt
           git config user.name ci; git config user.email ci@localhost
-          git checkout -q --orphan diag && git rm -rq --cached . && git add -f diag.txt
+          git checkout -q --orphan diag && git rm -rqf --cached . && git add -f diag.txt
           git commit -qm "diagnostics ${GITHUB_RUN_ID}" && git push -fq origin HEAD:refs/heads/ci-diagnostics-probe

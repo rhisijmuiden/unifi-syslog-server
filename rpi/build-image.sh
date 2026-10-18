@@ -65,7 +65,7 @@ grep -q 'VERSION_ID="13"' "$R/etc/os-release" || echo "warning: base image is no
 
 # ---------------------------------------------------------------- probe
 install -d -m 0755 "$R/opt/unify-syslog-probe"
-tar -xzf "$TARBALL" -C "$R/opt/unify-syslog-probe" unify-syslog-probe
+tar --no-same-owner -xzf "$TARBALL" -C "$R/opt/unify-syslog-probe" unify-syslog-probe
 chmod 0755 "$R/opt/unify-syslog-probe/unify-syslog-probe"
 file "$R/opt/unify-syslog-probe/unify-syslog-probe" 2>/dev/null | grep -q aarch64 || echo "warning: the probe in the image may not be arm64"
 ln -sf /opt/unify-syslog-probe/unify-syslog-probe "$R/usr/local/bin/unify-syslog-probe"
