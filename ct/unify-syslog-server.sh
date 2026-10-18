@@ -2,17 +2,17 @@
 # UniFi Syslog Server - Proxmox VE LXC (Debian 13)
 # Based on community-scripts/ProxmoxVE ct/debian.sh. Run on the Proxmox host:
 #
-#   bash -c "$(curl -fsSL https://raw.githubusercontent.com/rhisijmuiden/unify-syslog-server/main/ct/unify-syslog-server.sh)"
+#   bash -c "$(curl -fsSL https://raw.githubusercontent.com/rhisijmuiden/unifi-syslog-server/main/ct/unify-syslog-server.sh)"
 #
 # The community-scripts engine fetches install/<app>-install.sh from
 # COMMUNITY_SCRIPTS_URL, which we point at this repository.
-export COMMUNITY_SCRIPTS_URL="${COMMUNITY_SCRIPTS_URL:-https://raw.githubusercontent.com/rhisijmuiden/unify-syslog-server/main}"
+export COMMUNITY_SCRIPTS_URL="${COMMUNITY_SCRIPTS_URL:-https://raw.githubusercontent.com/rhisijmuiden/unifi-syslog-server/main}"
 _cs_boot="${COMMUNITY_SCRIPTS_CORE_DIR:-$(dirname "${BASH_SOURCE[0]}")/../../core}/core/build.func"
 source "$_cs_boot" 2>/dev/null || source <(curl -fsSL "${COMMUNITY_SCRIPTS_CORE_URL:-https://raw.githubusercontent.com/community-scripts/core/main}/core/build.func")
 # Copyright (c) 2021-2026 tteck / community-scripts ORG (build engine, MIT)
 # Author: rhisijmuiden
 # License: MIT
-# Source: https://github.com/rhisijmuiden/unify-syslog-server
+# Source: https://github.com/rhisijmuiden/unifi-syslog-server
 
 APP="Unify-Syslog-Server"
 var_tags="${var_tags:-logging;unifi;network}"
