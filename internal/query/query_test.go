@@ -38,3 +38,17 @@ func TestCompile(t *testing.T) {
 		t.Fatal("expected error")
 	}
 }
+
+func TestEnrichedFields(t *testing.T) {
+	f, err := Compile("country:nl -src_asn:AS13335 device_name:hall")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "(((fields['src_country'] = ? OR fields['dst_country'] = ?) AND NOT (fields['src_asn'] = ?) AND positionCaseInsensitiveUTF8(fields['device_name'], ?) > 0))"
+	if f.Where != want {
+		t.Fatalf("got  %s\nwant %s", f.Where, want)
+	}
+	if f.Args[0] != "NL" || f.Args[2] != "13335" {
+		t.Fatalf("args %v", f.Args)
+	}
+}

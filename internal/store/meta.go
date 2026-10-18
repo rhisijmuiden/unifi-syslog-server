@@ -151,8 +151,10 @@ func OpenMeta(path, keyPath string) (*Meta, error) {
 		return nil, err
 	}
 	db.SetMaxOpenConns(4)
-	if _, err := db.Exec(schema); err != nil {
-		return nil, fmt.Errorf("migrate: %w", err)
+	for _, sc := range []string{schema, unifiSchema} {
+		if _, err := db.Exec(sc); err != nil {
+			return nil, fmt.Errorf("migrate: %w", err)
+		}
 	}
 	if err := migrateColumns(db); err != nil {
 		return nil, fmt.Errorf("migrate: %w", err)
@@ -177,6 +179,7 @@ func OpenMeta(path, keyPath string) (*Meta, error) {
 var addedColumns = []struct{ table, column, def string }{
 	{"users", "language", "TEXT NOT NULL DEFAULT ''"},
 	{"users", "language_manual", "INTEGER NOT NULL DEFAULT 0"},
+	{"devices", "firmware_alerted", "TEXT NOT NULL DEFAULT ''"},
 }
 
 func migrateColumns(db *sql.DB) error {

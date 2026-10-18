@@ -7,6 +7,7 @@ import { Timeline } from '../components/charts'
 import { RangePicker, SiteFilter, toRange, useUrlState } from '../components/Filters'
 import { t } from '../i18n'
 import { actionClass, actionLabel, catColor, catLabel, fmtNum, fmtTime, primaryCategories, severities, severityClass } from '../lib/format'
+import { asLabel, countryName, flag } from '../lib/countries'
 
 const PAGE = 200
 
@@ -167,7 +168,7 @@ export default function Logs() {
                       <td className="whitespace-nowrap px-4 py-2 font-mono text-xs text-muted">{fmtTime(r.ts)}</td>
                       <td className="px-2 py-2"><Badge className={severityClass(r.severity)}>{severities[r.severity]}</Badge></td>
                       <td className="max-w-[180px] truncate px-2 py-2 text-xs" title={`${r.hostname} (${r.source_ip})`}>
-                        <div className="truncate font-medium">{r.hostname}</div>
+                        <div className="truncate font-medium">{r.fields?.device_name || r.hostname}</div>
                         {r.site !== 'default' && <div className="truncate text-[11px] text-muted">{r.site}</div>}
                       </td>
                       <td className="px-2 py-2"><Badge color={catColor(r.category)}>{catLabel(r.category)}</Badge></td>
@@ -203,12 +204,17 @@ const quote = (v: string) => (/[\s"]/.test(v) ? `"${v.replace(/"/g, '')}"` : v)
 
 function Detail({ row, onClose, onFilter }: { row?: LogRow; onClose: () => void; onFilter: (t: string) => void }) {
   if (!row) return null
-  const fields: [string, string, string | number][] = [
+  const f = row.fields ?? {}
+  const country = (cc?: string) => (cc ? `${flag(cc)} ${countryName(cc)} (${cc})` : '')
+  const asn = (n?: string, org?: string) => (n ? asLabel(`${n}|${org ?? ''}`) : '')
+  // [label, search field, shown value, value to search for when different]
+  const fields: [string, string, string | number, string?][] = [
     ['Time', '', fmtTime(row.ts)],
     ['Received', '', fmtTime(row.received)],
     ['Site', 'site', row.site],
     ['Source IP', 'source', row.source_ip],
     ['Device', 'host', row.hostname],
+    ['Device name', 'device_name', f.device_name ?? ''],
     ['Model', 'model', row.device_model],
     ['Device MAC', 'mac', row.device_mac],
     ['Firmware', 'firmware', row.device_version],
@@ -218,8 +224,14 @@ function Detail({ row, onClose, onFilter }: { row?: LogRow; onClose: () => void;
     ['Action', 'action', row.action],
     ['Rule', 'rule', row.rule],
     ['Source', 'src', row.src_ip],
+    ['Source name', 'src_name', f.src_name ?? ''],
+    ['Source country', 'src_country', country(f.src_country), f.src_country],
+    ['Source network', 'src_asn', asn(f.src_asn, f.src_as_org), f.src_asn],
     ['Source port', 'sport', row.src_port || ''],
     ['Destination', 'dst', row.dst_ip],
+    ['Destination name', 'dst_name', f.dst_name ?? ''],
+    ['Destination country', 'dst_country', country(f.dst_country), f.dst_country],
+    ['Destination network', 'dst_asn', asn(f.dst_asn, f.dst_as_org), f.dst_asn],
     ['Destination port', 'dport', row.dst_port || ''],
     ['Protocol', 'proto', row.proto],
     ['Interface in', 'in', row.in_if],
@@ -243,14 +255,14 @@ function Detail({ row, onClose, onFilter }: { row?: LogRow; onClose: () => void;
           <div className="rounded-xl bg-[var(--panel-2)] p-4 font-mono text-[13px] leading-relaxed break-words">{row.message}</div>
           <table className="w-full text-sm">
             <tbody>
-              {fields.filter(([, , v]) => v !== '' && v !== undefined).map(([label, key, v]) => (
+              {fields.filter(([, , v]) => v !== '' && v !== undefined).map(([label, key, v, raw]) => (
                 <tr key={label} className="group border-b border-app/60">
                   <td className="w-36 py-1.5 pr-3 text-muted">{t(label)}</td>
                   <td className="py-1.5 font-mono text-[12.5px] break-all">{String(v)}</td>
                   <td className="w-14 py-1.5 text-right opacity-0 group-hover:opacity-100">
                     {key && <span className="inline-flex gap-1">
-                      <button title={t('Filter on this value')} onClick={() => onFilter(`${key}:${quote(String(key === 'severity' ? row.severity : v))}`)} className="cursor-pointer rounded p-0.5 hover:bg-indigo-500/20"><Plus className="size-3.5" /></button>
-                      <button title={t('Exclude')} onClick={() => onFilter(`-${key}:${quote(String(key === 'severity' ? row.severity : v))}`)} className="cursor-pointer rounded p-0.5 hover:bg-red-500/20"><Minus className="size-3.5" /></button>
+                      <button title={t('Filter on this value')} onClick={() => onFilter(`${key}:${quote(String(key === 'severity' ? row.severity : raw ?? v))}`)} className="cursor-pointer rounded p-0.5 hover:bg-indigo-500/20"><Plus className="size-3.5" /></button>
+                      <button title={t('Exclude')} onClick={() => onFilter(`-${key}:${quote(String(key === 'severity' ? row.severity : raw ?? v))}`)} className="cursor-pointer rounded p-0.5 hover:bg-red-500/20"><Minus className="size-3.5" /></button>
                     </span>}
                   </td>
                 </tr>
@@ -294,6 +306,10 @@ const examples: [string, string][] = [
   ['host:U6* OR model:U7*', 'Messages from specific access points'],
   ['"authentication failed"', 'Free text (phrase)'],
   ['field.UNIFIwifiName:Guests', 'An extra field from UniFi CEF logs'],
+  ['category:firewall action:block src_country:CN', 'Blocked traffic from one country (GeoIP)'],
+  ['client_name:iphone', 'Everything about clients with a name (UniFi controller or DHCP)'],
+  ['category:protect event:person_detected', 'People detected by UniFi Protect cameras'],
+  ['category:access action:fail', 'Refused door access (UniFi Access)'],
 ]
 
 function HelpModal({ open, onClose, onUse }: { open: boolean; onClose: () => void; onUse: (q: string) => void }) {
@@ -305,7 +321,7 @@ function HelpModal({ open, onClose, onUse }: { open: boolean; onClose: () => voi
           <p>{rich(t('Numbers: {a}, {b}. IP addresses accept CIDR: {c}. Severity also by name: {d}.'), { a: <code className="rounded bg-[var(--panel-2)] px-1">dport:&gt;1024</code>, b: <code className="rounded bg-[var(--panel-2)] px-1">port:20..25</code>, c: <code className="rounded bg-[var(--panel-2)] px-1">src:10.0.0.0/8</code>, d: <code className="rounded bg-[var(--panel-2)] px-1">severity:&lt;=warning</code> })}</p>
           <h4 className="pt-2 text-xs font-semibold uppercase tracking-wide text-muted">{t('Fields')}</h4>
           <div className="flex flex-wrap gap-1 font-mono text-xs">
-            {['category', 'action', 'rule', 'event', 'app', 'host', 'site', 'source', 'model', 'mac', 'firmware', 'src', 'dst', 'ip', 'sport', 'dport', 'port', 'proto', 'in', 'out', 'client', 'client_name', 'client_ip', 'ssid', 'severity', 'facility', 'msg', 'raw', 'field.<name>'].map((f) => <span key={f} className="rounded bg-[var(--panel-2)] px-1.5 py-0.5">{f}</span>)}
+            {['category', 'action', 'rule', 'event', 'app', 'host', 'site', 'source', 'model', 'mac', 'firmware', 'src', 'dst', 'ip', 'sport', 'dport', 'port', 'proto', 'in', 'out', 'client', 'client_name', 'client_ip', 'ssid', 'severity', 'facility', 'msg', 'raw', 'country', 'src_country', 'dst_country', 'asn', 'src_asn', 'as', 'src_name', 'dst_name', 'device_name', 'camera', 'door', 'user', 'field.<name>'].map((f) => <span key={f} className="rounded bg-[var(--panel-2)] px-1.5 py-0.5">{f}</span>)}
           </div>
         </div>
         <div className="space-y-1">

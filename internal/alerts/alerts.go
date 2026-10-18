@@ -23,6 +23,10 @@ type Engine struct {
 	// Started is when the server came up; silent-device checks wait one
 	// silence window after it.
 	Started time.Time
+	// Controller returns what a UniFi controller reports about a device.
+	Controller func(mac string) (store.ControllerDevice, bool)
+
+	lastFirmware time.Time
 }
 
 func (e *Engine) Run(ctx context.Context) {
@@ -35,6 +39,7 @@ func (e *Engine) Run(ctx context.Context) {
 		case now := <-t.C:
 			e.evaluate(ctx, now)
 			e.checkDevices(ctx, now)
+			e.checkFirmware(ctx, now)
 		}
 	}
 }

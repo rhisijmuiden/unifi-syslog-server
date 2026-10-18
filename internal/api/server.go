@@ -23,6 +23,8 @@ import (
 	"github.com/rhisijmuiden/unify-syslog-server/internal/auth"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/backup"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/config"
+	"github.com/rhisijmuiden/unify-syslog-server/internal/enrich"
+	"github.com/rhisijmuiden/unify-syslog-server/internal/geoip"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/i18n"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/ingest"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/mail"
@@ -41,6 +43,9 @@ type Server struct {
 	Entra    *auth.Entra
 	Alerts   *alerts.Engine
 	Pipeline *ingest.Pipeline
+	Enrich   *enrich.Enricher
+	Syncer   *enrich.Syncer
+	Geo      *geoip.Manager
 	SysStats *syslogd.Stats
 	IngStats *ingest.Stats
 	UI       fs.FS
@@ -90,6 +95,7 @@ func (s *Server) Handler() http.Handler {
 			r.Post("/search", s.search)
 			r.Post("/search/histogram", s.histogram)
 			r.Post("/search/top", s.top)
+			r.Post("/search/panels", s.panels)
 			r.Get("/search/export", s.export)
 			r.Get("/live", s.live)
 			r.Get("/fields", s.fields)
@@ -100,6 +106,8 @@ func (s *Server) Handler() http.Handler {
 			r.Get("/devices", s.listDevices)
 			r.Get("/sites", s.listSites)
 			r.Get("/sites/overview", s.siteOverview)
+			r.Get("/clients", s.listClients)
+			r.Get("/firmware", s.firmware)
 
 			r.Group(func(r chi.Router) {
 				r.Use(requireAdmin)
@@ -110,6 +118,15 @@ func (s *Server) Handler() http.Handler {
 				r.Delete("/sources/{ip}", s.deleteSource)
 				r.Put("/devices/{key}", s.updateDevice)
 				r.Delete("/devices/{key}", s.deleteDevice)
+				r.Get("/controllers", s.listControllers)
+				r.Post("/controllers", s.saveController)
+				r.Post("/controllers/test", s.testController)
+				r.Put("/controllers/{id}", s.saveController)
+				r.Delete("/controllers/{id}", s.deleteController)
+				r.Post("/controllers/{id}/sync", s.syncController)
+				r.Get("/settings/geoip", s.getGeoIP)
+				r.Put("/settings/geoip", s.putGeoIP)
+				r.Post("/geoip/update", s.updateGeoIP)
 				r.Get("/settings/inventory", s.getInventory)
 				r.Put("/settings/inventory", s.putInventory)
 				r.Get("/site-ranges", s.listRanges)

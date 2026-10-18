@@ -13,8 +13,9 @@ function tickFmt(stepSec: number) {
   }
 }
 
-// Fold buckets into one row per time slot; non-primary categories become "other".
-function pivot(buckets: Bucket[], byCategory: boolean, stepSec: number, range?: { from: Date; to: Date }) {
+// Fold buckets into one row per time slot; non-primary categories become
+// "other". In key mode the six largest keys keep their own series.
+function pivot(buckets: Bucket[], byCategory: boolean, stepSec: number, range?: { from: Date; to: Date }, byKey = false) {
   const rows = new Map<number, Record<string, number>>()
   // Empty slots are real zeros: fill the whole requested range.
   if (range && stepSec > 0) {
@@ -23,19 +24,26 @@ function pivot(buckets: Bucket[], byCategory: boolean, stepSec: number, range?: 
     for (let t = start; t <= range.to.getTime() && rows.size < 400; t += step) rows.set(t, { t })
   }
   const keys = new Set<string>()
+  let top: string[] = []
+  if (byKey) {
+    const tot = new Map<string, number>()
+    for (const b of buckets) tot.set(b.key, (tot.get(b.key) ?? 0) + b.count)
+    top = [...tot.entries()].filter(([k]) => k !== '').sort((a, b) => b[1] - a[1]).slice(0, 6).map(([k]) => k)
+  }
   for (const b of buckets) {
     const t = new Date(b.t).getTime()
-    const k = byCategory ? (primaryCategories.includes(b.key) ? b.key : 'other') : 'count'
+    const k = byKey ? (top.includes(b.key) ? b.key : 'other') : byCategory ? (primaryCategories.includes(b.key) ? b.key : 'other') : 'count'
     keys.add(k)
     const r = rows.get(t) ?? { t }
     r[k] = (r[k] ?? 0) + b.count
     rows.set(t, r)
   }
-  const order = byCategory ? [...primaryCategories.filter((c) => keys.has(c)), ...(keys.has('other') ? ['other'] : [])] : ['count']
+  const order = byKey ? [...top, ...(keys.has('other') ? ['other'] : [])]
+    : byCategory ? [...primaryCategories.filter((c) => keys.has(c)), ...(keys.has('other') ? ['other'] : [])] : ['count']
   return { data: [...rows.values()].sort((a, b) => a.t - b.t), keys: order }
 }
 
-function TipBox({ active, payload, label, stepSec }: { active?: boolean; payload?: { dataKey: string; value: number; color: string }[]; label?: number; stepSec: number }) {
+function TipBox({ active, payload, label, stepSec, name = catLabel }: { active?: boolean; payload?: { dataKey: string; value: number; color: string }[]; label?: number; stepSec: number; name?: (k: string) => string }) {
   if (!active || !payload?.length) return null
   const ink = chartInk()
   const total = payload.reduce((s, p) => s + (p.value || 0), 0)
@@ -44,7 +52,7 @@ function TipBox({ active, payload, label, stepSec }: { active?: boolean; payload
       <div className="mb-1 font-medium">{tickFmt(stepSec)(label ?? 0)}</div>
       {[...payload].reverse().filter((p) => p.value).map((p) => (
         <div key={p.dataKey} className="flex items-center justify-between gap-4">
-          <span className="flex items-center gap-1.5"><span className="size-2 rounded-sm" style={{ background: p.color }} />{p.dataKey === 'count' ? t('Messages') : catLabel(p.dataKey)}</span>
+          <span className="flex items-center gap-1.5"><span className="size-2 rounded-sm" style={{ background: p.color }} />{p.dataKey === 'count' ? t('Messages') : p.dataKey === 'other' ? t('Other') : name(p.dataKey)}</span>
           <span className="font-medium tabular-nums">{fmtNum(p.value)}</span>
         </div>
       ))}
@@ -53,11 +61,18 @@ function TipBox({ active, payload, label, stepSec }: { active?: boolean; payload
   )
 }
 
-export function Timeline({ buckets, stepSec, byCategory = true, height = 260, onSelect, range }: { buckets: Bucket[]; stepSec: number; byCategory?: boolean; height?: number; onSelect?: (from: Date, to: Date) => void; range?: { from: Date; to: Date } }) {
+/** Series colours for key mode, in rank order (validated categorical slots). */
+const keyPalette = () => (document.documentElement.classList.contains('dark')
+  ? ['#3987e5', '#d95926', '#199e70', '#c98500', '#9085e9', '#d55181']
+  : ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#6250d6', '#e87ba4'])
+
+export function Timeline({ buckets, stepSec, byCategory = true, byKey = false, format, colorOf, height = 260, onSelect, range }: { buckets: Bucket[]; stepSec: number; byCategory?: boolean; byKey?: boolean; format?: (k: string) => string; colorOf?: (k: string) => string | undefined; height?: number; onSelect?: (from: Date, to: Date) => void; range?: { from: Date; to: Date } }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const { data, keys } = useMemo(() => pivot(buckets, byCategory, stepSec, range), [buckets, byCategory, stepSec])
+  const { data, keys } = useMemo(() => pivot(buckets, byCategory, stepSec, range, byKey), [buckets, byCategory, byKey, stepSec])
   const ink = chartInk()
-  const color = (k: string) => (k === 'other' ? otherColor() : k === 'count' ? '#3987e5' : catColor(k))
+  const pal = keyPalette()
+  const name = format ?? catLabel
+  const color = (k: string) => (k === 'other' ? otherColor() : k === 'count' ? '#3987e5' : byKey ? (colorOf?.(k) ?? pal[keys.indexOf(k) % pal.length]) : catColor(k))
   return (
     <div>
       <div style={{ height }}>
@@ -69,7 +84,7 @@ export function Timeline({ buckets, stepSec, byCategory = true, height = 260, on
             <CartesianGrid stroke={ink.grid} vertical={false} />
             <XAxis dataKey="t" type="category" tickFormatter={tickFmt(stepSec)} stroke={ink.axis} fontSize={11} tickLine={false} axisLine={false} minTickGap={40} />
             <YAxis tickFormatter={fmtCompact} stroke={ink.axis} fontSize={11} tickLine={false} axisLine={false} width={44} />
-            <Tooltip cursor={{ fill: ink.grid, opacity: 0.5 }} content={<TipBox stepSec={stepSec} />} />
+            <Tooltip cursor={{ fill: ink.grid, opacity: 0.5 }} content={<TipBox stepSec={stepSec} name={name} />} />
             {keys.map((k, i) => (
               <Bar key={k} dataKey={k} stackId="a" fill={color(k)} stroke="var(--panel)" strokeWidth={1}
                 radius={i === keys.length - 1 ? [3, 3, 0, 0] : 0} cursor={onSelect ? 'pointer' : undefined} isAnimationActive={false} />
@@ -79,7 +94,7 @@ export function Timeline({ buckets, stepSec, byCategory = true, height = 260, on
       </div>
       {keys.length > 1 && (
         <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-muted">
-          {keys.map((k) => <span key={k} className="flex items-center gap-1.5"><span className="size-2.5 rounded-sm" style={{ background: color(k) }} />{catLabel(k)}</span>)}
+          {keys.map((k) => <span key={k} className="flex items-center gap-1.5"><span className="size-2.5 rounded-sm" style={{ background: color(k) }} />{k === 'other' ? t('Other') : name(k)}</span>)}
         </div>
       )}
     </div>

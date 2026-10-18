@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -265,6 +266,10 @@ func classify(e *Event) {
 		parseVPN(e, msg)
 	case app == "sshd" || app == "dropbear" || app == "login" || app == "sudo" || app == "su":
 		parseAuth(e, msg)
+	case strings.Contains(app, "protect"):
+		parseProtect(e, msg, nil)
+	case app == "unifi-access" || strings.HasPrefix(app, "unifi-access-") || app == "access-controller":
+		parseAccess(e, msg, nil)
 	case strings.Contains(msg, "EVT_"):
 		parseControllerEvent(e, msg)
 	case isSwitchApp(app) || reLink.MatchString(msg):
@@ -517,6 +522,28 @@ func parseCEF(e *Event, msg string) {
 	e.DeviceModel = first(e.DeviceModel, ext["UNIFIdeviceModel"])
 	e.DeviceVersion = first(e.DeviceVersion, ext["UNIFIdeviceVersion"])
 	e.Category = cefCategory(ext["UNIFIcategory"], ext["UNIFIsubCategory"], hdr[5])
+	if m := ext["msg"]; m != "" {
+		e.Message = hdr[5] + ": " + m
+	} else {
+		e.Message = hdr[5]
+	}
+	// UniFi OS consoles forward Protect, Access and system events through
+	// the same SIEM integration; the CEF product tells them apart.
+	switch product := strings.ToLower(hdr[2]); {
+	case strings.Contains(product, "protect"):
+		e.App = "unifi-protect"
+		parseProtect(e, hdr[5], ext)
+		return
+	case strings.Contains(product, "access"):
+		e.App = "unifi-access"
+		parseAccess(e, hdr[5], ext)
+		return
+	case strings.Contains(product, "unifi os") || strings.Contains(product, "unifi-os") || product == "ucore":
+		e.App = "unifi-os"
+		if e.Category == CatSystem || e.Category == CatDevice {
+			e.EventType = slug(hdr[5])
+		}
+	}
 	name := strings.ToLower(hdr[5])
 	act := strings.ToLower(ext["act"])
 	switch {
@@ -526,11 +553,6 @@ func parseCEF(e *Event, msg string) {
 		e.Action = "allow"
 	case e.Category == CatIPS:
 		e.Action = "alert"
-	}
-	if m := ext["msg"]; m != "" {
-		e.Message = hdr[5] + ": " + m
-	} else {
-		e.Message = hdr[5]
 	}
 }
 
@@ -993,5 +1015,118 @@ func parseControllerEvent(e *Event, msg string) {
 	}
 	if s := reEVTSSID.FindStringSubmatch(msg); s != nil {
 		e.SSID = s[1]
+	}
+}
+
+// ---------------------------------------------------------------- Protect / Access
+
+// extValue returns the first CEF extension whose key contains all parts
+// (case-insensitive), skipping keys with any of the excluded words.
+func extValue(ext map[string]string, parts ...string) string {
+	keys := make([]string, 0, len(ext))
+	for k := range ext {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+next:
+	for _, k := range keys {
+		l := strings.ToLower(k)
+		for _, p := range parts {
+			if !strings.Contains(l, p) {
+				continue next
+			}
+		}
+		if strings.HasSuffix(l, "id") || strings.HasSuffix(l, "mac") {
+			continue
+		}
+		if v := strings.TrimSpace(ext[k]); v != "" {
+			return v
+		}
+	}
+	return ""
+}
+
+var reSlug = regexp.MustCompile(`[^a-z0-9]+`)
+
+func slug(s string) string {
+	return strings.Trim(reSlug.ReplaceAllString(strings.ToLower(s), "_"), "_")
+}
+
+func parseProtect(e *Event, name string, ext map[string]string) {
+	e.Category = CatProtect
+	l := strings.ToLower(name)
+	switch {
+	case strings.Contains(l, "person"):
+		e.EventType = "person_detected"
+	case strings.Contains(l, "vehicle"):
+		e.EventType = "vehicle_detected"
+	case strings.Contains(l, "animal"):
+		e.EventType = "animal_detected"
+	case strings.Contains(l, "package"):
+		e.EventType = "package_detected"
+	case strings.Contains(l, "license plate") || strings.Contains(l, "lpr"):
+		e.EventType = "plate_detected"
+	case strings.Contains(l, "face"):
+		e.EventType = "face_detected"
+	case strings.Contains(l, "ring") || strings.Contains(l, "doorbell"):
+		e.EventType = "doorbell_ring"
+	case strings.Contains(l, "tamper"):
+		e.EventType = "tamper"
+		e.Severity = min(e.Severity, 3)
+	case strings.Contains(l, "offline") || strings.Contains(l, "disconnected"):
+		e.EventType = "camera_offline"
+		e.Severity = min(e.Severity, 4)
+	case strings.Contains(l, "online") || strings.Contains(l, "connected") || strings.Contains(l, "adopted"):
+		e.EventType = "camera_online"
+	case strings.Contains(l, "motion"):
+		e.EventType = "motion"
+	case strings.Contains(l, "record"):
+		e.EventType = "recording"
+	default:
+		e.EventType = first(slug(name), "protect")
+	}
+	if ext == nil {
+		return
+	}
+	cam := first(extValue(ext, "camera", "name"), extValue(ext, "camera"), ext["UNIFIdeviceName"], ext["dvchost"])
+	e.set("camera", cam)
+	if cam != "" && e.Hostname == "" {
+		e.Hostname = cam
+	}
+	e.set("zone", first(extValue(ext, "zone"), extValue(ext, "area")))
+}
+
+func parseAccess(e *Event, name string, ext map[string]string) {
+	e.Category = CatAccess
+	l := strings.ToLower(name)
+	switch {
+	case strings.Contains(l, "denied") || strings.Contains(l, "failed") || strings.Contains(l, "invalid") || strings.Contains(l, "rejected"):
+		e.EventType = "access_denied"
+		e.Action = "fail"
+		e.Severity = min(e.Severity, 4)
+	case strings.Contains(l, "forced"):
+		e.EventType = "door_forced_open"
+		e.Severity = min(e.Severity, 3)
+	case strings.Contains(l, "held open") || strings.Contains(l, "left open"):
+		e.EventType = "door_held_open"
+		e.Severity = min(e.Severity, 4)
+	case strings.Contains(l, "doorbell") || strings.Contains(l, "ring"):
+		e.EventType = "doorbell"
+	case strings.Contains(l, "granted") || strings.Contains(l, "unlock") || strings.Contains(l, "opened"):
+		e.EventType = "access_granted"
+		e.Action = "allow"
+	case strings.Contains(l, "locked"):
+		e.EventType = "door_locked"
+	default:
+		e.EventType = first(slug(name), "access")
+	}
+	if ext == nil {
+		return
+	}
+	e.set("door", first(extValue(ext, "door", "name"), extValue(ext, "door"), extValue(ext, "location")))
+	e.set("user", first(extValue(ext, "actor", "name"), extValue(ext, "actor"), ext["suser"], ext["duser"], extValue(ext, "user", "name")))
+	e.set("method", first(extValue(ext, "method"), extValue(ext, "credential")))
+	if e.Hostname == "" {
+		e.Hostname = first(ext["UNIFIdeviceName"], ext["dvchost"])
 	}
 }

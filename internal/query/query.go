@@ -28,6 +28,8 @@ type col struct {
 	expr    string
 	numeric bool
 	ip      bool
+	upper   bool // stored upper-case (country codes)
+	asn     bool // "AS13335" and "13335" both match
 }
 
 var fields = map[string]col{
@@ -67,6 +69,19 @@ var fields = map[string]col{
 	"msg":         {expr: "message"},
 	"message":     {expr: "message"},
 	"raw":         {expr: "raw"},
+	// Enrichment stored in the fields map (GeoIP, UniFi API names).
+	"src_country": {expr: "fields['src_country']", upper: true},
+	"dst_country": {expr: "fields['dst_country']", upper: true},
+	"src_asn":     {expr: "fields['src_asn']", asn: true},
+	"dst_asn":     {expr: "fields['dst_asn']", asn: true},
+	"src_as":      {expr: "fields['src_as_org']"},
+	"dst_as":      {expr: "fields['dst_as_org']"},
+	"src_name":    {expr: "fields['src_name']"},
+	"dst_name":    {expr: "fields['dst_name']"},
+	"device_name": {expr: "fields['device_name']"},
+	"camera":      {expr: "fields['camera']"},
+	"door":        {expr: "fields['door']"},
+	"user":        {expr: "fields['user']"},
 }
 
 // Fields returns the searchable field names for UI autocompletion.
@@ -75,7 +90,7 @@ func Fields() []string {
 	for k := range fields {
 		out = append(out, k)
 	}
-	return append(out, "ip", "port")
+	return append(out, "ip", "port", "country", "asn", "as")
 }
 
 var sevNames = map[string]int{"emerg": 0, "emergency": 0, "alert": 1, "crit": 2, "critical": 2, "err": 3, "error": 3, "warning": 4, "warn": 4, "notice": 5, "info": 6, "debug": 7}
@@ -182,6 +197,11 @@ func compileTerm(t token) (string, []any, error) {
 	case "ip":
 		e, a, err := ipExpr([]string{"src_ip", "dst_ip", "client_ip", "source_ip"}, val)
 		return wrap(e), a, err
+	case "country", "asn", "as":
+		k := map[string]string{"country": "country", "asn": "asn", "as": "as"}[key]
+		e1, a1, _ := compileTerm(token{raw: "src_" + k + ":" + val})
+		e2, a2, _ := compileTerm(token{raw: "dst_" + k + ":" + val})
+		return wrap("(" + e1 + " OR " + e2 + ")"), append(a1, a2...), nil
 	case "port":
 		e1, a1, err := numExpr("src_port", val)
 		if err != nil {
@@ -220,6 +240,12 @@ func compileTerm(t token) (string, []any, error) {
 		if c.expr == "client_mac" || c.expr == "device_mac" {
 			val = strings.ToLower(val)
 		}
+		if c.upper {
+			val = strings.ToUpper(val)
+		}
+		if c.asn {
+			val = strings.TrimPrefix(strings.ToUpper(val), "AS")
+		}
 		e, a := strExpr(c.expr, val)
 		return wrap(e), a, nil
 	}
@@ -233,7 +259,7 @@ func strExpr(colExpr, val string) (string, []any) {
 		like := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`, `*`, `%`).Replace(val)
 		return colExpr + " ILIKE ?", []any{like}
 	}
-	if colExpr == "message" || colExpr == "raw" || colExpr == "rule" || colExpr == "client_name" {
+	if colExpr == "message" || colExpr == "raw" || colExpr == "rule" || colExpr == "client_name" || strings.HasSuffix(colExpr, "_name']") || strings.HasSuffix(colExpr, "_org']") {
 		return "positionCaseInsensitiveUTF8(" + colExpr + ", ?) > 0", []any{val}
 	}
 	return colExpr + " = ?", []any{val}

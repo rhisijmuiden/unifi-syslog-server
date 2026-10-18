@@ -219,6 +219,7 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
 		{"ssids", "category:wifi OR category:client", "ssid"},
 		{"sources", "", "hostname"},
 		{"dhcp_clients", "category:dhcp", "client_name"},
+		{"countries", "category:firewall action:block OR category:ips", "src_country"},
 	}
 	type res struct {
 		key   string
@@ -229,7 +230,11 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
 		go func(sp spec) {
 			q := req
 			q.Query = sp.query
-			items, _ := s.Logs.Top(ctx, q, sp.field, 8)
+			n := 8
+			if sp.field == "src_country" {
+				n = 100 // all countries for the map
+			}
+			items, _ := s.Logs.Top(ctx, q, sp.field, n)
 			ch <- res{sp.key, items}
 		}(sp)
 	}

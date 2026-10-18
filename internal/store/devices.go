@@ -26,15 +26,18 @@ type InvDevice struct {
 	Silent         bool   `json:"silent"`
 	FirstSeen      int64  `json:"first_seen"`
 	LastSeen       int64  `json:"last_seen"`
-	dirty          bool
+	// FirmwareAlerted is the version last reported as outdated by mail.
+	FirmwareAlerted string `json:"-"`
+	dirty           bool
 }
 
 // InventorySettings controls when a device counts as silent and who is
 // mailed about it.
 type InventorySettings struct {
-	SilentMinutes int    `json:"silent_minutes"`
-	Notify        bool   `json:"notify"`
-	Recipients    string `json:"recipients"`
+	SilentMinutes  int    `json:"silent_minutes"`
+	Notify         bool   `json:"notify"`
+	FirmwareNotify bool   `json:"firmware_notify"`
+	Recipients     string `json:"recipients"`
 }
 
 func (m *Meta) Inventory() InventorySettings {
@@ -53,7 +56,7 @@ func DeviceKey(mac, hostname, sourceIP string) string {
 	return "h:" + strings.ToLower(hostname) + "@" + sourceIP
 }
 
-const deviceCols = `key,mac,hostname,model,version,prev_version,version_changed,name,notes,site,source_ip,monitored,silent,first_seen,last_seen`
+const deviceCols = `key,mac,hostname,model,version,prev_version,version_changed,name,notes,site,source_ip,monitored,silent,first_seen,last_seen,firmware_alerted`
 
 func (m *Meta) reloadDevices() error {
 	rows, err := m.DB.Query(`SELECT ` + deviceCols + ` FROM devices`)
@@ -65,7 +68,7 @@ func (m *Meta) reloadDevices() error {
 	for rows.Next() {
 		var d InvDevice
 		if err := rows.Scan(&d.Key, &d.MAC, &d.Hostname, &d.Model, &d.Version, &d.PrevVersion, &d.VersionChanged, &d.Name, &d.Notes,
-			&d.Site, &d.SourceIP, &d.Monitored, &d.Silent, &d.FirstSeen, &d.LastSeen); err != nil {
+			&d.Site, &d.SourceIP, &d.Monitored, &d.Silent, &d.FirstSeen, &d.LastSeen, &d.FirmwareAlerted); err != nil {
 			return err
 		}
 		dev[d.Key] = d
@@ -137,12 +140,12 @@ func (m *Meta) FlushDevices() error {
 	for _, d := range dirty {
 		// name, notes, monitored and silent are owned by the UI and the
 		// monitor, so ingest never overwrites them.
-		_, err := tx.Exec(`INSERT INTO devices(`+deviceCols+`) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+		_, err := tx.Exec(`INSERT INTO devices(`+deviceCols+`) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 			ON CONFLICT(key) DO UPDATE SET hostname=excluded.hostname, model=excluded.model, version=excluded.version,
 			prev_version=excluded.prev_version, version_changed=excluded.version_changed, site=excluded.site,
 			source_ip=excluded.source_ip, last_seen=max(last_seen, excluded.last_seen)`,
 			d.Key, d.MAC, d.Hostname, d.Model, d.Version, d.PrevVersion, d.VersionChanged, d.Name, d.Notes,
-			d.Site, d.SourceIP, d.Monitored, d.Silent, d.FirstSeen, d.LastSeen)
+			d.Site, d.SourceIP, d.Monitored, d.Silent, d.FirstSeen, d.LastSeen, d.FirmwareAlerted)
 		if err != nil {
 			tx.Rollback()
 			return err
@@ -187,6 +190,19 @@ func (m *Meta) SetDeviceSilent(key string, silent bool) error {
 	}
 	m.mu.Unlock()
 	_, err := m.DB.Exec(`UPDATE devices SET silent=? WHERE key=?`, silent, key)
+	return err
+}
+
+// SetFirmwareAlerted records which version was last mailed as outdated
+// ("" once the device is current again).
+func (m *Meta) SetFirmwareAlerted(key, version string) error {
+	m.mu.Lock()
+	if d, ok := m.devices[key]; ok {
+		d.FirmwareAlerted = version
+		m.devices[key] = d
+	}
+	m.mu.Unlock()
+	_, err := m.DB.Exec(`UPDATE devices SET firmware_alerted=? WHERE key=?`, version, key)
 	return err
 }
 

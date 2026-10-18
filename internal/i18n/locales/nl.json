@@ -18,5 +18,12 @@
   "incremental": "incrementeel",
   "Error: %s": "Fout: %s",
   "Test message": "Testbericht",
-  "This is a test message from %s.\nIf you are reading this, the mail configuration works.\n\nSent: %s": "Dit is een testbericht van %s.\nAls je dit leest, werkt de mailconfiguratie.\n\nVerzonden: %s"
+  "This is a test message from %s.\nIf you are reading this, the mail configuration works.\n\nSent: %s": "Dit is een testbericht van %s.\nAls je dit leest, werkt de mailconfiguratie.\n\nVerzonden: %s",
+  "These devices run outdated firmware:": "Deze apparaten draaien verouderde firmware:",
+  "newer version %s runs on other %s devices": "nieuwere versie %s draait op andere %s-apparaten",
+  "UniFi Network offers an update": "UniFi Network biedt een update aan",
+  "%s (%s, site %s): %s, %s": "%s (%s, locatie %s): %s, %s",
+  "Models with mixed firmware:": "Modellen met gemengde firmware:",
+  "Outdated firmware: %s": "Verouderde firmware: %s",
+  "%d devices run outdated firmware": "%d apparaten draaien verouderde firmware"
 }

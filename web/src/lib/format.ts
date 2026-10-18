@@ -63,6 +63,8 @@ export const categoryMeta: Record<string, { label: string; slot?: keyof typeof s
   client: { label: 'Clients' },
   device: { label: 'Devices' },
   system: { label: 'System' },
+  protect: { label: 'Protect' },
+  access: { label: 'Access' },
 }
 export const primaryCategories = Object.keys(categoryMeta).filter((k) => categoryMeta[k].slot)
 const isDark = () => document.documentElement.classList.contains('dark')

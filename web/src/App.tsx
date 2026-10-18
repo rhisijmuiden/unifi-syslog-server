@@ -3,6 +3,7 @@ import { BrowserRouter, NavLink, Navigate, Route, Routes, useLocation } from 're
 import {
   LayoutDashboard, ScrollText, Tags, Router as RouterIcon, MapPin, BellRing, Users, KeyRound, Mail, DatabaseBackup,
   Settings, History, Info, LogOut, Moon, Sun, Menu, X, Languages, Palette,
+  ShieldX, Wifi, Network, Lock, Siren, Smartphone, Server, Globe,
 } from 'lucide-react'
 import { api, brandingUrl, type Branding, type User } from './api'
 import { languages, setLanguage, t } from './i18n'
@@ -23,6 +24,10 @@ import Backup from './pages/Backup'
 import SettingsPage from './pages/Settings'
 import BrandingPage from './pages/Branding'
 import Audit from './pages/Audit'
+import Dashboards from './pages/Dashboards'
+import Controllers from './pages/Controllers'
+import GeoIP from './pages/GeoIP'
+import Clients from './pages/Clients'
 
 interface AuthCtx {
   user: User
@@ -122,10 +127,20 @@ const nav: { section: string; items: NavItem[] }[] = [
     { to: '/logs', label: 'Logs', icon: <ScrollText /> },
     { to: '/categories', label: 'Categories', icon: <Tags /> },
     { to: '/devices', label: 'Devices', icon: <RouterIcon /> },
+    { to: '/clients', label: 'Clients', icon: <Smartphone /> },
     { to: '/sites', label: 'Sites', icon: <MapPin /> },
+  ] },
+  { section: 'Dashboards', items: [
+    { to: '/dashboards/firewall', label: 'Firewall', icon: <ShieldX /> },
+    { to: '/dashboards/wifi', label: 'Wi-Fi', icon: <Wifi /> },
+    { to: '/dashboards/dhcp', label: 'DHCP', icon: <Network /> },
+    { to: '/dashboards/vpn', label: 'VPN', icon: <Lock /> },
+    { to: '/dashboards/ips', label: 'Threats (IPS)', icon: <Siren /> },
   ] },
   { section: 'Configuration', items: [
     { to: '/alerts', label: 'Alerts', icon: <BellRing />, admin: true },
+    { to: '/controllers', label: 'UniFi controllers', icon: <Server />, admin: true },
+    { to: '/geoip', label: 'GeoIP', icon: <Globe />, admin: true },
   ] },
   { section: 'Administration', items: [
     { to: '/users', label: 'Users', icon: <Users />, admin: true },
@@ -221,8 +236,12 @@ function Shell() {
             <Route path="/categories" element={<Categories />} />
             <Route path="/devices" element={<Devices />} />
             <Route path="/sites" element={<Sites />} />
+            <Route path="/clients" element={<Clients />} />
+            <Route path="/dashboards/:kind" element={<Dashboards />} />
             {isAdmin && <>
               <Route path="/alerts" element={<Alerts />} />
+              <Route path="/controllers" element={<Controllers />} />
+              <Route path="/geoip" element={<GeoIP />} />
               <Route path="/users" element={<UsersPage />} />
               <Route path="/sso" element={<SSO />} />
               <Route path="/mail" element={<MailPage />} />
