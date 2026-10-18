@@ -89,7 +89,7 @@ Goal: safe to use with several administrators and customers.
 | API tokens | REST API for scripts and integrations, with per-user tokens |
 | Source allowlist | Only accept syslog from known IPs or subnets |
 
-## 1.4 Forwarding to Microsoft Sentinel, ELK and other log tools
+## 1.4 Forwarding to Microsoft Sentinel, ELK and other log tools (shipped in v0.7.0)
 
 Goal: forward selected UniFi events directly and reliably to Microsoft Sentinel, the ELK stack (Elasticsearch, Logstash, Kibana) or another log analytics tool. All destinations share the same filters, queue and status page.
 
@@ -152,5 +152,4 @@ Goal: insight and accountability, not just storage.
 ## Up next
 
 1. **Notification channels** (1.1): Teams, Slack, Telegram and SMS via MessageBird next to e-mail, so the server tells you when something is wrong.
-2. **Forwarding to Sentinel and ELK** (1.4): send selected UniFi events to the security tools you already use.
-3. **Remote probes** (1.5): no lost logs from remote sites and no unencrypted syslog over the internet.
+2. **Remote probes** (1.5): no lost logs from remote sites and no unencrypted syslog over the internet.
