@@ -18,7 +18,7 @@ A central syslog server built specifically for UniFi. All UniFi sites send their
 
 **Look and search**
 
-- **Overview dashboard**: messages per category, blocked traffic and threats per country, blocked sources and ports, IPS signatures, Wi-Fi clients, SSIDs, DHCP clients, devices and sites. Click through to the logs.
+- **Overview dashboard**: messages per category, blocked traffic and threats per country, blocked sources and ports, IPS signatures, Wi-Fi clients, SSIDs, DHCP clients, devices, sites and the status of the remote probes. Click through to the logs.
 - **Ready-made dashboards**: Firewall, Wi-Fi (roaming and connection problems), DHCP, VPN (WireGuard, Teleport and site-to-site) and Threats (IPS), each filterable per site and period.
 - **Search**: a dedicated [query language](#query-language) with fields, CIDR, ranges and wildcards, a histogram, live tail, and export to CSV and JSON.
 - **Categories**: your own categories (a saved search with a color) to filter logs, with counters on the Categories page.
@@ -123,11 +123,17 @@ curl -fsSL https://raw.githubusercontent.com/rhisijmuiden/unifi-syslog-server/ma
 
 For a **Raspberry Pi** (3, 4, 5 or Zero 2 W), write `unify-syslog-probe-rpi-arm64.img.xz` from the release with Raspberry Pi Imager. Put the key in `uss-probe.txt` on the boot partition, or paste it on the probe's web page at `http://<pi>:8080`.
 
-The Remote probes page shows the status, rate, buffer, devices and resources of every probe, and the main server can email you when a probe goes offline or its buffer fills up. Probes are updated through the main server, automatically to the server's version or by hand, and roll back by themselves when an update fails. See [docs/PROBES.md](docs/PROBES.md) for all details, including how to use your own HTTPS certificate.
+![Remote probes page](docs/screenshots/probes.png)
+
+The Remote probes page shows the status, rate, buffer, devices and resources of every probe, and the main server can email you when a probe goes offline or its buffer fills up. Probes are updated through the main server, automatically to the server's version or by hand, and roll back by themselves when an update fails. The overview dashboard shows a summary of all probes as well. See [docs/PROBES.md](docs/PROBES.md) for all details, including how to use your own HTTPS certificate.
+
+| | |
+|---|---|
+| ![Installing a probe](docs/screenshots/probes-install.png)<br>**Add probe** shows the enrollment key with ready-to-paste commands for the Proxmox LXC, Debian 13 and the Raspberry Pi image. | ![The probe's own web page](docs/screenshots/probe-page.png)<br>**The probe's own page** on port 8080 shows its connection, rate, buffer, devices and disk. All settings are managed on the main server. |
 
 ## Feature tour
 
-The screenshots show simulated UniFi traffic from four sites (`unify-syslog simulate`), with the *Northwind IT* branding as an example.
+The screenshots show simulated UniFi traffic from five sites (`unify-syslog simulate`), four of them through remote probes, with the *Northwind IT* branding as an example.
 
 ### Dashboards
 
@@ -197,6 +203,10 @@ You can adjust its behavior with these environment variables:
 | `USS_CH_MEMORY_RATIO=0.5` | Sets the share of RAM that ClickHouse may use. |
 
 Then open `http://<server>:8080`.
+
+### Remote probe
+
+A probe for a remote location has its own Proxmox LXC script, Debian 13 installer and Raspberry Pi image; all of them need an enrollment key from the main server. See [Remote probes](#remote-probes) and [docs/PROBES.md](docs/PROBES.md).
 
 ### Files
 
@@ -318,6 +328,16 @@ unify-syslog update [--check]           # update to the latest release on the co
 unify-syslog update rollback [version]  # go back to a kept previous version
 unify-syslog simulate --target 127.0.0.1:514 --rate 500 --sites 3   # test traffic
 unify-syslog version
+```
+
+On a remote probe:
+
+```bash
+unify-syslog-probe status               # connection, buffer and version
+unify-syslog-probe enroll '<key>'       # enroll with a key from the main server
+unify-syslog-probe setup                # ask for the key and enroll
+unify-syslog-probe reset                # forget the enrollment (the buffer is kept)
+unify-syslog-probe version
 ```
 
 ## Building from source
