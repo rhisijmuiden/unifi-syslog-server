@@ -31,6 +31,8 @@ import (
 	"github.com/rhisijmuiden/unify-syslog-server/internal/auth"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/backup"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/config"
+	"github.com/rhisijmuiden/unify-syslog-server/internal/enrich"
+	"github.com/rhisijmuiden/unify-syslog-server/internal/geoip"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/ingest"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/mail"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/simulate"
@@ -150,9 +152,20 @@ func serve(cfgPath string) error {
 	pipe := &ingest.Pipeline{In: queue, Meta: meta, Logs: logs, Workers: cfg.Ingest.Workers, BatchSize: cfg.Ingest.BatchSize,
 		Flush: time.Duration(cfg.Ingest.FlushInterval) * time.Millisecond, Location: getLoc, Stats: ingStats, Log: log}
 
+	geo := &geoip.Manager{Dir: filepath.Join(cfg.DataDir, "geoip"), Log: log, Client: &http.Client{Timeout: 10 * time.Minute}, Settings: func() geoip.Settings {
+		g := meta.GeoIP()
+		return geoip.Settings{Enabled: g.Enabled, AutoUpdate: g.AutoUpdate, Source: geoip.Source{Provider: g.Provider, AccountID: g.AccountID, LicenseKey: g.LicenseKey}}
+	}}
+	enricher := enrich.New(meta, geo)
+	if err := enricher.Load(); err != nil {
+		log.Warn("load client names", "err", err)
+	}
+	syncer := &enrich.Syncer{Enricher: enricher, Log: log}
+	pipe.Enrich = enricher
+
 	mailer := &mail.Mailer{Meta: meta}
 	bk := &backup.Manager{Meta: meta, Logs: logs, Mailer: mailer, Dir: cfg.BackupDir(), KeyPath: cfg.SecretKeyPath(), Log: log, Restart: restart}
-	al := &alerts.Engine{Meta: meta, Logs: logs, Mailer: mailer, Log: log, Started: time.Now()}
+	al := &alerts.Engine{Meta: meta, Logs: logs, Mailer: mailer, Log: log, Started: time.Now(), Controller: enricher.Device}
 	go func() {
 		sctx, cancel := context.WithTimeout(ctx, time.Minute)
 		defer cancel()
@@ -161,7 +174,7 @@ func serve(cfgPath string) error {
 		}
 	}()
 	apiSrv := &api.Server{Cfg: cfg, Meta: meta, Logs: logs, Mailer: mailer, Backup: bk, Updater: upd, Entra: &auth.Entra{Meta: meta},
-		Alerts: al, Pipeline: pipe, SysStats: sysStats, IngStats: ingStats, UI: web.Dist(), Log: log, Started: time.Now(), Restart: restart,
+		Alerts: al, Pipeline: pipe, Enrich: enricher, Syncer: syncer, Geo: geo, SysStats: sysStats, IngStats: ingStats, UI: web.Dist(), Log: log, Started: time.Now(), Restart: restart,
 		OnSettings: func(g store.GeneralSettings) { setLoc(g.Timezone) }}
 
 	httpSrv := &http.Server{Addr: cfg.HTTPListen, Handler: apiSrv.Handler(), ReadHeaderTimeout: 10 * time.Second}
@@ -172,6 +185,8 @@ func serve(cfgPath string) error {
 	go func() { pipe.Run(ctx); close(pipeDone) }()
 	go bk.Scheduler(ctx, getLoc)
 	go al.Run(ctx)
+	go geo.Run(ctx)
+	go syncer.Run(ctx)
 	go func() {
 		t := time.NewTicker(time.Hour)
 		defer t.Stop()

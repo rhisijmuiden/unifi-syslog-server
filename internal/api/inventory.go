@@ -20,6 +20,9 @@ type deviceView struct {
 	Status string `json:"status"` // active, silent or inactive (silent but not monitored)
 	Count  uint64 `json:"count"`
 	Errors uint64 `json:"errors"`
+	// From a UniFi controller, when one is connected.
+	ControllerName string `json:"controller_name,omitempty"`
+	Updatable      bool   `json:"updatable,omitempty"`
 }
 
 func deviceStatus(d store.InvDevice, now time.Time, silentAfter time.Duration) string {
@@ -49,7 +52,11 @@ func (s *Server) listDevices(w http.ResponseWriter, r *http.Request) {
 	out := []deviceView{}
 	for _, d := range s.Meta.Devices() {
 		c := counts[d.Key]
-		out = append(out, deviceView{InvDevice: d, Status: deviceStatus(d, now, silentAfter), Count: c.Count, Errors: c.Errors})
+		v := deviceView{InvDevice: d, Status: deviceStatus(d, now, silentAfter), Count: c.Count, Errors: c.Errors}
+		if cd, ok := s.controllerDevice(d.MAC); ok && d.MAC != "" {
+			v.ControllerName, v.Updatable = cd.Name, cd.Updatable
+		}
+		out = append(out, v)
 	}
 	sort.Slice(out, func(i, j int) bool {
 		if out[i].Site != out[j].Site {

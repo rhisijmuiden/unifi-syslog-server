@@ -25,9 +25,9 @@ type Logs struct {
 
 func OpenLogs(ctx context.Context, cfg config.ClickHouse, retentionDays int) (*Logs, error) {
 	conn, err := clickhouse.Open(&clickhouse.Options{
-		Addr: []string{cfg.Addr},
-		Auth: clickhouse.Auth{Database: "default", Username: cfg.Username, Password: cfg.Password},
-		Compression: &clickhouse.Compression{Method: clickhouse.CompressionLZ4},
+		Addr:            []string{cfg.Addr},
+		Auth:            clickhouse.Auth{Database: "default", Username: cfg.Username, Password: cfg.Password},
+		Compression:     &clickhouse.Compression{Method: clickhouse.CompressionLZ4},
 		DialTimeout:     10 * time.Second,
 		MaxOpenConns:    16,
 		ConnMaxLifetime: time.Hour,
@@ -135,7 +135,9 @@ func (l *Logs) SetRetention(ctx context.Context, days int) error {
 }
 
 func (l *Logs) Insert(ctx context.Context, evs []*unifi.Event) error {
-	b, err := l.Conn.PrepareBatch(ctx, "INSERT INTO "+l.t("logs"))
+	// Naming the columns keeps inserts working when a later version adds
+	// columns to the table and this one is rolled back to.
+	b, err := l.Conn.PrepareBatch(ctx, "INSERT INTO "+l.t("logs")+" ("+insertCols+")")
 	if err != nil {
 		return err
 	}
@@ -166,7 +168,7 @@ type SearchReq struct {
 	Before time.Time `json:"before"` // keyset pagination: rows strictly older
 	// AfterReceived limits to rows received after this instant (live tail).
 	AfterReceived time.Time `json:"-"`
-	Asc    bool      `json:"asc"`
+	Asc           bool      `json:"asc"`
 }
 
 type Row struct {
@@ -208,6 +210,10 @@ func RowFromEvent(e *unifi.Event) Row {
 		SrcPort: e.SrcPort, DstPort: e.DstPort, Proto: e.Proto, InIf: e.InIf, OutIf: e.OutIf, ClientMAC: e.ClientMAC,
 		ClientName: e.ClientName, ClientIP: e.ClientIP, SSID: e.SSID, Message: e.Message, Raw: e.Raw, Fields: e.Fields}
 }
+
+const insertCols = `ts, received, source_ip, site, hostname, device_model, device_mac, device_version, facility, severity, app, pid,
+	category, event_type, action, rule, src_ip, dst_ip, src_port, dst_port, proto, in_if, out_if,
+	client_mac, client_name, client_ip, ssid, message, raw, fields`
 
 const rowCols = `ts, received, source_ip, site, hostname, device_model, device_mac, device_version, facility, severity, app,
 	category, event_type, action, rule, src_ip, dst_ip, src_port, dst_port, proto, in_if, out_if,
@@ -293,7 +299,7 @@ func (l *Logs) Histogram(ctx context.Context, r SearchReq, groupBy string) ([]Bu
 	}
 	g := "''"
 	switch groupBy {
-	case "category", "severity", "site", "action", "hostname", "app":
+	case "category", "severity", "site", "action", "hostname", "app", "event_type":
 		g = "toString(" + groupBy + ")"
 	}
 	step := BucketSeconds(r.From, r.To)
@@ -336,7 +342,12 @@ var topCols = map[string]string{
 	"src_ip": "src_ip", "dst_ip": "dst_ip", "dst_port": "toString(dst_port)", "rule": "rule", "client_mac": "client_mac",
 	"client_name": "client_name", "ssid": "ssid", "hostname": "hostname", "source_ip": "source_ip", "app": "app",
 	"event_type": "event_type", "category": "category", "site": "site", "proto": "proto", "action": "action",
-	"severity": "toString(severity)", "device_model": "device_model",
+	"severity": "toString(severity)", "device_model": "device_model", "in_if": "in_if", "out_if": "out_if",
+	"src_country": "fields['src_country']", "dst_country": "fields['dst_country']",
+	"src_as": "concat(fields['src_asn'], '|', fields['src_as_org'])", "dst_as": "concat(fields['dst_asn'], '|', fields['dst_as_org'])",
+	"device_name": "fields['device_name']", "classification": "fields['classification']", "client_ip": "client_ip",
+	"src_name": "fields['src_name']", "dst_name": "fields['dst_name']",
+	"camera": "fields['camera']", "door": "fields['door']", "user": "fields['user']",
 }
 
 func (l *Logs) Top(ctx context.Context, r SearchReq, field string, n int) ([]TopItem, error) {
@@ -351,7 +362,7 @@ func (l *Logs) Top(ctx context.Context, r SearchReq, field string, n int) ([]Top
 	if n <= 0 || n > 100 {
 		n = 10
 	}
-	q := fmt.Sprintf("SELECT %s AS k, count() AS c FROM %s WHERE %s AND k != '' AND k != '0' GROUP BY k ORDER BY c DESC LIMIT %d", c, l.t("logs"), w, n)
+	q := fmt.Sprintf("SELECT %s AS k, count() AS c FROM %s WHERE %s AND k != '' AND k != '0' AND k != '|' GROUP BY k ORDER BY c DESC LIMIT %d", c, l.t("logs"), w, n)
 	rows, err := l.Conn.Query(ctx, q, args...)
 	if err != nil {
 		return nil, err

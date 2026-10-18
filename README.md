@@ -3,13 +3,16 @@
 A central syslog server built specifically for UniFi. All UniFi sites send their syslog to one server, which recognizes firewall, IPS, Wi-Fi, DHCP, DNS, VPN, switch and management messages, enriches them with fields (source, destination, port, rule, client, SSID…) and makes them searchable and visible in a dashboard.
 
 - **Receiver**: UDP and TCP on port 514 (RFC3164, RFC5424, RFC6587 framing).
-- **UniFi parser**: device name `model,mac,version`, iptables rule tags (`WAN_IN-D-3001`, `DESCR="..."`), CEF from UniFi Network SIEM, hostapd/stahtd, dnsmasq/kea DHCP, DNS, Suricata IPS, WireGuard/OpenVPN/IPsec, SSH logins, switch ports and `EVT_*` controller codes.
+- **UniFi parser**: device name `model,mac,version`, iptables rule tags (`WAN_IN-D-3001`, `DESCR="..."`), CEF from UniFi Network SIEM, hostapd/stahtd, dnsmasq/kea DHCP, DNS, Suricata IPS, WireGuard/OpenVPN/IPsec, SSH logins, switch ports and `EVT_*` controller codes. UniFi Protect (cameras, smart detections, doorbells), UniFi Access (doors, granted and denied access) and UniFi OS system events (CEF) get their own categories.
+- **UniFi Network API**: connect one or more consoles with an API key. Client and device names are attached to log lines, so you see "Alex's iPhone" and "AP Attic" instead of MAC addresses. Without a controller, names are learnt from DHCP logs. All known names are listed under **Clients**.
+- **GeoIP**: country and AS number (provider) of external IP addresses from DB-IP Lite (no account) or MaxMind GeoLite2, updated automatically, with a world map on the dashboards.
+- **Ready-made dashboards**: Firewall, Wi-Fi (roaming and connection problems), DHCP, VPN (WireGuard, Teleport and site-to-site) and IPS threats.
 - **Storage**: ClickHouse (columnar storage, compression, billions of rows), daily partitions and a configurable retention period. Metadata in SQLite.
 - **Dashboard**: messages per category, blocked sources and ports, IPS signatures, Wi-Fi clients, SSIDs, DHCP clients, devices and sites. Click through to the logs.
 - **Search**: a dedicated query language with fields, CIDR, ranges and wildcards, live tail, and export to CSV and JSON.
 - **Categories**: create your own categories (a saved search with a color) to filter logs.
 - **Sites**: map source IPs to a site, manually or via IP ranges. Sites behind NAT work too. An overview shows, per site, the status, devices and logs, blocks, IPS alerts and errors of the last 24 hours.
-- **Devices**: a persistent inventory of all UniFi devices (by MAC address, so also behind NAT), with a custom name and notes, firmware per model and updated firmware. Devices that have not sent logs for too long are marked as *silent* and, optionally, reported by email, as is their return.
+- **Devices**: a persistent inventory of all UniFi devices (by MAC address, so also behind NAT), with a custom name and notes, firmware per model and updated firmware. Devices that have not sent logs for too long are marked as *silent* and, optionally, reported by email, as is their return. **Firmware warnings** flag devices that run older firmware than other devices of the same model, or for which UniFi Network offers an update, optionally by email.
 - **Alerts**: email when a search exceeds a threshold.
 - **Microsoft Entra SSO** (OIDC + PKCE), with groups mapped to roles (admin or viewer).
 - **Mail**: your own SMTP server with STARTTLS or TLS, minimum TLS 1.2/1.3, and PLAIN, LOGIN, CRAM-MD5, SCRAM-SHA-256 or OAuth2 (Microsoft 365).
@@ -24,6 +27,8 @@ See the [roadmap](ROADMAP.md) for what is planned next.
 ## Screenshots
 
 ![Overview dashboard](docs/screenshots/dashboard.png)
+
+![Firewall dashboard with GeoIP map](docs/screenshots/dashboard-firewall.png)
 
 | | |
 |---|---|
@@ -92,6 +97,10 @@ Then open `http://<server>:8080`.
 3. Enable **Syslog Logging** on the firewall rules you want to see.
 4. To also receive debug messages from the devices, enable *Debug Logs*.
 
+**Names from UniFi Network (optional)**: in UniFi Network 9.0 or later, go to *Settings → Control Plane → Integrations* and create an API key. Add the console address (for example `https://192.168.1.1`) and the key under **Configuration → UniFi controllers**. Names are refreshed every 5 minutes.
+
+**GeoIP (optional)**: turn it on under **Configuration → GeoIP**. DB-IP Lite needs no account; for MaxMind GeoLite2, enter your account ID and license key. The server needs outbound HTTPS to download the databases.
+
 **Multiple sites**: each site sends to the public IP or the VPN tunnel of this server. Then go to **Sites** in the interface and map each source IP (for example the WAN IP of a branch office) or IP range to a site name.
 
 ## Query language
@@ -108,6 +117,9 @@ Then open `http://<server>:8080`.
 | `ssid:"Office" client:aa:bb:*` | An SSID and clients with a MAC prefix. |
 | `"authentication failure"` | An exact phrase in the message. |
 | `field.signature_id:2210050` | An extra field from the parser. |
+| `category:firewall action:block country:CN` | Blocked traffic to or from a country (GeoIP). |
+| `src_asn:AS13335` | Traffic from one network (AS number). |
+| `category:protect event:person_detected` | People detected by UniFi Protect. |
 
 You can search on these fields:
 
@@ -117,7 +129,9 @@ You can search on these fields:
 | Device | `model`, `mac`, `firmware` |
 | Event | `action`, `rule`, `event` |
 | Traffic | `src`, `dst`, `sport`, `dport`, `proto`, `in`, `out`, `ip` (source or destination), `port` |
-| Clients | `client`, `client_name`, `client_ip`, `ssid` |
+| Clients | `client`, `client_name`, `client_ip`, `ssid`, `src_name`, `dst_name`, `device_name` |
+| GeoIP | `country`, `src_country`, `dst_country`, `asn`, `src_asn`, `dst_asn`, `as`, `src_as`, `dst_as` |
+| Protect and Access | `camera`, `door`, `user` |
 
 ## Branding
 

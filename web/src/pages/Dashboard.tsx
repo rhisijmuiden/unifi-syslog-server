@@ -3,6 +3,8 @@ import { Activity, ShieldX, Siren, TriangleAlert, LayoutDashboard, Gauge } from 
 import { api, type Bucket, type TopItem } from '../api'
 import { Card, PageHeader, Spinner, Stat, useAsync } from '../components/ui'
 import { BarList, Timeline } from '../components/charts'
+import { WorldMap } from '../components/WorldMap'
+import { countryName, flag } from '../lib/countries'
 import { RangePicker, RefreshButton, SiteFilter, toRange, useUrlState } from '../components/Filters'
 import { t } from '../i18n'
 import { catColor, catLabel, fmtCompact, fmtNum, severityLabel } from '../lib/format'
@@ -53,6 +55,16 @@ export default function Dashboard() {
           <Card title={t('Messages per category')} subtitle={t('Click a bar to open that period in the logs')}>
             <Timeline buckets={o!.timeline ?? []} stepSec={o!.step_sec} range={toRange(st)} onSelect={(f, t) => go('', { preset: 'custom', from: localIso(f), to: localIso(t) })} />
           </Card>
+
+          {(data.top.countries?.length ?? 0) > 0 && (
+            <Card title={t('Blocked traffic and threats per country')} subtitle={t('Source country of blocked packets and IPS alerts')}>
+              <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+                <div className="lg:col-span-2"><WorldMap items={data.top.countries} onSelect={(cc) => go(`category:firewall action:block src_country:${cc} OR category:ips src_country:${cc}`)} /></div>
+                <BarList mono={false} items={data.top.countries.slice(0, 10)} color="#e66767" format={(k) => `${flag(k)} ${countryName(k)}`}
+                  onClick={(cc) => go(`category:firewall action:block src_country:${cc} OR category:ips src_country:${cc}`)} />
+              </div>
+            </Card>
+          )}
 
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
             <Card title={t('Categories')}><BarList mono={false} items={o!.by_category} color={catColor} format={catLabel} onClick={(k) => go(`category:${k}`)} /></Card>

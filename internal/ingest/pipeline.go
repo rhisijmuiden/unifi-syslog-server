@@ -9,19 +9,20 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/rhisijmuiden/unify-syslog-server/internal/enrich"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/store"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/syslogd"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/unifi"
 )
 
 type Stats struct {
-	Parsed      atomic.Uint64
-	Inserted    atomic.Uint64
-	InsertErrs  atomic.Uint64
-	Discarded   atomic.Uint64
-	LastInsert  atomic.Int64
-	LastError   atomic.Value // string
-	Pending     atomic.Int64
+	Parsed     atomic.Uint64
+	Inserted   atomic.Uint64
+	InsertErrs atomic.Uint64
+	Discarded  atomic.Uint64
+	LastInsert atomic.Int64
+	LastError  atomic.Value // string
+	Pending    atomic.Int64
 }
 
 type Pipeline struct {
@@ -34,6 +35,8 @@ type Pipeline struct {
 	Location  func() *time.Location
 	Stats     *Stats
 	Log       *slog.Logger
+	// Enrich adds client, device and GeoIP information; optional.
+	Enrich *enrich.Enricher
 
 	rangesMu sync.RWMutex
 	ranges   []store.SiteRange
@@ -68,6 +71,9 @@ func (p *Pipeline) Run(ctx context.Context) {
 			case <-ctx.Done():
 				p.Meta.FlushSources()
 				p.Meta.FlushDevices()
+				if p.Enrich != nil {
+					p.Enrich.Flush()
+				}
 				return
 			case <-t.C:
 				if err := p.Meta.FlushSources(); err != nil {
@@ -75,6 +81,11 @@ func (p *Pipeline) Run(ctx context.Context) {
 				}
 				if err := p.Meta.FlushDevices(); err != nil {
 					p.Log.Warn("flush devices", "err", err)
+				}
+				if p.Enrich != nil {
+					if err := p.Enrich.Flush(); err != nil {
+						p.Log.Warn("flush client names", "err", err)
+					}
 				}
 			}
 		}
@@ -106,6 +117,9 @@ func (p *Pipeline) parseLoop(ctx context.Context, out chan<- *unifi.Event) {
 			}
 			if e.Hostname == "" {
 				e.Hostname = first(name, m.SourceIP)
+			}
+			if p.Enrich != nil {
+				p.Enrich.Apply(e)
 			}
 			p.Stats.Parsed.Add(1)
 			out <- e

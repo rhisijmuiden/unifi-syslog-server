@@ -105,6 +105,14 @@ func message(r *rand.Rand, site int) string {
 		return fmt.Sprintf(`<38>%s %s sshd[%d]: Accepted publickey for root from 192.168.%d.5 port %d ssh2`, ts, gw, 4000+r.Intn(999), 10+site, 30000+r.Intn(30000))
 	case n < 96:
 		return fmt.Sprintf(`<30>%s %s charon: 10[IKE] IKE_SA site-to-site[%d] established between 84.%d.0.1[84.%d.0.1]...84.9.0.1[84.9.0.1]`, ts, gw, r.Intn(99), site+1, site+1)
+	case n < 97:
+		return fmt.Sprintf(`<30>%s %s wireguard: wgsrv1: Handshake for peer %d (%d.%d.%d.%d:%d) completed`, ts, gw, r.Intn(20), pick(r, []int{77, 31, 62, 145}), r.Intn(255), r.Intn(255), 1+r.Intn(254), 30000+r.Intn(30000))
+	case n < 98:
+		return fmt.Sprintf(`<14>%s UNVR CEF:0|Ubiquiti|UniFi Protect|5.1.42|100|%s|3|UNIFIcameraName=%s UNIFIzoneName=%s`, ts,
+			pick(r, []string{"Smart Detection: Person", "Smart Detection: Vehicle", "Motion Detected", "Doorbell Ring"}), pick(r, []string{"Front Door", "Driveway", "Garden", "Garage"}), pick(r, []string{"Entrance", "Street", "Yard"}))
+	case n < 99:
+		return fmt.Sprintf(`<14>%s %s CEF:0|Ubiquiti|UniFi Access|3.3.18|300|%s|%d|UNIFIdoorName=%s UNIFIactorName=%s UNIFIauthMethod=%s`, ts, gw,
+			pick(r, []string{"Access Granted", "Access Granted", "Access Denied", "Door Held Open"}), 2+r.Intn(4), pick(r, []string{"Main Entrance", "Server Room", "Back Door"}), pick(r, []string{"Alex de Vries", "Sam Jansen", "Visitor"}), pick(r, []string{"NFC", "PIN", "Mobile"}))
 	default:
 		return fmt.Sprintf(`<13>%s %s: mcad: mcad[%d]: ace_reporter.reporter_handle_response(): inform ok`, ts, pick(r, aps), 1000+r.Intn(999))
 	}

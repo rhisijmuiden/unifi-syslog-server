@@ -18,9 +18,11 @@ const (
 	CatClient   = "client"
 	CatDevice   = "device"
 	CatSystem   = "system"
+	CatProtect  = "protect" // UniFi Protect cameras and doorbells
+	CatAccess   = "access"  // UniFi Access doors and readers
 )
 
-var AllCategories = []string{CatFirewall, CatIPS, CatWiFi, CatDHCP, CatDNS, CatVPN, CatSwitch, CatAuth, CatAdmin, CatClient, CatDevice, CatSystem}
+var AllCategories = []string{CatFirewall, CatIPS, CatWiFi, CatDHCP, CatDNS, CatVPN, CatSwitch, CatAuth, CatAdmin, CatClient, CatDevice, CatSystem, CatProtect, CatAccess}
 
 type Event struct {
 	TS       time.Time

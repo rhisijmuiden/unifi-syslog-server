@@ -12,8 +12,13 @@ interface Device {
   key: string; mac: string; hostname: string; model: string; version: string; prev_version: string; version_changed: number
   name: string; notes: string; site: string; source_ip: string; monitored: boolean; first_seen: number; last_seen: number
   status: 'active' | 'silent' | 'inactive'; count: number; errors: number
+  controller_name?: string; updatable?: boolean
 }
-interface InventorySettings { silent_minutes: number; notify: boolean; recipients: string }
+interface InventorySettings { silent_minutes: number; notify: boolean; firmware_notify: boolean; recipients: string }
+interface FirmwareReport {
+  models: { model: string; latest: string; mixed: boolean; versions: { version: string; count: number }[] }[]
+  outdated: { key: string; name: string; model: string; site: string; version: string; latest: string; reason: 'controller' | 'newer' }[]
+}
 
 function kind(d: Device) {
   const m = (d.model || d.hostname).toUpperCase()
@@ -38,6 +43,7 @@ export default function Devices() {
   const nav = useNavigate()
   const [st, set] = useUrlState({ days: '7', site: '', status: '', q: '' })
   const { data, loading, reload } = useAsync(() => api.get<Device[]>('/devices?days=' + st.days), [st.days])
+  const fw = useAsync(() => api.get<FirmwareReport>('/firmware'))
   const [edit, setEdit] = useState<Device | null>(null)
   const [settings, setSettings] = useState(false)
 
@@ -48,19 +54,12 @@ export default function Devices() {
     (!st.status || d.status === st.status) &&
     (!st.q || `${d.name} ${d.hostname} ${d.model} ${d.mac} ${d.source_ip} ${d.site} ${d.version}`.toLowerCase().includes(st.q.toLowerCase()))), [all, st.site, st.status, st.q])
 
-  // Firmware per model: more than one version of the same model usually
-  // means a device was missed during an upgrade.
-  const firmware = useMemo(() => {
-    const by: Record<string, Record<string, number>> = {}
-    for (const d of list) {
-      if (!d.model || !d.version) continue
-      by[d.model] ??= {}
-      by[d.model][d.version] = (by[d.model][d.version] ?? 0) + 1
-    }
-    return Object.entries(by).map(([model, v]) => ({ model, versions: Object.entries(v).sort((a, b) => b[1] - a[1]) }))
-      .sort((a, b) => b.versions.length - a.versions.length || a.model.localeCompare(b.model))
-  }, [list])
-  const mixed = firmware.filter((f) => f.versions.length > 1).length
+  // Firmware per model from the server: it also knows what the UniFi
+  // controller says about available updates.
+  const outdated = useMemo(() => new Map((fw.data?.outdated ?? []).map((o) => [o.key, o])), [fw.data])
+  const firmware = useMemo(() => [...(fw.data?.models ?? [])].filter((m) => !st.site || list.some((d) => d.model === m.model))
+    .sort((a, b) => Number(b.mixed) - Number(a.mixed) || a.model.localeCompare(b.model)), [fw.data, list, st.site])
+  const mixed = firmware.filter((f) => f.mixed).length
   const count = (s: Device['status']) => list.filter((d) => d.status === s).length
 
   return (
@@ -83,8 +82,9 @@ export default function Devices() {
             <Stat label={t(x.label)} value={fmtNum(x.value)} accent={x.accent} icon={x.icon} sub={x.sub && t(x.sub)} />
           </button>
         ))}
-        <Stat label={t('Firmware')} value={mixed ? (mixed === 1 ? t('1 model') : t('{n} models', { n: mixed })) : t('Consistent')} accent={mixed ? '#f59e0b' : '#06b6d4'} icon={<Layers className="size-5" />}
-          sub={mixed ? t('with mixed versions') : t('Each model runs one version')} />
+        <Stat label={t('Firmware')} value={outdated.size ? (outdated.size === 1 ? t('1 outdated') : t('{n} outdated', { n: outdated.size })) : mixed ? (mixed === 1 ? t('1 model') : t('{n} models', { n: mixed })) : t('Consistent')}
+          accent={outdated.size || mixed ? '#f59e0b' : '#06b6d4'} icon={<Layers className="size-5" />}
+          sub={outdated.size ? t('devices can be updated') : mixed ? t('with mixed versions') : t('Each model runs one version')} />
       </div>
 
       <div className="grid grid-cols-1 gap-6 2xl:grid-cols-4">
@@ -107,13 +107,14 @@ export default function Devices() {
                         <tr key={d.key} onClick={() => nav('/logs?' + new URLSearchParams({ q: d.mac ? `mac:${d.mac}` : `host:"${d.hostname}"`, preset: '24h' }))} className="group cursor-pointer border-b border-app/60 hover:bg-[var(--panel-2)]">
                           <td className="py-2.5 pl-5"><StatusDot d={d} /></td>
                           <td className="px-3 py-2.5">
-                            <div className="font-medium">{d.name || d.hostname}</div>
-                            <div className="text-xs text-muted">{[d.name && d.hostname, d.model !== d.hostname && d.model].filter(Boolean).join(' · ')}{!d.monitored && <span className="ml-1 inline-flex items-center gap-1"><BellOff className="size-3" />{t('not monitored')}</span>}</div>
+                            <div className="font-medium">{d.name || d.controller_name || d.hostname}</div>
+                            <div className="text-xs text-muted">{[(d.name || d.controller_name) && d.hostname, d.model !== d.hostname && d.model].filter(Boolean).join(' · ')}{!d.monitored && <span className="ml-1 inline-flex items-center gap-1"><BellOff className="size-3" />{t('not monitored')}</span>}</div>
                             {d.notes && <div className="mt-0.5 max-w-xs truncate text-[11px] italic text-muted">{d.notes}</div>}
                           </td>
                           <td className="px-3 py-2.5 whitespace-nowrap"><span className="inline-flex items-center gap-1.5 text-muted">{k.icon}{t(k.label)}</span></td>
                           <td className="px-3 py-2.5 whitespace-nowrap">
                             <span className="font-mono text-xs">{d.version}</span>
+                            {outdated.has(d.key) && <span title={outdated.get(d.key)!.reason === 'controller' ? t('UniFi Network offers an update') : t('Newer version {version} runs on other devices of this model', { version: outdated.get(d.key)!.latest })} className="ml-1.5 inline-flex"><Badge className="bg-amber-500/15 text-amber-500 ring-amber-500/30"><ArrowUpCircle className="size-3" />{t('update available')}</Badge></span>}
                             {recentUpgrade(d) && <span title={t('Was {version}, changed on {time}', { version: d.prev_version, time: fmtTime(d.version_changed * 1000) })} className="ml-1.5 inline-flex"><Badge className="bg-cyan-500/15 text-cyan-500 ring-cyan-500/30"><ArrowUpCircle className="size-3" />{t('updated')}</Badge></span>}
                           </td>
                           <td className="px-3 py-2.5 font-mono text-xs">{d.mac}</td>
@@ -145,12 +146,12 @@ export default function Devices() {
                 <li key={f.model}>
                   <div className="flex items-center justify-between text-sm">
                     <span className="font-medium">{f.model}</span>
-                    {f.versions.length > 1 && <Badge className="bg-amber-500/15 text-amber-500 ring-amber-500/30">{t('{n} versions', { n: f.versions.length })}</Badge>}
+                    {f.mixed && <Badge className="bg-amber-500/15 text-amber-500 ring-amber-500/30">{t('{n} versions', { n: f.versions.length })}</Badge>}
                   </div>
                   <div className="mt-1 flex flex-wrap gap-1.5">
-                    {f.versions.map(([v, n], i) => (
-                      <button key={v} onClick={() => set({ q: v })} className={cx('cursor-pointer rounded-md px-1.5 py-0.5 font-mono text-[11px] ring-1 ring-inset', i === 0 ? 'bg-slate-500/10 ring-slate-500/30' : 'bg-amber-500/10 text-amber-500 ring-amber-500/30')}>
-                        {v} <span className="text-muted">×{n}</span>
+                    {f.versions.map((v) => (
+                      <button key={v.version} onClick={() => set({ q: v.version })} className={cx('cursor-pointer rounded-md px-1.5 py-0.5 font-mono text-[11px] ring-1 ring-inset', v.version === f.latest ? 'bg-slate-500/10 ring-slate-500/30' : 'bg-amber-500/10 text-amber-500 ring-amber-500/30')}>
+                        {v.version} <span className="text-muted">×{v.count}</span>
                       </button>
                     ))}
                   </div>
@@ -162,7 +163,7 @@ export default function Devices() {
       </div>
 
       {edit && <EditDevice d={edit} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); reload() }} />}
-      {settings && <MonitorSettings onClose={() => setSettings(false)} onSaved={() => { setSettings(false); reload() }} />}
+      {settings && <MonitorSettings onClose={() => setSettings(false)} onSaved={() => { setSettings(false); reload(); fw.reload() }} />}
     </>
   )
 }
@@ -224,7 +225,8 @@ function MonitorSettings({ onClose, onSaved }: { onClose: () => void; onSaved: (
             <Input type="number" min={5} value={v.silent_minutes} onChange={(e) => setF({ ...v, silent_minutes: Number(e.target.value) })} />
           </Field>
           <Toggle checked={v.notify} onChange={(notify) => setF({ ...v, notify })} label={t('Send email')} description={t('When a device goes silent and when it becomes active again')} />
-          {v.notify && (
+          <Toggle checked={v.firmware_notify} onChange={(firmware_notify) => setF({ ...v, firmware_notify })} label={t('Firmware warnings')} description={t('Email when a device runs older firmware than other devices of the same model, or when UniFi Network offers an update')} />
+          {(v.notify || v.firmware_notify) && (
             <Field label={t('Recipients')} hint={t('Comma-separated. Empty = the mail server\'s default recipient.')}>
               <Input value={v.recipients} placeholder="admin@example.com" onChange={(e) => setF({ ...v, recipients: e.target.value })} />
             </Field>
