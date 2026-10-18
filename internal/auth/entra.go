@@ -4,6 +4,8 @@ package auth
 
 import (
 	"context"
+	"encoding/json"
+	"io"
 	"errors"
 	"fmt"
 	"strings"
@@ -37,6 +39,7 @@ type Identity struct {
 	Email    string
 	Name     string
 	Groups   []string
+	Language string // preferred language of the Microsoft account, e.g. "nl-NL"
 }
 
 func (e *Entra) issuer(s store.SSOSettings) string {
@@ -66,8 +69,17 @@ func (e *Entra) config(ctx context.Context, base string) (*oauth2.Config, *oidc.
 		ClientSecret: s.ClientSecret,
 		Endpoint:     e.provider.Endpoint(),
 		RedirectURL:  e.RedirectURL(base),
-		Scopes:       []string{oidc.ScopeOpenID, "profile", "email"},
+		Scopes:       scopes(s),
 	}, e.provider, s, nil
+}
+
+func scopes(s store.SSOSettings) []string {
+	sc := []string{oidc.ScopeOpenID, "profile", "email"}
+	if s.SyncLanguage {
+		// Lets us read preferredLanguage from Microsoft Graph.
+		sc = append(sc, "User.Read")
+	}
+	return sc
 }
 
 // Begin returns the authorization URL and the state value to store in a cookie.
@@ -128,6 +140,7 @@ func (e *Entra) Finish(ctx context.Context, base, state, code string) (*Identity
 		Name              string   `json:"name"`
 		Groups            []string `json:"groups"`
 		TID               string   `json:"tid"`
+		PreferredLang     string   `json:"xms_pl"` // optional claim
 	}
 	if err := idt.Claims(&c); err != nil {
 		return nil, err
@@ -136,6 +149,12 @@ func (e *Entra) Finish(ctx context.Context, base, state, code string) (*Identity
 		return nil, errors.New("wrong tenant")
 	}
 	id := &Identity{Subject: first(c.OID, idt.Subject), Username: first(c.PreferredUsername, c.Email), Email: first(c.Email, c.PreferredUsername), Name: c.Name, Groups: c.Groups}
+	if s.SyncLanguage {
+		id.Language = c.PreferredLang
+		if id.Language == "" {
+			id.Language = graphLanguage(ctx, cfg, tok)
+		}
+	}
 	if s.AllowedGroup != "" && !contains(id.Groups, s.AllowedGroup) && !contains(id.Groups, s.AdminGroupID) {
 		return nil, errors.New("your account is not a member of the allowed group")
 	}
@@ -172,3 +191,22 @@ func first(v ...string) string {
 	return ""
 }
 
+// graphLanguage reads the account's preferred language from Microsoft Graph.
+// Failure is not fatal: the user then keeps the server default.
+func graphLanguage(ctx context.Context, cfg *oauth2.Config, tok *oauth2.Token) string {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	resp, err := cfg.Client(ctx, tok).Get("https://graph.microsoft.com/v1.0/me?$select=preferredLanguage")
+	if err != nil {
+		return ""
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return ""
+	}
+	var v struct {
+		PreferredLanguage string `json:"preferredLanguage"`
+	}
+	json.NewDecoder(io.LimitReader(resp.Body, 64<<10)).Decode(&v)
+	return v.PreferredLanguage
+}

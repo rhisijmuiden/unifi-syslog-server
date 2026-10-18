@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rhisijmuiden/unify-syslog-server/internal/i18n"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/store"
 )
 
@@ -42,15 +43,15 @@ func (e *Engine) checkDevices(ctx context.Context, now time.Time) {
 	if !cfg.Notify || e.Mailer == nil || !e.Mailer.Configured() {
 		return
 	}
-	subject, body := deviceMail(silent, back, cfg.SilentMinutes)
 	mctx, cancel := context.WithTimeout(ctx, time.Minute)
 	defer cancel()
-	if err := e.Mailer.Send(mctx, []string{cfg.Recipients}, subject, body); err != nil {
+	compose := func(t i18n.Translator) (string, string) { return deviceMail(t, silent, back, cfg.SilentMinutes) }
+	if err := e.Mailer.Send(mctx, []string{cfg.Recipients}, compose); err != nil {
 		e.Log.Warn("device mail", "err", err)
 	}
 }
 
-func deviceMail(silent, back []store.InvDevice, minutes int) (subject, body string) {
+func deviceMail(t i18n.Translator, silent, back []store.InvDevice, minutes int) (subject, body string) {
 	label := func(d store.InvDevice) string {
 		name := d.Name
 		if name == "" {
@@ -58,9 +59,9 @@ func deviceMail(silent, back []store.InvDevice, minutes int) (subject, body stri
 		}
 		site := d.Site
 		if site == "" || site == store.DefaultSite {
-			site = "Default"
+			site = t("Default")
 		}
-		return fmt.Sprintf("%s (%s, site %s, last seen %s)", name, strings.TrimSpace(d.Model+" "+d.MAC), site, time.Unix(d.LastSeen, 0).Local().Format("2006-01-02 15:04"))
+		return t("%s (%s, site %s, last seen %s)", name, strings.TrimSpace(d.Model+" "+d.MAC), site, time.Unix(d.LastSeen, 0).Local().Format("2006-01-02 15:04"))
 	}
 	var b strings.Builder
 	write := func(title string, list []store.InvDevice) {
@@ -74,19 +75,19 @@ func deviceMail(silent, back []store.InvDevice, minutes int) (subject, body stri
 		}
 		b.WriteString("\n")
 	}
-	write(fmt.Sprintf("No logs received (for more than %d minutes):", minutes), silent)
-	write("Back online:", back)
+	write(t("No logs received (for more than %d minutes):", minutes), silent)
+	write(t("Back online:"), back)
 	switch {
 	case len(silent) > 0 && len(back) > 0:
-		subject = fmt.Sprintf("%d devices silent, %d back online", len(silent), len(back))
+		subject = t("%d silent, %d back online", len(silent), len(back))
 	case len(silent) == 1:
-		subject = "Device silent: " + firstNonEmpty(silent[0].Name, silent[0].Hostname)
+		subject = t("Device silent: %s", firstNonEmpty(silent[0].Name, silent[0].Hostname))
 	case len(silent) > 1:
-		subject = fmt.Sprintf("%d devices stopped sending logs", len(silent))
+		subject = t("%d devices stopped sending logs", len(silent))
 	case len(back) == 1:
-		subject = "Device back online: " + firstNonEmpty(back[0].Name, back[0].Hostname)
+		subject = t("Device back online: %s", firstNonEmpty(back[0].Name, back[0].Hostname))
 	default:
-		subject = fmt.Sprintf("%d devices back online", len(back))
+		subject = t("%d devices back online", len(back))
 	}
 	return subject, b.String()
 }

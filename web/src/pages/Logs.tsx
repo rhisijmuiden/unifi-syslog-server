@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { ScrollText, Search, Radio, Pause, Download, Bookmark, HelpCircle, X, Plus, Minus } from 'lucide-react'
 import { api, type Bucket, type LogRow } from '../api'
 import { useAuth } from '../App'
 import { Badge, Button, Card, Empty, Field, Input, Modal, PageHeader, Spinner, cx, useToast } from '../components/ui'
 import { Timeline } from '../components/charts'
 import { RangePicker, SiteFilter, toRange, useUrlState } from '../components/Filters'
+import { t } from '../i18n'
 import { actionClass, actionLabel, catColor, catLabel, fmtNum, fmtTime, primaryCategories, severities, severityClass } from '../lib/format'
 
 const PAGE = 200
@@ -101,22 +102,22 @@ export default function Logs() {
 
   return (
     <>
-      <PageHeader title="Logs" subtitle="Search all syslog messages from all your UniFi sites" icon={<ScrollText className="size-5" />}
+      <PageHeader title={t('Logs')} subtitle={t('Search all syslog messages from all your UniFi sites')} icon={<ScrollText className="size-5" />}
         actions={<>
           <SiteFilter value={st.site} onChange={(site) => set({ site })} />
           {!live && <RangePicker value={st} onChange={(r) => set({ preset: r.preset, from: r.from ?? '', to: r.to ?? '' })} />}
-          <Button variant={live ? 'primary' : 'secondary'} onClick={() => setLive(!live)} icon={live ? <Pause className="size-4" /> : <Radio className="size-4" />}>{live ? 'Pause live' : 'Live'}</Button>
+          <Button variant={live ? 'primary' : 'secondary'} onClick={() => setLive(!live)} icon={live ? <Pause className="size-4" /> : <Radio className="size-4" />}>{live ? t('Pause live') : t('Live')}</Button>
         </>} />
 
       <form onSubmit={submit} className="mb-3 flex gap-2">
         <div className="relative flex-1">
           <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted" />
-          <input value={input} onChange={(e) => setInput(e.target.value)} placeholder='Search, e.g. category:firewall action:block dport:22   or   "link down"   or   src:192.168.1.0/24'
+          <input value={input} onChange={(e) => setInput(e.target.value)} placeholder={t('Search, e.g. {a}   or   {b}   or   {c}', { a: 'category:firewall action:block dport:22', b: '"link down"', c: 'src:192.168.1.0/24' })}
             className="input !pl-10 !py-3 font-mono !text-[13px]" spellCheck={false} />
-          {input && <button type="button" onClick={() => { setInput(''); set({ q: '' }) }} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-[var(--text)] cursor-pointer"><X className="size-4" /></button>}
+          {input && <button type="button" title={t('Clear')} aria-label={t('Clear')} onClick={() => { setInput(''); set({ q: '' }) }} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-[var(--text)] cursor-pointer"><X className="size-4" /></button>}
         </div>
-        <Button type="submit" variant="primary" icon={<Search className="size-4" />}>Search</Button>
-        <Button type="button" onClick={() => setHelp(true)} icon={<HelpCircle className="size-4" />} />
+        <Button type="submit" variant="primary" icon={<Search className="size-4" />}>{t('Search')}</Button>
+        <Button type="button" title={t('Query language')} onClick={() => setHelp(true)} icon={<HelpCircle className="size-4" />} />
       </form>
 
       <div className="mb-5 flex flex-wrap gap-1.5">
@@ -126,16 +127,16 @@ export default function Logs() {
             <span className="size-2 rounded-full" style={{ background: catColor(c) }} />{catLabel(c)}
           </button>
         ))}
-        <button onClick={() => addTerm('action:block', true)} className="rounded-full px-3 py-1 text-xs ring-1 ring-[var(--border)] hover:ring-indigo-400/50 cursor-pointer">All blocked</button>
-        <button onClick={() => addTerm('severity:<=err', true)} className="rounded-full px-3 py-1 text-xs ring-1 ring-[var(--border)] hover:ring-indigo-400/50 cursor-pointer">Errors</button>
+        <button onClick={() => addTerm('action:block', true)} className="rounded-full px-3 py-1 text-xs ring-1 ring-[var(--border)] hover:ring-indigo-400/50 cursor-pointer">{t('All blocked')}</button>
+        <button onClick={() => addTerm('severity:<=err', true)} className="rounded-full px-3 py-1 text-xs ring-1 ring-[var(--border)] hover:ring-indigo-400/50 cursor-pointer">{t('Errors')}</button>
       </div>
 
       {error && <div className="mb-4 rounded-xl bg-red-500/10 px-4 py-3 text-sm text-red-500 ring-1 ring-red-500/30">{error}</div>}
 
       {!live && hist && (
-        <Card className="mb-5" title={<span>{fmtNum(hist.total)} results <span className="font-normal text-muted">· {took} ms</span></span>}
+        <Card className="mb-5" title={<span>{t('{n} results', { n: fmtNum(hist.total) })} <span className="font-normal text-muted">· {took} ms</span></span>}
           actions={<>
-            {user.role === 'admin' && <Button variant="ghost" onClick={() => setSave(true)} icon={<Bookmark className="size-4" />}>Save as category</Button>}
+            {user.role === 'admin' && <Button variant="ghost" onClick={() => setSave(true)} icon={<Bookmark className="size-4" />}>{t('Save as category')}</Button>}
             <a href={exportUrl('csv')}><Button variant="ghost" icon={<Download className="size-4" />}>CSV</Button></a>
             <a href={exportUrl('json')}><Button variant="ghost" icon={<Download className="size-4" />}>JSON</Button></a>
           </>}>
@@ -145,19 +146,19 @@ export default function Logs() {
       )}
 
       <div className="panel overflow-hidden rounded-2xl">
-        {live && <div className="flex items-center gap-2 border-b border-app px-4 py-2 text-xs text-emerald-500"><span className="size-2 rounded-full bg-emerald-500 pulse-dot" /> Live: new messages appear automatically ({rows.length})</div>}
+        {live && <div className="flex items-center gap-2 border-b border-app px-4 py-2 text-xs text-emerald-500"><span className="size-2 rounded-full bg-emerald-500 pulse-dot" /> {t('Live: new messages appear automatically ({n})', { n: rows.length })}</div>}
         {loading && !rows.length ? <div className="grid place-items-center py-20"><Spinner /></div>
-          : !rows.length ? <Empty icon={<ScrollText className="size-8" />} title={live ? 'Waiting for new messages…' : 'No messages found'} text={live ? undefined : 'Adjust the search or time range.'} />
+          : !rows.length ? <Empty icon={<ScrollText className="size-8" />} title={live ? t('Waiting for new messages…') : t('No messages found')} text={live ? undefined : t('Adjust the search or time range.')} />
           : (
             <div className="overflow-x-auto scroll-thin">
               <table className="w-full text-sm">
                 <thead className="text-left text-[11px] uppercase tracking-wide text-muted">
                   <tr className="border-b border-app">
-                    <th className="px-4 py-2.5 font-medium">Time</th>
-                    <th className="px-2 py-2.5 font-medium">Severity</th>
-                    <th className="px-2 py-2.5 font-medium">Device</th>
-                    <th className="px-2 py-2.5 font-medium">Category</th>
-                    <th className="px-2 py-2.5 font-medium w-full">Message</th>
+                    <th className="px-4 py-2.5 font-medium">{t('Time')}</th>
+                    <th className="px-2 py-2.5 font-medium">{t('Severity')}</th>
+                    <th className="px-2 py-2.5 font-medium">{t('Device')}</th>
+                    <th className="px-2 py-2.5 font-medium">{t('Category')}</th>
+                    <th className="px-2 py-2.5 font-medium w-full">{t('Message')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -172,7 +173,7 @@ export default function Logs() {
                       <td className="px-2 py-2"><Badge color={catColor(r.category)}>{catLabel(r.category)}</Badge></td>
                       <td className="w-full max-w-0 px-2 py-2 pr-4">
                         <div className="flex min-w-0 items-center gap-2">
-                          {r.action && r.action !== 'log' && <Badge className={actionClass(r.action)}>{actionLabel[r.action] ?? r.action}</Badge>}
+                          {r.action && r.action !== 'log' && <Badge className={actionClass(r.action)}>{t(actionLabel[r.action] ?? r.action)}</Badge>}
                           <span className="min-w-0 truncate font-mono text-[12.5px]" title={r.message}>{r.message}</span>
                         </div>
                       </td>
@@ -180,7 +181,7 @@ export default function Logs() {
                   ))}
                 </tbody>
               </table>
-              {!live && more && <div className="p-4 text-center"><Button onClick={loadMore} loading={loading}>Load more</Button></div>}
+              {!live && more && <div className="p-4 text-center"><Button onClick={loadMore} loading={loading}>{t('Load more')}</Button></div>}
             </div>
           )}
       </div>
@@ -193,6 +194,11 @@ export default function Logs() {
 }
 
 const localIso = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
+// Fills {name} placeholders in a translated string with JSX nodes.
+function rich(s: string, parts: Record<string, ReactNode>) {
+  return s.split(/\{(\w+)\}/g).map((p, i) => <Fragment key={i}>{i % 2 ? (parts[p] ?? `{${p}}`) : p}</Fragment>)
+}
+
 const quote = (v: string) => (/[\s"]/.test(v) ? `"${v.replace(/"/g, '')}"` : v)
 
 function Detail({ row, onClose, onFilter }: { row?: LogRow; onClose: () => void; onFilter: (t: string) => void }) {
@@ -230,8 +236,8 @@ function Detail({ row, onClose, onFilter }: { row?: LogRow; onClose: () => void;
       <div className="absolute inset-0 bg-black/30" />
       <aside onClick={(e) => e.stopPropagation()} className="panel absolute right-0 top-0 flex h-full w-full max-w-xl flex-col shadow-2xl fade-in">
         <header className="flex items-center justify-between border-b border-app px-5 py-4">
-          <div className="flex items-center gap-2"><Badge color={catColor(row.category)}>{catLabel(row.category)}</Badge><span className="font-semibold">Message details</span></div>
-          <button onClick={onClose} className="cursor-pointer rounded-lg p-1 hover:bg-[var(--panel-2)]"><X className="size-4" /></button>
+          <div className="flex items-center gap-2"><Badge color={catColor(row.category)}>{catLabel(row.category)}</Badge><span className="font-semibold">{t('Message details')}</span></div>
+          <button onClick={onClose} title={t('Close')} aria-label={t('Close')} className="cursor-pointer rounded-lg p-1 hover:bg-[var(--panel-2)]"><X className="size-4" /></button>
         </header>
         <div className="flex-1 space-y-5 overflow-y-auto scroll-thin p-5">
           <div className="rounded-xl bg-[var(--panel-2)] p-4 font-mono text-[13px] leading-relaxed break-words">{row.message}</div>
@@ -239,12 +245,12 @@ function Detail({ row, onClose, onFilter }: { row?: LogRow; onClose: () => void;
             <tbody>
               {fields.filter(([, , v]) => v !== '' && v !== undefined).map(([label, key, v]) => (
                 <tr key={label} className="group border-b border-app/60">
-                  <td className="w-36 py-1.5 pr-3 text-muted">{label}</td>
+                  <td className="w-36 py-1.5 pr-3 text-muted">{t(label)}</td>
                   <td className="py-1.5 font-mono text-[12.5px] break-all">{String(v)}</td>
                   <td className="w-14 py-1.5 text-right opacity-0 group-hover:opacity-100">
                     {key && <span className="inline-flex gap-1">
-                      <button title="Filter on this value" onClick={() => onFilter(`${key}:${quote(String(key === 'severity' ? row.severity : v))}`)} className="cursor-pointer rounded p-0.5 hover:bg-indigo-500/20"><Plus className="size-3.5" /></button>
-                      <button title="Exclude" onClick={() => onFilter(`-${key}:${quote(String(key === 'severity' ? row.severity : v))}`)} className="cursor-pointer rounded p-0.5 hover:bg-red-500/20"><Minus className="size-3.5" /></button>
+                      <button title={t('Filter on this value')} onClick={() => onFilter(`${key}:${quote(String(key === 'severity' ? row.severity : v))}`)} className="cursor-pointer rounded p-0.5 hover:bg-indigo-500/20"><Plus className="size-3.5" /></button>
+                      <button title={t('Exclude')} onClick={() => onFilter(`-${key}:${quote(String(key === 'severity' ? row.severity : v))}`)} className="cursor-pointer rounded p-0.5 hover:bg-red-500/20"><Minus className="size-3.5" /></button>
                     </span>}
                   </td>
                 </tr>
@@ -253,14 +259,14 @@ function Detail({ row, onClose, onFilter }: { row?: LogRow; onClose: () => void;
           </table>
           {Object.keys(row.fields ?? {}).length > 0 && (
             <div>
-              <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">Extra fields</h4>
+              <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">{t('Extra fields')}</h4>
               <table className="w-full text-sm"><tbody>
                 {Object.entries(row.fields).sort().map(([k, v]) => (
                   <tr key={k} className="group border-b border-app/60">
                     <td className="w-44 py-1.5 pr-3 font-mono text-[12px] text-muted break-all">{k}</td>
                     <td className="py-1.5 font-mono text-[12.5px] break-all">{v}</td>
                     <td className="w-8 py-1.5 text-right opacity-0 group-hover:opacity-100">
-                      <button title="Filter on this value" onClick={() => onFilter(`field.${k}:${quote(v)}`)} className="cursor-pointer rounded p-0.5 hover:bg-indigo-500/20"><Plus className="size-3.5" /></button>
+                      <button title={t('Filter on this value')} onClick={() => onFilter(`field.${k}:${quote(v)}`)} className="cursor-pointer rounded p-0.5 hover:bg-indigo-500/20"><Plus className="size-3.5" /></button>
                     </td>
                   </tr>
                 ))}
@@ -268,7 +274,7 @@ function Detail({ row, onClose, onFilter }: { row?: LogRow; onClose: () => void;
             </div>
           )}
           <div>
-            <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">Original message</h4>
+            <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">{t('Original message')}</h4>
             <pre className="whitespace-pre-wrap break-all rounded-xl bg-[var(--panel-2)] p-4 font-mono text-[12px] text-muted">{row.raw}</pre>
           </div>
         </div>
@@ -292,12 +298,12 @@ const examples: [string, string][] = [
 
 function HelpModal({ open, onClose, onUse }: { open: boolean; onClose: () => void; onUse: (q: string) => void }) {
   return (
-    <Modal open={open} onClose={onClose} title="Query language" wide>
+    <Modal open={open} onClose={onClose} title={t('Query language')} wide>
       <div className="grid gap-6 md:grid-cols-2">
         <div className="space-y-3 text-sm">
-          <p>Combine terms with spaces (AND) or with <code className="rounded bg-[var(--panel-2)] px-1">OR</code>. A <code className="rounded bg-[var(--panel-2)] px-1">-</code> excludes, <code className="rounded bg-[var(--panel-2)] px-1">*</code> is a wildcard.</p>
-          <p>Numbers: <code className="rounded bg-[var(--panel-2)] px-1">dport:&gt;1024</code>, <code className="rounded bg-[var(--panel-2)] px-1">port:20..25</code>. IP addresses accept CIDR: <code className="rounded bg-[var(--panel-2)] px-1">src:10.0.0.0/8</code>. Severity also by name: <code className="rounded bg-[var(--panel-2)] px-1">severity:&lt;=warning</code>.</p>
-          <h4 className="pt-2 text-xs font-semibold uppercase tracking-wide text-muted">Fields</h4>
+          <p>{rich(t('Combine terms with spaces (AND) or with {or}. A {minus} excludes, {star} is a wildcard.'), { or: <code className="rounded bg-[var(--panel-2)] px-1">OR</code>, minus: <code className="rounded bg-[var(--panel-2)] px-1">-</code>, star: <code className="rounded bg-[var(--panel-2)] px-1">*</code> })}</p>
+          <p>{rich(t('Numbers: {a}, {b}. IP addresses accept CIDR: {c}. Severity also by name: {d}.'), { a: <code className="rounded bg-[var(--panel-2)] px-1">dport:&gt;1024</code>, b: <code className="rounded bg-[var(--panel-2)] px-1">port:20..25</code>, c: <code className="rounded bg-[var(--panel-2)] px-1">src:10.0.0.0/8</code>, d: <code className="rounded bg-[var(--panel-2)] px-1">severity:&lt;=warning</code> })}</p>
+          <h4 className="pt-2 text-xs font-semibold uppercase tracking-wide text-muted">{t('Fields')}</h4>
           <div className="flex flex-wrap gap-1 font-mono text-xs">
             {['category', 'action', 'rule', 'event', 'app', 'host', 'site', 'source', 'model', 'mac', 'firmware', 'src', 'dst', 'ip', 'sport', 'dport', 'port', 'proto', 'in', 'out', 'client', 'client_name', 'client_ip', 'ssid', 'severity', 'facility', 'msg', 'raw', 'field.<name>'].map((f) => <span key={f} className="rounded bg-[var(--panel-2)] px-1.5 py-0.5">{f}</span>)}
           </div>
@@ -306,7 +312,7 @@ function HelpModal({ open, onClose, onUse }: { open: boolean; onClose: () => voi
           {examples.map(([q, d]) => (
             <button key={q} onClick={() => onUse(q)} className="block w-full rounded-lg px-3 py-2 text-left hover:bg-[var(--panel-2)] cursor-pointer">
               <code className="text-[12.5px] text-indigo-400">{q}</code>
-              <div className="text-xs text-muted">{d}</div>
+              <div className="text-xs text-muted">{t(d)}</div>
             </button>
           ))}
         </div>
@@ -323,17 +329,17 @@ function SaveCategory({ open, query, onClose }: { open: boolean; query: string; 
     setBusy(true)
     try {
       await api.post('/categories', { name, query, color: '#6366f1', icon: 'filter', pinned: true, description: '' })
-      toast('ok', 'Category saved')
+      toast('ok', t('Category saved'))
       onClose()
       setName('')
     } catch (e) { toast('err', (e as Error).message) } finally { setBusy(false) }
   }
   return (
-    <Modal open={open} onClose={onClose} title="Save as category"
-      footer={<><Button onClick={onClose}>Cancel</Button><Button variant="primary" loading={busy} disabled={!name} onClick={submit}>Save</Button></>}>
+    <Modal open={open} onClose={onClose} title={t('Save as category')}
+      footer={<><Button onClick={onClose}>{t('Cancel')}</Button><Button variant="primary" loading={busy} disabled={!name} onClick={submit}>{t('Save')}</Button></>}>
       <div className="space-y-4">
-        <Field label="Name"><Input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. SSH attacks" /></Field>
-        <Field label="Filter"><code className="block rounded-xl bg-[var(--panel-2)] px-3 py-2 font-mono text-xs">{query || '(all)'}</code></Field>
+        <Field label={t('Name')}><Input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder={t('e.g. SSH attacks')} /></Field>
+        <Field label={t('Filter')}><code className="block rounded-xl bg-[var(--panel-2)] px-3 py-2 font-mono text-xs">{query || t('(all)')}</code></Field>
       </div>
     </Modal>
   )

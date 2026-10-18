@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rhisijmuiden/unify-syslog-server/internal/i18n"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/store"
 )
 
@@ -15,7 +16,7 @@ func TestDeviceMail(t *testing.T) {
 	ap := store.InvDevice{Hostname: "U6-Pro", Name: "AP Reception", Model: "U6-Pro", MAC: "f4:e2:c6:00:00:01", Site: "Office", LastSeen: 1_800_000_000}
 	sw := store.InvDevice{Hostname: "USW-24", Site: "default", LastSeen: 1_800_000_000}
 
-	subj, body := deviceMail([]store.InvDevice{ap}, nil, 60)
+	subj, body := deviceMail(i18n.For("en"), []store.InvDevice{ap}, nil, 60)
 	if subj != "Device silent: AP Reception" {
 		t.Errorf("subject %q", subj)
 	}
@@ -23,8 +24,8 @@ func TestDeviceMail(t *testing.T) {
 		t.Errorf("body %q", body)
 	}
 
-	subj, body = deviceMail([]store.InvDevice{ap}, []store.InvDevice{sw}, 60)
-	if subj != "1 devices silent, 1 back online" || !strings.Contains(body, "site Default") {
+	subj, body = deviceMail(i18n.For("en"), []store.InvDevice{ap}, []store.InvDevice{sw}, 60)
+	if subj != "1 silent, 1 back online" || !strings.Contains(body, "site Default") {
 		t.Errorf("mixed: %q %q", subj, body)
 	}
 }
@@ -63,5 +64,13 @@ func TestCheckDevices(t *testing.T) {
 	e.checkDevices(context.Background(), now)
 	if s := silent(); s["aa:00:00:00:00:01"] {
 		t.Fatal("device that came back is still silent")
+	}
+}
+
+func TestDeviceMailDutch(t *testing.T) {
+	ap := store.InvDevice{Hostname: "U6-Pro", Site: "default", LastSeen: 1_800_000_000}
+	subj, body := deviceMail(i18n.For("nl"), []store.InvDevice{ap}, nil, 30)
+	if subj != "Apparaat stil: U6-Pro" || !strings.Contains(body, "langer dan 30 minuten") {
+		t.Errorf("%q %q", subj, body)
 	}
 }

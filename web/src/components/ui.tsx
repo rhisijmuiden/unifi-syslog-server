@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode, type ButtonHTMLAttributes, type InputHTMLAttributes } from 'react'
 import { X, Loader2, CheckCircle2, AlertCircle } from 'lucide-react'
+import { t } from '../i18n'
 
 export function cx(...c: (string | false | null | undefined)[]) {
   return c.filter(Boolean).join(' ')
@@ -123,7 +124,7 @@ export function Modal({ open, onClose, title, children, footer, wide }: { open: 
       <div onMouseDown={(e) => e.stopPropagation()} className={cx('panel w-full rounded-2xl shadow-2xl fade-in max-h-[90vh] flex flex-col', wide ? 'max-w-4xl' : 'max-w-lg')}>
         <header className="flex items-center justify-between border-b border-app px-5 py-4">
           <h3 className="font-semibold">{title}</h3>
-          <button onClick={onClose} className="rounded-lg p-1 hover:bg-[var(--panel-2)] cursor-pointer"><X className="size-4" /></button>
+          <button onClick={onClose} aria-label={t('Close')} title={t('Close')} className="rounded-lg p-1 hover:bg-[var(--panel-2)] cursor-pointer"><X className="size-4" /></button>
         </header>
         <div className="overflow-auto scroll-thin p-5">{children}</div>
         {footer && <footer className="flex justify-end gap-2 border-t border-app px-5 py-3">{footer}</footer>}

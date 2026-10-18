@@ -14,6 +14,8 @@ A central syslog server built specifically for UniFi. All UniFi sites send their
 - **Microsoft Entra SSO** (OIDC + PKCE), with groups mapped to roles (admin or viewer).
 - **Mail**: your own SMTP server with STARTTLS or TLS, minimum TLS 1.2/1.3, and PLAIN, LOGIN, CRAM-MD5, SCRAM-SHA-256 or OAuth2 (Microsoft 365).
 - **Backup**: full and incremental backups to FTP, FTPS, SCP or a local folder, with scheduling, retention policy and restore from the remote location.
+- **Branding**: your company name and logo (separate light and dark mode variants) and favicon in the menu, on the sign-in page and in e-mails.
+- **Languages**: English and Dutch. Each user picks their own language; Entra SSO users get the language of their Microsoft account. E-mails are sent in the language of the recipient.
 - **Updates**: the Info button shows the version, checks for updates and installs them from the interface.
 - The web interface runs on **port 8080**.
 
@@ -114,6 +116,21 @@ You can search on these fields:
 | Event | `action`, `rule`, `event` |
 | Traffic | `src`, `dst`, `sport`, `dport`, `proto`, `in`, `out`, `ip` (source or destination), `port` |
 | Clients | `client`, `client_name`, `client_ip`, `ssid` |
+
+## Branding
+
+Under **Administration → Branding** you set a company name and upload a logo for light mode, an optional logo for dark mode and a favicon (PNG or SVG, ICO for the favicon, at most 512 KB each). The company name appears below the server name in the menu and on the sign-in page, and in the header and footer of every e-mail. E-mails embed the logo only when it is a PNG, because most mail clients do not show SVG. Branding is stored in the configuration database, so it is part of every backup.
+
+## Languages
+
+The interface and e-mails are available in English and Dutch.
+
+- The server default is set under **Settings → Default language**; it applies to the sign-in page and to users who have not picked a language.
+- Every user can pick their own language at the bottom of the menu, and admins can set it per user.
+- Entra SSO users get the language of their Microsoft account on every sign-in, until they pick a language themselves. This uses the delegated Graph permission `User.Read` (or the optional `xms_pl` claim) and can be turned off on the SSO page.
+- E-mails go out in the language of the user with the recipient's address, otherwise in the server default.
+
+To add a language, copy `web/src/locales/nl.json` (interface) and `internal/i18n/locales/nl.json` (e-mails) to `<code>.json`, translate the values and set `_language` to the language's own name. Keys are the English texts; a missing key falls back to English. New files are picked up automatically when building. `npm run i18n:check` in `web/` lists interface texts that a translation is missing.
 
 ## Backup and restore
 

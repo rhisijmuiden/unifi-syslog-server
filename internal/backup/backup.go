@@ -24,6 +24,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/rhisijmuiden/unify-syslog-server/internal/i18n"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/mail"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/store"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/version"
@@ -371,18 +372,21 @@ func (m *Manager) notify(rec *store.BackupRecord, err error) {
 	if err == nil && cfg.NotifyOn != "always" {
 		return
 	}
-	subject := "Backup succeeded"
-	body := ""
-	if rec != nil {
-		body = fmt.Sprintf("Type: %s\nFile: %s\nSize: %d bytes\nRows: %d\nTargets: %s\n", rec.Kind, rec.File, rec.Size, rec.Rows, rec.Targets)
-	}
-	if err != nil {
-		subject = "Backup FAILED"
-		body += "\nError: " + err.Error()
+	compose := func(t i18n.Translator) (string, string) {
+		subject := t("Backup succeeded")
+		body := ""
+		if rec != nil {
+			body = t("Type: %s\nFile: %s\nSize: %d bytes\nRows: %d\nTargets: %s\n", t(rec.Kind), rec.File, rec.Size, rec.Rows, rec.Targets)
+		}
+		if err != nil {
+			subject = t("Backup FAILED")
+			body += "\n" + t("Error: %s", err.Error())
+		}
+		return subject, body
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
-	if e := m.Mailer.Send(ctx, []string{cfg.NotifyTo}, subject, body); e != nil {
+	if e := m.Mailer.Send(ctx, []string{cfg.NotifyTo}, compose); e != nil {
 		m.Log.Warn("backup notification", "err", e)
 	}
 }
@@ -472,10 +476,10 @@ func Test(ctx context.Context, t store.BackupTarget) (string, error) {
 // ---------------------------------------------------------------- restore
 
 type RestoreOptions struct {
-	Target  string `json:"target"`
-	Name    string `json:"name"`
-	Config  bool   `json:"config"`
-	Logs    bool   `json:"logs"`
+	Target string `json:"target"`
+	Name   string `json:"name"`
+	Config bool   `json:"config"`
+	Logs   bool   `json:"logs"`
 }
 
 func (m *Manager) StartRestore(opts RestoreOptions) error {

@@ -23,6 +23,7 @@ import (
 	"github.com/rhisijmuiden/unify-syslog-server/internal/auth"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/backup"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/config"
+	"github.com/rhisijmuiden/unify-syslog-server/internal/i18n"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/ingest"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/mail"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/store"
@@ -73,11 +74,13 @@ func (s *Server) Handler() http.Handler {
 		r.Post("/auth/logout", s.logout)
 		r.Get("/auth/entra/login", s.entraLogin)
 		r.Get("/auth/entra/callback", s.entraCallback)
+		r.Get("/branding/{asset}", s.brandingAsset)
 
 		r.Group(func(r chi.Router) {
 			r.Use(s.requireUser)
 			r.Get("/me", s.me)
 			r.Post("/me/password", s.changePassword)
+			r.Put("/me/language", s.setMyLanguage)
 			r.Get("/info", s.info)
 			r.Get("/stats", s.stats)
 			r.Get("/update/check", s.updateCheck)
@@ -114,6 +117,10 @@ func (s *Server) Handler() http.Handler {
 
 				r.Get("/settings/general", s.getGeneral)
 				r.Put("/settings/general", s.putGeneral)
+				r.Get("/settings/branding", s.getBranding)
+				r.Put("/settings/branding", s.putBranding)
+				r.Put("/settings/branding/{asset}", s.putBrandingAsset)
+				r.Delete("/settings/branding/{asset}", s.deleteBrandingAsset)
 				r.Get("/settings/sso", s.getSSO)
 				r.Put("/settings/sso", s.putSSO)
 				r.Get("/settings/smtp", s.getSMTP)
@@ -309,6 +316,8 @@ func (s *Server) authStatus(w http.ResponseWriter, r *http.Request) {
 	out := map[string]any{
 		"sso":      map[string]any{"enabled": sso.Enabled && sso.ClientID != "", "label": sso.ButtonLabel},
 		"instance": s.Meta.General().InstanceName,
+		"language": s.Meta.General().Language,
+		"branding": s.Meta.Branding(),
 	}
 	if c, err := r.Cookie(cookieName); err == nil {
 		if u, err := s.Meta.SessionUser(c.Value); err == nil {
@@ -319,6 +328,37 @@ func (s *Server) authStatus(w http.ResponseWriter, r *http.Request) {
 		out["error"] = e
 	}
 	jsonOut(w, out)
+}
+
+// language is the effective language of a user: their own choice, else the
+// server default.
+func (s *Server) language(u *store.User) string {
+	if u != nil && u.Language != "" {
+		return u.Language
+	}
+	return s.Meta.General().Language
+}
+
+func (s *Server) setMyLanguage(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Language string `json:"language"`
+	}
+	if err := decode(r, &req); err != nil {
+		jerr(w, 400, "invalid request")
+		return
+	}
+	lang := i18n.Normalize(req.Language)
+	if req.Language != "" && lang == "" {
+		jerr(w, 400, "unknown language")
+		return
+	}
+	u := user(r)
+	if err := s.Meta.SetUserLanguage(u.ID, lang, lang != ""); err != nil {
+		jerr(w, 500, err.Error())
+		return
+	}
+	u.Language, u.LanguageManual = lang, lang != ""
+	jsonOut(w, u)
 }
 
 func (s *Server) tooManyAttempts(ip string) bool {
@@ -428,6 +468,11 @@ func (s *Server) entraCallback(w http.ResponseWriter, r *http.Request) {
 	if u.Disabled {
 		fail("account is disabled")
 		return
+	}
+	// The Microsoft account language applies until the user picks one here.
+	if lang := i18n.Normalize(id.Language); lang != "" && !u.LanguageManual && u.Language != lang {
+		u.Language = lang
+		s.Meta.SetUserLanguage(u.ID, lang, false)
 	}
 	// Group membership is authoritative for admin rights on every sign-in.
 	if s.Meta.SSO().AdminGroupID != "" && u.Role != role {

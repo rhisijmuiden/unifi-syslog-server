@@ -6,6 +6,7 @@ import { useAuth } from '../App'
 import { Button, Empty, Field, Input, Modal, PageHeader, Spinner, Toggle, useAsync, useToast } from '../components/ui'
 import { RangePicker, SiteFilter, toRange, useUrlState } from '../components/Filters'
 import { fmtNum } from '../lib/format'
+import { t } from '../i18n'
 
 const colors = ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#008300', '#9085e9', '#e66767']
 
@@ -31,7 +32,7 @@ export default function Categories() {
     nav('/logs?' + q)
   }
   const del = async (c: Category) => {
-    if (!confirm(`Delete category "${c.name}"?`)) return
+    if (!confirm(t('Delete category "{name}"?', { name: c.name }))) return
     await api.del('/categories/' + c.id)
     cats.reload()
   }
@@ -41,21 +42,21 @@ export default function Categories() {
       else await api.post('/categories', { pinned: true, icon: 'filter', description: '', ...edit })
       setEdit(undefined)
       cats.reload()
-      toast('ok', 'Category saved')
+      toast('ok', t('Category saved'))
     } catch (e) { toast('err', (e as Error).message) }
   }
 
   return (
     <>
-      <PageHeader title="Categories" subtitle="Custom filters to group logs into what you want to track" icon={<Tags className="size-5" />}
+      <PageHeader title={t('Categories')} subtitle={t('Custom filters to group logs into what you want to track')} icon={<Tags className="size-5" />}
         actions={<>
           <SiteFilter value={st.site} onChange={(site) => set({ site })} />
           <RangePicker value={st} onChange={(r) => set({ preset: r.preset, from: r.from ?? '', to: r.to ?? '' })} />
-          {admin && <Button variant="primary" icon={<Plus className="size-4" />} onClick={() => setEdit({ name: '', query: '', color: colors[0] })}>New category</Button>}
+          {admin && <Button variant="primary" icon={<Plus className="size-4" />} onClick={() => setEdit({ name: '', query: '', color: colors[0] })}>{t('New category')}</Button>}
         </>} />
 
       {cats.loading && !cats.data ? <div className="grid place-items-center py-20"><Spinner /></div>
-        : !cats.data?.length ? <Empty icon={<Tags className="size-8" />} title="No categories yet" text="Create a category with a search filter, or save a search from the logs." />
+        : !cats.data?.length ? <Empty icon={<Tags className="size-8" />} title={t('No categories yet')} text={t('Create a category with a search filter, or save a search from the logs.')} />
         : (
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
             {cats.data.map((c) => {
@@ -70,36 +71,36 @@ export default function Categories() {
                     </div>
                     {admin && (
                       <div className="flex gap-1 opacity-0 transition group-hover:opacity-100">
-                        <button onClick={() => setEdit(c)} className="cursor-pointer rounded-lg p-1.5 hover:bg-[var(--panel-2)]"><Pencil className="size-4" /></button>
-                        <button onClick={() => del(c)} className="cursor-pointer rounded-lg p-1.5 text-red-500 hover:bg-red-500/10"><Trash2 className="size-4" /></button>
+                        <button title={t('Edit')} onClick={() => setEdit(c)} className="cursor-pointer rounded-lg p-1.5 hover:bg-[var(--panel-2)]"><Pencil className="size-4" /></button>
+                        <button title={t('Delete')} onClick={() => del(c)} className="cursor-pointer rounded-lg p-1.5 text-red-500 hover:bg-red-500/10"><Trash2 className="size-4" /></button>
                       </div>
                     )}
                   </div>
                   <div className="mt-4 text-3xl font-semibold tabular-nums">{s ? fmtNum(s.count) : <Spinner className="size-5" />}</div>
                   {s?.error && <p className="mt-1 text-xs text-red-500">{s.error}</p>}
-                  <code className="mt-3 block truncate rounded-lg bg-[var(--panel-2)] px-2.5 py-1.5 font-mono text-xs text-muted">{c.query || '(all)'}</code>
-                  <button onClick={() => open(c)} className="mt-3 inline-flex items-center gap-1 text-sm text-indigo-400 hover:underline cursor-pointer">View logs <ArrowRight className="size-3.5" /></button>
+                  <code className="mt-3 block truncate rounded-lg bg-[var(--panel-2)] px-2.5 py-1.5 font-mono text-xs text-muted">{c.query || t('(all)')}</code>
+                  <button onClick={() => open(c)} className="mt-3 inline-flex items-center gap-1 text-sm text-indigo-400 hover:underline cursor-pointer">{t('View logs')} <ArrowRight className="size-3.5" /></button>
                 </div>
               )
             })}
           </div>
         )}
 
-      <Modal open={!!edit} onClose={() => setEdit(undefined)} title={edit?.id ? 'Edit category' : 'New category'}
-        footer={<><Button onClick={() => setEdit(undefined)}>Cancel</Button><Button variant="primary" onClick={saveEdit} disabled={!edit?.name}>Save</Button></>}>
+      <Modal open={!!edit} onClose={() => setEdit(undefined)} title={edit?.id ? t('Edit category') : t('New category')}
+        footer={<><Button onClick={() => setEdit(undefined)}>{t('Cancel')}</Button><Button variant="primary" onClick={saveEdit} disabled={!edit?.name}>{t('Save')}</Button></>}>
         {edit && (
           <div className="space-y-4">
-            <Field label="Name"><Input value={edit.name} onChange={(e) => setEdit({ ...edit, name: e.target.value })} /></Field>
-            <Field label="Description"><Input value={edit.description ?? ''} onChange={(e) => setEdit({ ...edit, description: e.target.value })} /></Field>
-            <Field label="Filter" hint="Same query language as the Logs page, e.g. category:firewall action:block dport:22">
+            <Field label={t('Name')}><Input value={edit.name} onChange={(e) => setEdit({ ...edit, name: e.target.value })} /></Field>
+            <Field label={t('Description')}><Input value={edit.description ?? ''} onChange={(e) => setEdit({ ...edit, description: e.target.value })} /></Field>
+            <Field label={t('Filter')} hint={t('Same query language as the Logs page, e.g. {example}', { example: 'category:firewall action:block dport:22' })}>
               <Input className="font-mono" value={edit.query} onChange={(e) => setEdit({ ...edit, query: e.target.value })} />
             </Field>
-            <Field label="Color">
+            <Field label={t('Color')}>
               <div className="flex gap-2">
                 {colors.map((c) => <button key={c} onClick={() => setEdit({ ...edit, color: c })} className="size-8 cursor-pointer rounded-lg ring-2 ring-offset-2 ring-offset-[var(--panel)]" style={{ background: c, ['--tw-ring-color' as string]: edit.color === c ? c : 'transparent' }} />)}
               </div>
             </Field>
-            <Toggle checked={edit.pinned ?? true} onChange={(pinned) => setEdit({ ...edit, pinned })} label="Pinned" description="Show this category at the top" />
+            <Toggle checked={edit.pinned ?? true} onChange={(pinned) => setEdit({ ...edit, pinned })} label={t('Pinned')} description={t('Show this category at the top')} />
           </div>
         )}
       </Modal>

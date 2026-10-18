@@ -154,6 +154,9 @@ func OpenMeta(path, keyPath string) (*Meta, error) {
 	if _, err := db.Exec(schema); err != nil {
 		return nil, fmt.Errorf("migrate: %w", err)
 	}
+	if err := migrateColumns(db); err != nil {
+		return nil, fmt.Errorf("migrate: %w", err)
+	}
 	key, err := loadKey(keyPath)
 	if err != nil {
 		return nil, err
@@ -167,6 +170,28 @@ func OpenMeta(path, keyPath string) (*Meta, error) {
 	}
 	m.seedCategories()
 	return m, nil
+}
+
+// columns added after the first release; CREATE TABLE IF NOT EXISTS does not
+// add them to existing databases.
+var addedColumns = []struct{ table, column, def string }{
+	{"users", "language", "TEXT NOT NULL DEFAULT ''"},
+	{"users", "language_manual", "INTEGER NOT NULL DEFAULT 0"},
+}
+
+func migrateColumns(db *sql.DB) error {
+	for _, c := range addedColumns {
+		var n int
+		if err := db.QueryRow(`SELECT COUNT(*) FROM pragma_table_info(?) WHERE name=?`, c.table, c.column).Scan(&n); err != nil {
+			return err
+		}
+		if n == 0 {
+			if _, err := db.Exec(fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s %s", c.table, c.column, c.def)); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 func loadKey(p string) ([]byte, error) {

@@ -23,7 +23,12 @@ type User struct {
 	Disabled   bool   `json:"disabled"`
 	CreatedAt  int64  `json:"created_at"`
 	LastLogin  int64  `json:"last_login"`
-	hash       string
+	// Language is the interface and e-mail language; empty means the server
+	// default. LanguageManual is set once the user picks one themselves, so
+	// the Entra account language no longer overrides it.
+	Language       string `json:"language"`
+	LanguageManual bool   `json:"language_manual"`
+	hash           string
 }
 
 var ErrNotFound = errors.New("not found")
@@ -33,11 +38,11 @@ var (
 	dummyHash []byte
 )
 
-const userCols = `id,username,email,name,password_hash,role,provider,external_id,disabled,created_at,last_login`
+const userCols = `id,username,email,name,password_hash,role,provider,external_id,disabled,created_at,last_login,language,language_manual`
 
 func scanUser(r interface{ Scan(...any) error }) (*User, error) {
 	var u User
-	err := r.Scan(&u.ID, &u.Username, &u.Email, &u.Name, &u.hash, &u.Role, &u.Provider, &u.ExternalID, &u.Disabled, &u.CreatedAt, &u.LastLogin)
+	err := r.Scan(&u.ID, &u.Username, &u.Email, &u.Name, &u.hash, &u.Role, &u.Provider, &u.ExternalID, &u.Disabled, &u.CreatedAt, &u.LastLogin, &u.Language, &u.LanguageManual)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -109,8 +114,8 @@ func (m *Meta) CreateUser(u *User, password string) error {
 		u.Role = "viewer"
 	}
 	u.CreatedAt = time.Now().Unix()
-	res, err := m.DB.Exec(`INSERT INTO users(username,email,name,password_hash,role,provider,external_id,disabled,created_at) VALUES(?,?,?,?,?,?,?,?,?)`,
-		u.Username, u.Email, u.Name, hash, u.Role, u.Provider, u.ExternalID, u.Disabled, u.CreatedAt)
+	res, err := m.DB.Exec(`INSERT INTO users(username,email,name,password_hash,role,provider,external_id,disabled,created_at,language,language_manual) VALUES(?,?,?,?,?,?,?,?,?,?,?)`,
+		u.Username, u.Email, u.Name, hash, u.Role, u.Provider, u.ExternalID, u.Disabled, u.CreatedAt, u.Language, u.LanguageManual)
 	if err != nil {
 		return err
 	}
@@ -119,8 +124,23 @@ func (m *Meta) CreateUser(u *User, password string) error {
 }
 
 func (m *Meta) UpdateUser(u *User) error {
-	_, err := m.DB.Exec(`UPDATE users SET email=?,name=?,role=?,disabled=? WHERE id=?`, u.Email, u.Name, u.Role, u.Disabled, u.ID)
+	_, err := m.DB.Exec(`UPDATE users SET email=?,name=?,role=?,disabled=?,language=?,language_manual=? WHERE id=?`, u.Email, u.Name, u.Role, u.Disabled, u.Language, u.LanguageManual, u.ID)
 	return err
+}
+
+// SetUserLanguage stores a user's language; manual marks a choice the user or
+// an admin made, as opposed to one taken over from the Entra account.
+func (m *Meta) SetUserLanguage(id int64, lang string, manual bool) error {
+	_, err := m.DB.Exec(`UPDATE users SET language=?,language_manual=? WHERE id=?`, lang, manual, id)
+	return err
+}
+
+// LanguageForEmail returns the language of the enabled user with this e-mail
+// address, or "" when there is none or the user follows the server default.
+func (m *Meta) LanguageForEmail(email string) string {
+	var lang string
+	m.DB.QueryRow(`SELECT language FROM users WHERE disabled=0 AND language<>'' AND (email=? COLLATE NOCASE OR username=? COLLATE NOCASE) ORDER BY last_login DESC LIMIT 1`, email, email).Scan(&lang)
+	return lang
 }
 
 func (m *Meta) SetPassword(id int64, password string) error {
@@ -162,7 +182,7 @@ func (m *Meta) CreateSession(userID int64, ttl time.Duration) (string, error) {
 }
 
 func (m *Meta) SessionUser(tok string) (*User, error) {
-	u, err := scanUser(m.DB.QueryRow(`SELECT u.id,u.username,u.email,u.name,u.password_hash,u.role,u.provider,u.external_id,u.disabled,u.created_at,u.last_login
+	u, err := scanUser(m.DB.QueryRow(`SELECT u.id,u.username,u.email,u.name,u.password_hash,u.role,u.provider,u.external_id,u.disabled,u.created_at,u.last_login,u.language,u.language_manual
 		FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>?`, hashToken(tok), time.Now().Unix()))
 	if err != nil {
 		return nil, err
