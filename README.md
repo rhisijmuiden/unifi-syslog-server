@@ -1,48 +1,143 @@
 # UniFi Syslog Server
 
-A central syslog server built specifically for UniFi. All UniFi sites send their syslog to one server, which recognizes firewall, IPS, Wi-Fi, DHCP, DNS, VPN, switch and management messages, enriches them with fields (source, destination, port, rule, client, SSID…) and makes them searchable and visible in a dashboard.
+A central syslog server built specifically for UniFi. All UniFi sites send their syslog to one server, which recognizes firewall, IPS, Wi-Fi, DHCP, DNS, VPN, switch, Protect, Access and management messages, enriches them with names, GeoIP and site information, and makes them searchable in ready-made dashboards. Selected events can be forwarded to **Microsoft Sentinel**, **Elastic**, **Splunk**, **Graylog** and other tools.
 
-- **Receiver**: UDP and TCP on port 514 (RFC3164, RFC5424, RFC6587 framing).
+![Overview dashboard](docs/screenshots/dashboard.png)
+
+**Contents**: [Features](#features) · [Forwarding to Sentinel, Elastic and other tools](#forwarding-to-sentinel-elastic-and-other-tools) · [Feature tour](#feature-tour) · [Installation](#installation) · [Configuring UniFi](#configuring-unifi) · [Users, roles and security](#users-roles-and-security) · [Query language](#query-language) · [Branding](#branding) · [Languages](#languages) · [Backup and restore](#backup-and-restore) · [Updates](#updates-release-channels-and-rollback) · [Command line](#command-line) · [Building from source](#building-from-source) · [Architecture](#architecture)
+
+## Features
+
+**Collect and understand**
+
+- **Receiver**: UDP and TCP on port 514 (RFC3164, RFC5424, RFC6587 framing), with an optional [source allowlist](#users-roles-and-security).
 - **UniFi parser**: device name `model,mac,version`, iptables rule tags (`WAN_IN-D-3001`, `DESCR="..."`), CEF from UniFi Network SIEM, hostapd/stahtd, dnsmasq/kea DHCP, DNS, Suricata IPS, WireGuard/OpenVPN/IPsec, SSH logins, switch ports and `EVT_*` controller codes. UniFi Protect (cameras, smart detections, doorbells), UniFi Access (doors, granted and denied access) and UniFi OS system events (CEF) get their own categories.
 - **UniFi Network API**: connect one or more consoles with an API key. Client and device names are attached to log lines, so you see "Alex's iPhone" and "AP Attic" instead of MAC addresses. Without a controller, names are learnt from DHCP logs. All known names are listed under **Clients**.
 - **GeoIP**: country and AS number (provider) of external IP addresses from DB-IP Lite (no account) or MaxMind GeoLite2, updated automatically, with a world map on the dashboards.
-- **Ready-made dashboards**: Firewall, Wi-Fi (roaming and connection problems), DHCP, VPN (WireGuard, Teleport and site-to-site) and IPS threats.
 - **Storage**: ClickHouse (columnar storage, compression, billions of rows), daily partitions and a configurable retention period. Metadata in SQLite.
-- **Dashboard**: messages per category, blocked sources and ports, IPS signatures, Wi-Fi clients, SSIDs, DHCP clients, devices and sites. Click through to the logs.
-- **Search**: a dedicated query language with fields, CIDR, ranges and wildcards, live tail, and export to CSV and JSON.
-- **Categories**: create your own categories (a saved search with a color) to filter logs.
+
+**Look and search**
+
+- **Overview dashboard**: messages per category, blocked traffic and threats per country, blocked sources and ports, IPS signatures, Wi-Fi clients, SSIDs, DHCP clients, devices and sites. Click through to the logs.
+- **Ready-made dashboards**: Firewall, Wi-Fi (roaming and connection problems), DHCP, VPN (WireGuard, Teleport and site-to-site) and Threats (IPS), each filterable per site and period.
+- **Search**: a dedicated [query language](#query-language) with fields, CIDR, ranges and wildcards, a histogram, live tail, and export to CSV and JSON.
+- **Categories**: your own categories (a saved search with a color) to filter logs, with counters on the Categories page.
+
+**Sites and devices**
+
 - **Sites**: map source IPs to a site, manually or via IP ranges. Sites behind NAT work too. An overview shows, per site, the status, devices and logs, blocks, IPS alerts and errors of the last 24 hours.
-- **Devices**: a persistent inventory of all UniFi devices (by MAC address, so also behind NAT), with a custom name and notes, firmware per model and updated firmware. Devices that have not sent logs for too long are marked as *silent* and, optionally, reported by email, as is their return. **Firmware warnings** flag devices that run older firmware than other devices of the same model, or for which UniFi Network offers an update, optionally by email.
-- **Alerts**: email when a search exceeds a threshold, and optionally an alert record to Microsoft Sentinel or another forwarding destination.
-- **Forwarding**: send selected events to **Microsoft Sentinel** (Logs Ingestion API with a data collection rule, into `UnifiSyslog_CL` or firewall and IPS into `CommonSecurityLog`), **Elasticsearch / Elastic Cloud / OpenSearch** (Bulk API into a data stream, Elastic Common Schema), **Logstash**, **syslog** (RFC 5424 or CEF over UDP, TCP or TLS for Graylog, Wazuh, QRadar…), **Splunk HEC** or a JSON **webhook**. Per destination: filters by category, site, device, severity and saved search; batching, an on-disk queue and automatic retries; a status page with volume, errors and estimated daily cost. Ready-made Sentinel and Kibana content is included, see [docs/FORWARDING.md](docs/FORWARDING.md).
+- **Devices**: a persistent inventory of all UniFi devices (by MAC address, so also behind NAT), with a custom name and notes, firmware per model and updated firmware. Devices that have not sent logs for too long are marked as *silent* and, optionally, reported by email, as is their return.
+- **Firmware warnings** flag devices that run older firmware than other devices of the same model, or for which UniFi Network offers an update, optionally by email.
+
+**Act on events**
+
+- **Forwarding** to Microsoft Sentinel, Elasticsearch / Elastic Cloud / OpenSearch, Logstash, syslog (Graylog, Wazuh, QRadar…), Splunk HEC and JSON webhooks, with per-destination filters, an on-disk queue, retries, volume and cost statistics, and ready-made Sentinel and Kibana content. See [below](#forwarding-to-sentinel-elastic-and-other-tools).
+- **Alerts**: email when a search exceeds a threshold within a time window, and optionally an alert record to Microsoft Sentinel or another forwarding destination.
+
+**Administration and security**
+
 - **Microsoft Entra SSO** (OIDC + PKCE), with Entra groups mapped to roles and sites automatically.
 - **Roles and permissions**: administrator, analyst and read-only viewer, each limited to one or more sites if you want, so customers or branch offices only see their own logs.
-- **Security**: two-factor authentication (TOTP) for local accounts, optionally mandatory; a source allowlist that only accepts syslog from known IP addresses or networks; an audit log of who viewed, changed, exported or restored what.
-- **REST API**: personal API tokens (read-only or read and write) for scripts and integrations, see [docs/API.md](docs/API.md).
+- **Two-factor authentication** (TOTP) for local accounts, optionally mandatory, with recovery codes.
+- **Source allowlist** that only accepts syslog from known IP addresses or networks, and lists rejected senders.
+- **Audit log** of who signed in, viewed, changed, exported or restored what.
+- **REST API** with personal API tokens (read-only or read and write) for scripts and integrations, see [docs/API.md](docs/API.md).
 - **Mail**: your own SMTP server with STARTTLS or TLS, minimum TLS 1.2/1.3, and PLAIN, LOGIN, CRAM-MD5, SCRAM-SHA-256 or OAuth2 (Microsoft 365).
 - **Backup**: full and incremental backups to FTP, FTPS, SCP or a local folder, with scheduling, retention policy and restore from the remote location.
 - **Branding**: your company name and logo (separate light and dark mode variants) and favicon in the menu, on the sign-in page and in e-mails.
-- **Languages**: English and Dutch. Each user picks their own language; Entra SSO users get the language of their Microsoft account. E-mails are sent in the language of the recipient.
-- **Updates**: the Info button shows the version, checks for updates and installs them from the interface. Choose the **Production** channel (stable releases) or **Test** (pre-releases such as `v0.4.0-beta.1`), and roll back to a previous version with one click.
-- The web interface runs on **port 8080**.
+- **Languages**: English and Dutch, per user. Entra SSO users get the language of their Microsoft account. E-mails are sent in the language of the recipient.
+- **Updates**: the Info button shows the version, checks for updates and installs them from the interface. Choose the **Production** channel (stable releases) or **Test** (pre-releases), and roll back to a previous version with one click.
+- **Deployment**: a Proxmox LXC script (Debian 13) and an installer for Debian 13 VMs and physical servers. The web interface runs on **port 8080**.
 
 See the [roadmap](ROADMAP.md) for what is planned next.
 
-## Screenshots
+## Forwarding to Sentinel, Elastic and other tools
 
-![Overview dashboard](docs/screenshots/dashboard.png)
+UniFi Syslog Server can send a filtered copy of your UniFi events to the security and log tools you already use, in parallel with storing them locally. Add destinations under **Configuration → Forwarding**.
+
+![Forwarding page with five destinations](docs/screenshots/forwarding.png)
+
+The page shows, per destination, the events and bytes of the last 24 hours, the estimated volume per day (and, with a price per GB, the estimated monthly cost), the queue, errors, the last delivery and a 24-hour sparkline. The panel on the right offers the ready-made content for Sentinel, Elastic and Logstash as downloads.
+
+### Destinations
+
+| Destination | How it is sent | Format |
+|---|---|---|
+| **Microsoft Sentinel** | Azure Monitor Logs Ingestion API through a data collection endpoint and rule. Entra app registration with a client secret or certificate. | Custom table `UnifiSyslog_CL`; in *split* mode firewall and IPS events go to `CommonSecurityLog` |
+| **Elasticsearch / Elastic Cloud / OpenSearch** | Bulk API into a data stream (default `logs-unifi.syslog-default`), API key or basic auth. **Install index template** puts the mappings in place with one click. | Elastic Common Schema (ECS) |
+| **Logstash** | JSON lines over TCP or TLS, or a JSON array over HTTP | ECS |
+| **Syslog** | UDP, TCP or TLS, octet-counting (RFC 6587) or newline framing. For Graylog, Wazuh, QRadar, ArcSight and others. | RFC 5424 with structured data, or CEF |
+| **Splunk** | HTTP Event Collector (HEC) with a HEC token, index and sourcetype | JSON events |
+| **JSON webhook** | HTTPS POST of a JSON array, with your own headers (for example `Authorization`) | ECS or the app's native field names |
+
+![Choosing a destination type](docs/screenshots/forwarding-add.png)
+
+### Filters: send only what matters
+
+Each destination has its own filter. An event is forwarded only when it matches **all** parts:
+
+- **Categories** (firewall, IPS / threats, Wi-Fi, DHCP, switch, VPN, sign-in, admin, DNS, clients, devices, system, Protect, Access). None selected is all.
+- **Sites** and **devices** (hostname, MAC address or device name). Empty is all.
+- **Minimum severity**, for example *warning or worse*.
+- **Saved search**: one of your [categories](#features).
+- **Extra filter** in the [query language](#query-language), for example `-category:dns` or `country:RU`.
+
+Because only matching events leave the server, you only pay for relevant data in Sentinel or Elastic.
+
+| | |
+|---|---|
+| ![Microsoft Sentinel destination](docs/screenshots/forwarding-sentinel.png)<br>**Microsoft Sentinel**: tenant and client ID, client secret or certificate, the logs ingestion endpoint and DCR immutable ID, and the table mode. Here: firewall, IPS, VPN and sign-in events, with a price per GB for the cost estimate. | ![Elastic Cloud destination](docs/screenshots/forwarding-elastic.png)<br>**Elastic Cloud**: URL, API key and data stream, *Install index template*, and an extra filter that skips DNS. |
+| ![Syslog destination for Graylog](docs/screenshots/forwarding-syslog.png)<br>**Syslog to Graylog**: RFC 5424 over TCP with octet counting, only for two sites and only *warning or worse*. | ![Alert rules with forwarding destinations](docs/screenshots/alerts.png)<br>**Alerts** can send an alert record to Sentinel or a webhook as well as an e-mail. |
+
+### Reliable delivery
+
+- Every destination has its **own queue on disk** (`/var/lib/unify-syslog/forward/<id>`) and its own delivery loop, so a destination that is down never slows down ingestion or the other destinations. Events survive restarts and outages.
+- Events go out in **batches** that suit the destination, and failed sends are **retried** with exponential backoff (up to 5 minutes between attempts) until they succeed. A payload that is too large is split.
+- The **maximum queue size** is configurable per destination; beyond it the oldest events are dropped and counted.
+- **Send test event** checks the settings before you save them.
+
+### Ready-made content
+
+The [integrations](integrations) folder, also downloadable from the Forwarding page, contains:
+
+- **Microsoft Sentinel**: an ARM template for the custom table, data collection endpoint and rule (with the role assignment for the app), KQL hunting queries, a workbook and analytics rules.
+- **Elastic**: the index template (also installed with one click from the interface), Kibana saved objects (data view, searches, visualizations and a dashboard) and Elastic Security detection rules.
+- **Logstash**: a sample pipeline.
+
+See [docs/FORWARDING.md](docs/FORWARDING.md) for the setup per tool.
+
+## Feature tour
+
+The screenshots show simulated UniFi traffic from four sites (`unify-syslog simulate`), with the *Northwind IT* branding as an example.
+
+### Dashboards
 
 ![Firewall dashboard with GeoIP map](docs/screenshots/dashboard-firewall.png)
 
 | | |
 |---|---|
-| ![Logs and search](docs/screenshots/logs.png)<br>**Logs**: search with the query language, histogram, live tail and CSV/JSON export. | ![Sites](docs/screenshots/sites.png)<br>**Sites**: status per site over the last 24 hours, and sender-to-site mapping. |
-| ![Devices](docs/screenshots/devices.png)<br>**Devices**: inventory of gateways, switches and access points with firmware and silent-device monitoring. | ![Categories](docs/screenshots/categories.png)<br>**Categories**: saved searches with a color, used as filters. |
-| ![Backup and restore](docs/screenshots/backup.png)<br>**Backup & restore**: full and incremental backups to FTP, FTPS or SCP. | ![Info and updates](docs/screenshots/info.png)<br>**Info & updates**: current version, release channel, in-app update and rollback. |
-| ![Microsoft Entra SSO](docs/screenshots/sso.png)<br>**Microsoft Entra SSO** with group-to-role mapping. | ![Mail server](docs/screenshots/mail.png)<br>**Mail server**: your own SMTP server with modern TLS and authentication. |
-| ![Light mode](docs/screenshots/dashboard-light.png)<br>**Light mode**. | ![Sign in](docs/screenshots/login.png)<br>**Sign in** page. |
+| ![Wi-Fi dashboard](docs/screenshots/dashboard-wifi.png)<br>**Wi-Fi**: connections, roaming and the clients with connection problems. | ![Threats (IPS) dashboard](docs/screenshots/dashboard-ips.png)<br>**Threats (IPS)**: blocked and detected threats, severity and source countries. |
+| ![VPN dashboard](docs/screenshots/dashboard-vpn.png)<br>**VPN**: WireGuard, Teleport and site-to-site tunnels. | ![Light mode](docs/screenshots/dashboard-light.png)<br>**Light mode**, next to the default dark mode. |
 
-The screenshots show simulated UniFi traffic from four sites (`unify-syslog simulate`).
+### Logs, sites and devices
+
+| | |
+|---|---|
+| ![Logs and search](docs/screenshots/logs.png)<br>**Logs**: search with the query language, histogram, live tail and CSV/JSON export. | ![Sites](docs/screenshots/sites.png)<br>**Sites**: status per site over the last 24 hours, networks per site and sender mapping. |
+| ![Devices](docs/screenshots/devices.png)<br>**Devices**: inventory of gateways, switches and access points with firmware per model and silent-device monitoring. | ![Clients](docs/screenshots/clients.png)<br>**Clients**: names from UniFi Network or learnt from DHCP. |
+| ![Categories](docs/screenshots/categories.png)<br>**Categories**: saved searches with a color and a counter, used as filters. | ![GeoIP](docs/screenshots/geoip.png)<br>**GeoIP**: DB-IP Lite or MaxMind GeoLite2, updated automatically. |
+
+### Administration and security
+
+| | |
+|---|---|
+| ![Users](docs/screenshots/users.png)<br>**Users**: roles, sites per user, 2FA status and language. | ![Microsoft Entra SSO](docs/screenshots/sso.png)<br>**Microsoft Entra SSO** with Entra groups mapped to roles and sites. |
+| ![Security](docs/screenshots/security.png)<br>**Security**: mandatory two-factor authentication and audit log retention. | ![Audit log](docs/screenshots/audit.png)<br>**Audit log**: sign-ins, views, changes, exports and restores, with filters and CSV export. |
+| ![Source allowlist](docs/screenshots/allowlist.png)<br>**Source allowlist**: only accept syslog from known networks; rejected senders can be allowed with one click. | ![My account](docs/screenshots/account.png)<br>**My account**: password, two-factor authentication and API tokens. |
+| ![Mail server](docs/screenshots/mail.png)<br>**Mail server**: your own SMTP server with modern TLS and authentication, including OAuth2 for Microsoft 365. | ![Backup and restore](docs/screenshots/backup.png)<br>**Backup & restore**: scheduled full and incremental backups to SCP, FTPS, FTP or a local folder. |
+| ![Branding](docs/screenshots/branding.png)<br>**Branding**: company name, logos for light and dark mode and a favicon. | ![Info and updates](docs/screenshots/info.png)<br>**Info & updates**: current version, release channel, update check, in-app update and rollback. |
+
+![Sign in](docs/screenshots/login.png)
 
 ## Installation
 
@@ -183,18 +278,6 @@ Configure backups under **Backup** in the web interface.
 - **Restore**: choose a backup at the remote location. The server fetches the whole chain (the full backup plus the incremental backups), restores the logs and restarts.
 
 A backup contains the encryption key, so store backups in a trusted location.
-
-## Forwarding to Sentinel, Elastic and other tools
-
-Add destinations under **Forwarding**. Each destination has its own filter (categories, sites, devices, minimum severity, a saved search and an extra query; all must match), its own queue on disk and its own delivery loop, so a destination that is down never slows down ingestion or the other destinations. Events wait on disk until they are delivered; beyond the configured queue size the oldest are dropped and counted. **Send test event** checks the settings before you save them.
-
-The [integrations](integrations) folder, also downloadable from the Forwarding page, contains:
-
-- **Microsoft Sentinel**: an ARM template for the custom table, data collection endpoint and rule (with the role assignment for the app), KQL hunting queries, a workbook and analytics rules.
-- **Elastic**: the index template (also installed with one click from the interface), Kibana saved objects (data view, searches, visualizations and a dashboard) and Elastic Security detection rules.
-- **Logstash**: a sample pipeline.
-
-See [docs/FORWARDING.md](docs/FORWARDING.md) for the setup per tool.
 
 ## Updates, release channels and rollback
 

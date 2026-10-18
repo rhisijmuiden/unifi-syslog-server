@@ -6,6 +6,8 @@ Under **Forwarding** you send UniFi events on to a SIEM or log tool, in parallel
 - [Elasticsearch / Elastic Cloud / OpenSearch](../integrations/elastic/README.md): index template, Kibana dashboard, detection rules
 - [Logstash](../integrations/logstash/README.md): sample pipeline
 
+![Forwarding page](screenshots/forwarding.png)
+
 ## Destinations
 
 | Type | How it is sent | Format |
