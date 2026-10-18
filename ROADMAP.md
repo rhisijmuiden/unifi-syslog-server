@@ -29,14 +29,14 @@ Goal: move from "looking at logs" to "knowing in time that something is wrong".
 |---|---|---|
 | Site overview | A card per site with status, devices and the last 24 hours of logs, blocks, IPS events and errors | Shipped in v0.2.0 |
 | Device inventory | Persistent inventory keyed by MAC address (works behind NAT), custom names and notes, firmware per model, and e-mail when a device goes silent or comes back | Shipped in v0.2.0 |
-| Notification channels | Next to e-mail: **Microsoft Teams** (Workflows webhook into a channel), **Telegram** (bot to a chat or group), **Slack** (incoming webhook or app into a channel), **SMS via MessageBird** (Bird) and a generic webhook. Easy to extend later, e.g. Pushover | Planned |
-| Channels per rule | Choose per alert rule which channels and recipients are used, e.g. Teams for everything and SMS only for critical alerts | Planned |
-| Quiet hours and batching | Quiet hours per channel (no SMS at night unless critical), batching to avoid alert storms, and a test button per channel | Planned |
+| Notification channels | Next to e-mail: **Microsoft Teams** (Workflows webhook into a channel), **Telegram** (bot to a chat or group), **Slack** (incoming webhook or app into a channel), **SMS via MessageBird** (Bird) and a generic webhook. Easy to extend later, e.g. Pushover | In progress |
+| Channels per rule | Choose per alert rule which channels and recipients are used, e.g. Teams for everything and SMS only for critical alerts | In progress |
+| Quiet hours and batching | Quiet hours per channel (no SMS at night unless critical), batching to avoid alert storms, and a test button per channel | In progress |
 | Richer alert rules | More conditions on top of the existing threshold alerts | Planned |
 | Saved searches | Save and share searches, also as a shortcut in the menu | Planned |
 | Retention per category | For example firewall 90 days, Wi-Fi 30 days, IPS 1 year (ClickHouse TTL) | Planned |
 | System status | Page with messages per second, disk usage, ClickHouse health and dropped packets | Planned |
-| More languages | German and French next to Dutch and English, with more to follow. Interface, e-mails and reports, using the existing translation files | Planned |
+| More languages | German and French next to Dutch and English, with more to follow. Interface, e-mails and reports, using the existing translation files | In progress |
 
 ## 1.1.x Branding and languages (shipped in v0.3.0)
 
@@ -110,11 +110,9 @@ Goal: forward selected UniFi events directly and reliably to Microsoft Sentinel,
 | Other log tools | Syslog forwarding (RFC 5424 over TCP, optionally TLS) and a generic JSON webhook, so Graylog, Wazuh, QRadar and similar tools work too. Splunk through the HTTP Event Collector |
 | Multiple destinations | For example firewall and IPS events to Sentinel, and everything to Elastic for long-term storage |
 
-## 1.5 Remote probes (built, release coming)
+## 1.5 Remote probes (shipped in v0.8.0)
 
 Goal: a small probe at each site that receives UniFi logs locally, buffers them and forwards them reliably to the main server. No logs are lost when the internet link drops, and syslog never crosses the internet unencrypted.
-
-The probe, the *Probes* page and the LXC, Debian 13 and Raspberry Pi installers are built and merged. They ship in the next release, first on the Test channel.
 
 | Item | Description |
 |---|---|
@@ -154,6 +152,6 @@ Goal: insight and accountability, not just storage.
 
 ## Up next
 
-1. **Remote probes** (1.5): release on the Test channel, then Production.
-2. **Notification channels** (1.1): Teams, Slack, Telegram and SMS via MessageBird next to e-mail, so the server tells you when something is wrong.
-3. **More languages** (1.1): German and French for the interface, e-mails and reports.
+1. **Notification channels** (1.1, in progress): Teams, Slack, Telegram and SMS via MessageBird next to e-mail, with channels per rule and quiet hours.
+2. **More languages** (1.1, in progress): German and French for the interface, e-mails and reports.
+3. **Scale and reliability** (2.0): external ClickHouse, cold storage and more backup targets for larger environments.
