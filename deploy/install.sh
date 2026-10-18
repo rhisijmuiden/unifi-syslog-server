@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # UniFi Syslog Server installer for Debian 13 (trixie): VM, bare metal or LXC.
 #
-#   curl -fsSL https://raw.githubusercontent.com/rhisijmuiden/unify-syslog-server/main/deploy/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/rhisijmuiden/unifi-syslog-server/main/deploy/install.sh | bash
 #
 # Options (environment variables):
 #   USS_VERSION=v1.2.3     install a specific release (default: latest)
@@ -10,7 +10,7 @@
 #   USS_CH_MEMORY_RATIO    ClickHouse share of RAM (default 0.5)
 set -euo pipefail
 
-REPO="rhisijmuiden/unify-syslog-server"
+REPO="rhisijmuiden/unifi-syslog-server"
 APP_DIR="/opt/unify-syslog"
 CONF_DIR="/etc/unify-syslog"
 DATA_DIR="/var/lib/unify-syslog"

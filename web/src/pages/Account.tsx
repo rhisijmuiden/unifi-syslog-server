@@ -165,7 +165,7 @@ function Tokens() {
     <Card className="xl:col-span-2" title={t('API tokens')} subtitle={t('For scripts and integrations. A token has the role and sites of its user.')}
       actions={<>
         {can.admin(user) && <Toggle checked={all} onChange={setAll} label={t('All users')} />}
-        <a href="https://github.com/rhisijmuiden/unify-syslog-server/blob/main/docs/API.md" target="_blank" rel="noreferrer"><Button variant="ghost" icon={<Code2 className="size-4" />}>{t('API documentation')}</Button></a>
+        <a href="https://github.com/rhisijmuiden/unifi-syslog-server/blob/main/docs/API.md" target="_blank" rel="noreferrer"><Button variant="ghost" icon={<Code2 className="size-4" />}>{t('API documentation')}</Button></a>
         <Button variant="primary" icon={<Plus className="size-4" />} onClick={() => setCreate({ name: '', read_only: true, days: '90' })}>{t('New token')}</Button>
       </>} pad={false}>
       {!tokens.data ? <div className="grid place-items-center py-10"><Spinner /></div> : !tokens.data.length ? (

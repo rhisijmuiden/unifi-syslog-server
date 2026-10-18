@@ -533,7 +533,7 @@
   "with settings snapshot": "met momentopname van de instellingen",
   "no previous version is kept on this server": "er is geen eerdere versie bewaard op deze server",
   "channel must be stable or test": "kanaal moet stable of test zijn",
-  "no stable releases published yet on github.com/rhisijmuiden/unify-syslog-server": "nog geen stabiele releases gepubliceerd op github.com/rhisijmuiden/unify-syslog-server",
+  "no stable releases published yet on github.com/rhisijmuiden/unifi-syslog-server": "nog geen stabiele releases gepubliceerd op github.com/rhisijmuiden/unifi-syslog-server",
   "1 outdated": "1 verouderd",
   "API key": "API-sleutel",
   "Access points": "Access points",

@@ -1,4 +1,4 @@
-# Unifi Syslog Server
+# UniFi Syslog Server
 
 A central syslog server built specifically for UniFi. All UniFi sites send their syslog to one server, which recognizes firewall, IPS, Wi-Fi, DHCP, DNS, VPN, switch and management messages, enriches them with fields (source, destination, port, rule, client, SSID…) and makes them searchable and visible in a dashboard.
 
@@ -50,7 +50,7 @@ The screenshots show simulated UniFi traffic from four sites (`unify-syslog simu
 Run this on the Proxmox host:
 
 ```bash
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/rhisijmuiden/unify-syslog-server/main/ct/unify-syslog-server.sh)"
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/rhisijmuiden/unifi-syslog-server/main/ct/unify-syslog-server.sh)"
 ```
 
 The script uses the community-scripts engine and creates an unprivileged Debian 13 container (by default 4 vCPU, 4 GB RAM and a 40 GB disk). Use *Advanced* to change this. Size the disk to your expected volume: with UniFi logs that is roughly 1 GB per 10 million messages after compression.
@@ -62,7 +62,7 @@ You can update the container later by running the same command inside the contai
 Run this as root:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/rhisijmuiden/unify-syslog-server/main/deploy/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/rhisijmuiden/unifi-syslog-server/main/deploy/install.sh | bash
 ```
 
 The install script:
