@@ -19,6 +19,8 @@ A central syslog server built specifically for UniFi. All UniFi sites send their
 - **Updates**: the Info button shows the version, checks for updates and installs them from the interface. Choose the **Production** channel (stable releases) or **Test** (pre-releases such as `v0.4.0-beta.1`), and roll back to a previous version with one click.
 - The web interface runs on **port 8080**.
 
+See the [roadmap](ROADMAP.md) for what is planned next.
+
 ## Screenshots
 
 ![Overview dashboard](docs/screenshots/dashboard.png)
