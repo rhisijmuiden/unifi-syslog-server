@@ -56,14 +56,14 @@ func TestStahtd(t *testing.T) {
 }
 
 func TestCEF(t *testing.T) {
-	e := p(t, `<14>Oct 17 19:55:06 UDM-Pro CEF:0|Ubiquiti|UniFi Network|9.0.114|400|WiFi Client Connected|1|UNIFIcategory=Monitoring UNIFIsubCategory=WiFi UNIFIhost=UDM Pro UNIFIclientAlias=Reinder iPhone UNIFIclientMac=AA:BB:CC:00:11:22 UNIFIclientIp=192.168.1.50 UNIFIwifiName=Thuis UNIFIdeviceName=AP Woonkamer msg=Reinder iPhone connected to Thuis`)
+	e := p(t, `<14>Oct 17 19:55:06 UDM-Pro CEF:0|Ubiquiti|UniFi Network|9.0.114|400|WiFi Client Connected|1|UNIFIcategory=Monitoring UNIFIsubCategory=WiFi UNIFIhost=UDM Pro UNIFIclientAlias=Alex iPhone UNIFIclientMac=AA:BB:CC:00:11:22 UNIFIclientIp=192.168.1.50 UNIFIwifiName=Home UNIFIdeviceName=AP Living Room msg=Alex iPhone connected to Home`)
 	if e.Category != CatWiFi || e.EventType != "WiFi Client Connected" {
 		t.Fatalf("cef cat: %q %q", e.Category, e.EventType)
 	}
-	if e.ClientName != "Reinder iPhone" || e.SSID != "Thuis" || e.ClientMAC != "aa:bb:cc:00:11:22" || e.ClientIP != "192.168.1.50" {
+	if e.ClientName != "Alex iPhone" || e.SSID != "Home" || e.ClientMAC != "aa:bb:cc:00:11:22" || e.ClientIP != "192.168.1.50" {
 		t.Fatalf("cef fields: %+v", e)
 	}
-	if e.Fields["UNIFIdeviceName"] != "AP Woonkamer" || e.Message != "WiFi Client Connected: Reinder iPhone connected to Thuis" {
+	if e.Fields["UNIFIdeviceName"] != "AP Living Room" || e.Message != "WiFi Client Connected: Alex iPhone connected to Home" {
 		t.Fatalf("cef: %+v", e.Fields)
 	}
 }
@@ -76,8 +76,8 @@ func TestCEFThreat(t *testing.T) {
 }
 
 func TestDnsmasqDHCP(t *testing.T) {
-	e := p(t, `<30>Oct 17 19:55:06 UDM dnsmasq-dhcp[1234]: DHCPACK(br0) 192.168.1.20 aa:bb:cc:dd:ee:01 Reinders-MBP`)
-	if e.Category != CatDHCP || e.EventType != "DHCPACK" || e.ClientIP != "192.168.1.20" || e.ClientName != "Reinders-MBP" || e.InIf != "br0" {
+	e := p(t, `<30>Oct 17 19:55:06 UDM dnsmasq-dhcp[1234]: DHCPACK(br0) 192.168.1.20 aa:bb:cc:dd:ee:01 Alexs-MBP`)
+	if e.Category != CatDHCP || e.EventType != "DHCPACK" || e.ClientIP != "192.168.1.20" || e.ClientName != "Alexs-MBP" || e.InIf != "br0" {
 		t.Fatalf("%+v", e)
 	}
 }
@@ -132,8 +132,8 @@ func TestClockSkew(t *testing.T) {
 }
 
 func TestControllerEvent(t *testing.T) {
-	e := p(t, `<14>Oct 17 19:55:06 unifi EVT_WU_Connected: User[aa:bb:cc:dd:ee:ff] has connected to AP[f0:9f:c2:00:00:01] with SSID "Thuis" on "channel 36(na)"`)
-	if e.Category != CatClient || e.EventType != "EVT_WU_Connected" || e.SSID != "Thuis" {
+	e := p(t, `<14>Oct 17 19:55:06 unifi EVT_WU_Connected: User[aa:bb:cc:dd:ee:ff] has connected to AP[f0:9f:c2:00:00:01] with SSID "Home" on "channel 36(na)"`)
+	if e.Category != CatClient || e.EventType != "EVT_WU_Connected" || e.SSID != "Home" {
 		t.Fatalf("%+v", e)
 	}
 }

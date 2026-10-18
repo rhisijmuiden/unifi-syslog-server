@@ -50,7 +50,7 @@ func (e *Entra) RedirectURL(base string) string {
 func (e *Entra) config(ctx context.Context, base string) (*oauth2.Config, *oidc.Provider, store.SSOSettings, error) {
 	s := e.Meta.SSO()
 	if !s.Enabled || s.TenantID == "" || s.ClientID == "" {
-		return nil, nil, s, errors.New("Entra SSO is niet ingeschakeld")
+		return nil, nil, s, errors.New("Entra SSO is not enabled")
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -100,7 +100,7 @@ func (e *Entra) Finish(ctx context.Context, base, state, code string) (*Identity
 	delete(e.pending, state)
 	e.mu.Unlock()
 	if !ok || time.Now().After(p.expires) {
-		return nil, errors.New("ongeldige of verlopen aanmeldsessie")
+		return nil, errors.New("invalid or expired sign-in session")
 	}
 	cfg, prov, s, err := e.config(ctx, base)
 	if err != nil {
@@ -112,7 +112,7 @@ func (e *Entra) Finish(ctx context.Context, base, state, code string) (*Identity
 	}
 	raw, ok := tok.Extra("id_token").(string)
 	if !ok {
-		return nil, errors.New("geen id_token ontvangen")
+		return nil, errors.New("no id_token received")
 	}
 	idt, err := prov.Verifier(&oidc.Config{ClientID: s.ClientID}).Verify(ctx, raw)
 	if err != nil {
@@ -133,11 +133,11 @@ func (e *Entra) Finish(ctx context.Context, base, state, code string) (*Identity
 		return nil, err
 	}
 	if !strings.EqualFold(c.TID, s.TenantID) && !strings.Contains(s.TenantID, ".") {
-		return nil, errors.New("verkeerde tenant")
+		return nil, errors.New("wrong tenant")
 	}
 	id := &Identity{Subject: first(c.OID, idt.Subject), Username: first(c.PreferredUsername, c.Email), Email: first(c.Email, c.PreferredUsername), Name: c.Name, Groups: c.Groups}
 	if s.AllowedGroup != "" && !contains(id.Groups, s.AllowedGroup) && !contains(id.Groups, s.AdminGroupID) {
-		return nil, errors.New("je account is geen lid van de toegestane groep")
+		return nil, errors.New("your account is not a member of the allowed group")
 	}
 	return id, nil
 }

@@ -4,7 +4,7 @@
 //	category:firewall action:block dport:22
 //	src:192.168.1.0/24 -proto:udp "connection refused"
 //	severity:<=3 OR category:ips
-//	host:U6* field.UNIFIwifiName:Thuis
+//	host:U6* field.UNIFIwifiName:Home
 //
 // Terms are ANDed, OR splits the query into alternatives, a leading "-"
 // negates a term and "*" is a wildcard.
@@ -154,7 +154,7 @@ func tokenize(q string) ([]token, error) {
 		}
 	}
 	if inQ {
-		return nil, fmt.Errorf("ontbrekend afsluitend aanhalingsteken")
+		return nil, fmt.Errorf("missing closing quote")
 	}
 	flush()
 	return out, nil
@@ -198,7 +198,7 @@ func compileTerm(t token) (string, []any, error) {
 	}
 	c, ok := fields[key]
 	if !ok {
-		return "", nil, fmt.Errorf("onbekend veld %q", key)
+		return "", nil, fmt.Errorf("unknown field %q", key)
 	}
 	switch {
 	case c.numeric:
@@ -245,7 +245,7 @@ func numExpr(colExpr, val string) (string, []any, error) {
 		if strings.HasPrefix(val, op) {
 			n, err := strconv.ParseInt(val[len(op):], 10, 64)
 			if err != nil {
-				return "", nil, fmt.Errorf("ongeldig getal %q", val)
+				return "", nil, fmt.Errorf("invalid number %q", val)
 			}
 			return colExpr + " " + op + " ?", []any{n}, nil
 		}
@@ -254,13 +254,13 @@ func numExpr(colExpr, val string) (string, []any, error) {
 		lo, err1 := strconv.ParseInt(a, 10, 64)
 		hi, err2 := strconv.ParseInt(b, 10, 64)
 		if err1 != nil || err2 != nil {
-			return "", nil, fmt.Errorf("ongeldig bereik %q", val)
+			return "", nil, fmt.Errorf("invalid range %q", val)
 		}
 		return colExpr + " BETWEEN ? AND ?", []any{lo, hi}, nil
 	}
 	n, err := strconv.ParseInt(val, 10, 64)
 	if err != nil {
-		return "", nil, fmt.Errorf("ongeldig getal %q", val)
+		return "", nil, fmt.Errorf("invalid number %q", val)
 	}
 	return colExpr + " = ?", []any{n}, nil
 }

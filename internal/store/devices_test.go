@@ -13,20 +13,20 @@ func TestDeviceInventory(t *testing.T) {
 		t.Fatal(err)
 	}
 	t0 := time.Unix(1_800_000_000, 0)
-	m.TouchDevice("U6-Pro", "U6-Pro", "F4:E2:C6:00:00:01", "6.6.55", "Kantoor", "84.1.2.3", t0)
+	m.TouchDevice("U6-Pro", "U6-Pro", "F4:E2:C6:00:00:01", "6.6.55", "Office", "84.1.2.3", t0)
 	// Same NATed source IP, different device.
-	m.TouchDevice("USW-24", "USW-24", "f4:e2:c6:00:00:02", "7.1.26", "Kantoor", "84.1.2.3", t0)
-	m.TouchDevice("UDM-Pro", "", "", "", "Kantoor", "84.1.2.3", t0)
-	m.TouchDevice("", "", "", "", "Kantoor", "84.1.2.3", t0) // nothing to identify
+	m.TouchDevice("USW-24", "USW-24", "f4:e2:c6:00:00:02", "7.1.26", "Office", "84.1.2.3", t0)
+	m.TouchDevice("UDM-Pro", "", "", "", "Office", "84.1.2.3", t0)
+	m.TouchDevice("", "", "", "", "Office", "84.1.2.3", t0) // nothing to identify
 	if err := m.FlushDevices(); err != nil {
 		t.Fatal(err)
 	}
-	if err := m.UpdateDevice("f4:e2:c6:00:00:01", "AP Receptie", "plafond", true); err != nil {
+	if err := m.UpdateDevice("f4:e2:c6:00:00:01", "AP Reception", "ceiling", true); err != nil {
 		t.Fatal(err)
 	}
 
 	// Firmware upgrade a minute later must not lose the custom name.
-	m.TouchDevice("U6-Pro", "U6-Pro", "f4:e2:c6:00:00:01", "6.7.10", "Kantoor", "84.1.2.3", t0.Add(time.Minute))
+	m.TouchDevice("U6-Pro", "U6-Pro", "f4:e2:c6:00:00:01", "6.7.10", "Office", "84.1.2.3", t0.Add(time.Minute))
 	if err := m.FlushDevices(); err != nil {
 		t.Fatal(err)
 	}
@@ -41,7 +41,7 @@ func TestDeviceInventory(t *testing.T) {
 		t.Fatalf("want 3 devices, got %d: %+v", len(devs), devs)
 	}
 	ap := devs["f4:e2:c6:00:00:01"]
-	if ap.Name != "AP Receptie" || ap.Notes != "plafond" {
+	if ap.Name != "AP Reception" || ap.Notes != "ceiling" {
 		t.Errorf("custom fields lost: %+v", ap)
 	}
 	if ap.Version != "6.7.10" || ap.PrevVersion != "6.6.55" || ap.VersionChanged != t0.Add(time.Minute).Unix() {

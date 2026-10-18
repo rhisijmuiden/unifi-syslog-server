@@ -30,22 +30,22 @@ export default function Login({ instance, sso, onLogin, initialError }: { instan
         <div className="mb-7 flex flex-col items-center text-center">
           <div className="mb-4 grid size-14 place-items-center rounded-2xl bg-gradient-to-br from-indigo-500 to-cyan-500 text-white shadow-xl shadow-indigo-500/30"><Radio className="size-7" /></div>
           <h1 className="text-xl font-semibold">{instance}</h1>
-          <p className="mt-1 text-sm text-muted">Meld je aan om verder te gaan</p>
+          <p className="mt-1 text-sm text-muted">Sign in to continue</p>
         </div>
         {error && <div className="mb-4 rounded-xl bg-red-500/10 px-4 py-3 text-sm text-red-500 ring-1 ring-red-500/30">{error}</div>}
         {sso?.enabled && (
           <>
             <a href="/api/auth/entra/login" className="flex w-full items-center justify-center gap-3 rounded-xl bg-[#2f2f2f] px-4 py-2.5 text-sm font-medium text-white ring-1 ring-white/10 transition hover:bg-[#3a3a3a]">
               <svg viewBox="0 0 21 21" className="size-4"><rect x="1" y="1" width="9" height="9" fill="#f25022" /><rect x="11" y="1" width="9" height="9" fill="#7fba00" /><rect x="1" y="11" width="9" height="9" fill="#00a4ef" /><rect x="11" y="11" width="9" height="9" fill="#ffb900" /></svg>
-              {sso.label || 'Aanmelden met Microsoft'}
+              {sso.label || 'Sign in with Microsoft'}
             </a>
-            <div className="my-5 flex items-center gap-3 text-xs text-muted"><div className="h-px flex-1 bg-[var(--border)]" />of met een lokaal account<div className="h-px flex-1 bg-[var(--border)]" /></div>
+            <div className="my-5 flex items-center gap-3 text-xs text-muted"><div className="h-px flex-1 bg-[var(--border)]" />or with a local account<div className="h-px flex-1 bg-[var(--border)]" /></div>
           </>
         )}
         <form onSubmit={submit} className="space-y-4">
-          <Field label="Gebruikersnaam"><Input autoFocus autoComplete="username" value={username} onChange={(e) => setUsername(e.target.value)} /></Field>
-          <Field label="Wachtwoord"><Input type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} /></Field>
-          <Button type="submit" variant="primary" loading={busy} className="w-full" icon={<LogIn className="size-4" />}>Aanmelden</Button>
+          <Field label="Username"><Input autoFocus autoComplete="username" value={username} onChange={(e) => setUsername(e.target.value)} /></Field>
+          <Field label="Password"><Input type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} /></Field>
+          <Button type="submit" variant="primary" loading={busy} className="w-full" icon={<LogIn className="size-4" />}>Sign in</Button>
         </form>
       </div>
     </div>

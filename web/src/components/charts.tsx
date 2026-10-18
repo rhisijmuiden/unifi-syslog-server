@@ -6,9 +6,9 @@ import { catColor, catLabel, chartInk, fmtCompact, fmtNum, otherColor, primaryCa
 function tickFmt(stepSec: number) {
   return (t: number) => {
     const d = new Date(t)
-    if (stepSec >= 86400) return d.toLocaleDateString('nl-NL', { day: '2-digit', month: '2-digit' })
-    if (stepSec >= 3600) return d.toLocaleString('nl-NL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
-    return d.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })
+    if (stepSec >= 86400) return d.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit' })
+    if (stepSec >= 3600) return d.toLocaleString('en-GB', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+    return d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
   }
 }
 
@@ -43,11 +43,11 @@ function TipBox({ active, payload, label, stepSec }: { active?: boolean; payload
       <div className="mb-1 font-medium">{tickFmt(stepSec)(label ?? 0)}</div>
       {[...payload].reverse().filter((p) => p.value).map((p) => (
         <div key={p.dataKey} className="flex items-center justify-between gap-4">
-          <span className="flex items-center gap-1.5"><span className="size-2 rounded-sm" style={{ background: p.color }} />{p.dataKey === 'count' ? 'Berichten' : catLabel(p.dataKey)}</span>
+          <span className="flex items-center gap-1.5"><span className="size-2 rounded-sm" style={{ background: p.color }} />{p.dataKey === 'count' ? 'Messages' : catLabel(p.dataKey)}</span>
           <span className="font-medium tabular-nums">{fmtNum(p.value)}</span>
         </div>
       ))}
-      {payload.length > 1 && <div className="mt-1 flex justify-between border-t border-app pt-1 font-medium"><span>Totaal</span><span className="tabular-nums">{fmtNum(total)}</span></div>}
+      {payload.length > 1 && <div className="mt-1 flex justify-between border-t border-app pt-1 font-medium"><span>Total</span><span className="tabular-nums">{fmtNum(total)}</span></div>}
     </div>
   )
 }
@@ -99,7 +99,7 @@ export function Sparkline({ values, color = '#3987e5' }: { values: number[]; col
 }
 
 // Horizontal magnitude bars: one hue, ranked. Labels in text ink.
-export function BarList({ items, onClick, format = (k: string) => k, color = '#3987e5', empty = 'Geen gegevens', mono = true }: { items: TopItem[]; onClick?: (k: string) => void; format?: (k: string) => React.ReactNode; color?: string | ((k: string) => string); empty?: string; mono?: boolean }) {
+export function BarList({ items, onClick, format = (k: string) => k, color = '#3987e5', empty = 'No data', mono = true }: { items: TopItem[]; onClick?: (k: string) => void; format?: (k: string) => React.ReactNode; color?: string | ((k: string) => string); empty?: string; mono?: boolean }) {
   if (!items.length) return <p className="py-6 text-center text-sm text-muted">{empty}</p>
   const max = Math.max(...items.map((i) => i.count))
   return (

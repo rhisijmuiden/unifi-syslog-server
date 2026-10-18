@@ -45,14 +45,14 @@ func Connect(ctx context.Context, t store.BackupTarget) (Remote, error) {
 		return dialSCP(ctx, t)
 	case "local":
 		if t.Path == "" {
-			return nil, errors.New("pad is verplicht")
+			return nil, errors.New("path is required")
 		}
 		if err := os.MkdirAll(t.Path, 0o750); err != nil {
 			return nil, err
 		}
 		return &localRemote{dir: t.Path}, nil
 	}
-	return nil, fmt.Errorf("onbekend doeltype %q", t.Type)
+	return nil, fmt.Errorf("unknown target type %q", t.Type)
 }
 
 func isBackupName(n string) bool {
@@ -141,7 +141,7 @@ func (r *ftpRemote) Upload(ctx context.Context, local, name string) error {
 	}
 	if n, err := r.c.FileSize(tmp); err == nil && n != st.Size() {
 		r.c.Delete(tmp)
-		return fmt.Errorf("upload onvolledig: %d van %d bytes", n, st.Size())
+		return fmt.Errorf("upload incomplete: %d of %d bytes", n, st.Size())
 	}
 	r.c.Delete(r.p(name))
 	return r.c.Rename(tmp, r.p(name))

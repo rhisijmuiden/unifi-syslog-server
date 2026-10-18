@@ -28,27 +28,27 @@ LOG=/var/log/unify-syslog-install.log
 run() {
   echo "+ $*" >>"$LOG"
   if ! "$@" >>"$LOG" 2>&1; then
-    echo -e "${c_err}✘ Mislukt: $*${c_off}" >&2
-    echo "----- laatste regels van $LOG -----" >&2
+    echo -e "${c_err}✘ Failed: $*${c_off}" >&2
+    echo "----- last lines of $LOG -----" >&2
     tail -n 30 "$LOG" >&2
     echo "-----------------------------------" >&2
     return 1
   fi
 }
 
-[[ $EUID -eq 0 ]] || die "Voer dit script uit als root."
-read -r OS_ID OS_VER OS_NAME < <(. /etc/os-release; echo "${ID:-} ${VERSION_ID:-} ${PRETTY_NAME:-onbekend}")
+[[ $EUID -eq 0 ]] || die "Run this script as root."
+read -r OS_ID OS_VER OS_NAME < <(. /etc/os-release; echo "${ID:-} ${VERSION_ID:-} ${PRETTY_NAME:-unknown}")
 if [[ "${OS_ID}" != "debian" ]]; then
-  die "Dit script is bedoeld voor Debian 13 (gevonden: ${OS_NAME})."
+  die "This script is meant for Debian 13 (found: ${OS_NAME})."
 fi
 if [[ "${OS_VER}" != "13" ]]; then
-  warn "Getest op Debian 13, gevonden ${OS_NAME}. Doorgaan..."
+  warn "Tested on Debian 13, found ${OS_NAME}. Continuing..."
 fi
 
 case "$(uname -m)" in
   x86_64) ARCH=amd64 ;;
   aarch64|arm64) ARCH=arm64 ;;
-  *) die "Niet-ondersteunde architectuur $(uname -m)" ;;
+  *) die "Unsupported architecture $(uname -m)" ;;
 esac
 
 export DEBIAN_FRONTEND=noninteractive
@@ -57,22 +57,22 @@ export DEBIAN_FRONTEND=noninteractive
 # ClickHouse needs about 2 GB on disk to install (the default Debian LXC disk is only 2 GB).
 FREE_MB=$(df -Pm / | awk 'NR==2 {print $4}')
 if (( FREE_MB < 3072 )); then
-  die "Te weinig schijfruimte: ${FREE_MB} MB vrij op /. Minimaal 3 GB nodig, 20 GB of meer aangeraden. Vergroot de schijf (Proxmox: Resources → Root Disk → Resize) en start opnieuw."
+  die "Not enough disk space: ${FREE_MB} MB free on /. At least 3 GB is required, 20 GB or more is recommended. Grow the disk (Proxmox: Resources → Root Disk → Resize) and run again."
 elif (( FREE_MB < 10240 )); then
-  warn "Maar ${FREE_MB} MB vrij op /. Voor logopslag is 20 GB of meer aangeraden."
+  warn "Only ${FREE_MB} MB free on /. 20 GB or more is recommended for log storage."
 fi
 if [[ "$ARCH" == amd64 ]] && ! grep -qw sse4_2 /proc/cpuinfo; then
-  die "De CPU ondersteunt geen SSE4.2, wat ClickHouse vereist. Zet in Proxmox het CPU-type van de VM op 'host' of 'x86-64-v2-AES'."
+  die "The CPU does not support SSE4.2, which ClickHouse requires. In Proxmox, set the VM CPU type to 'host' or 'x86-64-v2-AES'."
 fi
 TOTAL_MB=$(awk '/MemTotal/ {print int($2/1024)}' /proc/meminfo)
-(( TOTAL_MB >= 1800 )) || warn "Maar ${TOTAL_MB} MB RAM. 4 GB of meer is aangeraden."
+(( TOTAL_MB >= 1800 )) || warn "Only ${TOTAL_MB} MB RAM. 4 GB or more is recommended."
 
 # ClickHouse 26.8 and later need AVX2 (Intel Haswell / AMD Zen or newer) and die with
 # "Illegal instruction" on older CPUs such as the Xeon E5 v1/v2. 26.3 LTS still runs there.
 CH_PIN="${USS_CH_VERSION:-}"
 if [[ -z "$CH_PIN" && "$ARCH" == amd64 ]] && ! grep -qw avx2 /proc/cpuinfo; then
   CH_PIN="26.3.*"
-  warn "CPU zonder AVX2 gevonden: ClickHouse wordt vastgezet op 26.3 LTS."
+  warn "CPU without AVX2 detected: pinning ClickHouse to 26.3 LTS."
 fi
 install -d /etc/apt/preferences.d
 if [[ -n "$CH_PIN" ]]; then
@@ -84,37 +84,37 @@ fi
 # A ClickHouse package left half-configured by an earlier failed run blocks apt; remove it
 # (data and config stay) so it is reinstalled below.
 if dpkg -s clickhouse-server >/dev/null 2>&1 && ! dpkg -s clickhouse-server | grep -q 'Status: install ok installed'; then
-  warn "Half geïnstalleerde ClickHouse van een eerdere poging gevonden, wordt opnieuw geïnstalleerd."
+  warn "Found a half-installed ClickHouse from an earlier attempt; reinstalling it."
   dpkg --remove --force-remove-reinstreq clickhouse-server >>"$LOG" 2>&1 || true
 fi
 dpkg --configure -a >>"$LOG" 2>&1 || true
 
-info "Systeempakketten installeren"
-run apt-get update || die "apt-get update mislukt"
-run apt-get install -y curl ca-certificates gnupg apt-transport-https tar openssl tzdata libcap2-bin || die "Basispakketten installeren mislukt"
-ok "Basispakketten geïnstalleerd"
+info "Installing system packages"
+run apt-get update || die "apt-get update failed"
+run apt-get install -y curl ca-certificates gnupg apt-transport-https tar openssl tzdata libcap2-bin || die "Installing base packages failed"
+ok "Base packages installed"
 
 # ---------------------------------------------------------------- ClickHouse
 ch_works() { dpkg -s clickhouse-server 2>/dev/null | grep -q 'Status: install ok installed' && clickhouse local -q 'SELECT 1' >/dev/null 2>&1; }
 if ! ch_works; then
-  info "ClickHouse installeren (officiële repository${CH_PIN:+, versie $CH_PIN})"
+  info "Installing ClickHouse (official repository${CH_PIN:+, version $CH_PIN})"
   install -d -m 0755 /usr/share/keyrings
   curl -fsSL 'https://packages.clickhouse.com/rpm/lts/repodata/repomd.xml.key' | gpg --dearmor --yes -o /usr/share/keyrings/clickhouse-keyring.gpg
   echo "deb [signed-by=/usr/share/keyrings/clickhouse-keyring.gpg arch=${ARCH}] https://packages.clickhouse.com/deb lts main" > /etc/apt/sources.list.d/clickhouse.list
-  run apt-get update || die "apt-get update mislukt"
+  run apt-get update || die "apt-get update failed"
   if ! run apt-get install -y --allow-downgrades clickhouse-common-static clickhouse-server clickhouse-client; then
     run apt-get install -y -f || true
   fi
   if ! ch_works; then
     rc=0; clickhouse local -q 'SELECT 1' >/dev/null 2>&1 || rc=$?
     if (( rc == 132 )); then  # SIGILL
-      die "ClickHouse draait niet op deze CPU. Probeer opnieuw met USS_CH_VERSION='26.3.*' of zet bij een VM het CPU-type op 'host'."
+      die "ClickHouse does not run on this CPU. Try again with USS_CH_VERSION='26.3.*', or for a VM set the CPU type to 'host'."
     fi
-    die "ClickHouse installeren mislukt. Het volledige log staat in $LOG"
+    die "Installing ClickHouse failed. The full log is in $LOG"
   fi
-  ok "ClickHouse geïnstalleerd"
+  ok "ClickHouse installed"
 else
-  ok "ClickHouse is al aanwezig"
+  ok "ClickHouse is already installed"
 fi
 
 CH_PASS_FILE="${CONF_DIR}/.clickhouse-password"
@@ -187,8 +187,8 @@ for _ in $(seq 1 60); do
   clickhouse-client --user unify --password "$CH_PASS" -q "SELECT 1" >/dev/null 2>&1 && break
   sleep 1
 done
-clickhouse-client --user unify --password "$CH_PASS" -q "SELECT 1" >/dev/null 2>&1 || die "ClickHouse start niet; zie journalctl -u clickhouse-server"
-ok "ClickHouse draait (alleen lokaal bereikbaar)"
+clickhouse-client --user unify --password "$CH_PASS" -q "SELECT 1" >/dev/null 2>&1 || die "ClickHouse does not start; see journalctl -u clickhouse-server"
+ok "ClickHouse is running (local access only)"
 
 # ---------------------------------------------------------------- application
 if ! id "$SVC_USER" >/dev/null 2>&1; then
@@ -205,16 +205,16 @@ else
     LATEST_URL="$(curl -fsSL -o /dev/null -w '%{url_effective}' "https://github.com/${REPO}/releases/latest" || true)"
     VERSION="${LATEST_URL##*/tag/}"
     [[ "$LATEST_URL" == */tag/* ]] || VERSION=""
-    [[ -n "$VERSION" ]] || die "Kon de nieuwste release niet bepalen (zijn er releases op github.com/${REPO}?)"
+    [[ -n "$VERSION" ]] || die "Could not determine the latest release (are there releases on github.com/${REPO}?)"
   fi
-  info "UniFi Syslog Server ${VERSION} downloaden"
+  info "Downloading UniFi Syslog Server ${VERSION}"
   TMP="$(mktemp -d)"
   trap 'rm -rf "$TMP"' EXIT
   ASSET="unify-syslog-server_linux_${ARCH}.tar.gz"
   BASE="https://github.com/${REPO}/releases/download/${VERSION}"
   curl -fsSL -o "$TMP/$ASSET" "$BASE/$ASSET"
   if curl -fsSL -o "$TMP/checksums.txt" "$BASE/checksums.txt"; then
-    (cd "$TMP" && grep " ${ASSET}\$" checksums.txt | sha256sum -c --quiet -) || die "Checksum klopt niet"
+    (cd "$TMP" && grep " ${ASSET}\$" checksums.txt | sha256sum -c --quiet -) || die "Checksum mismatch"
   fi
   TARBALL="$TMP/$ASSET"
 fi
@@ -222,12 +222,12 @@ tar -xzf "$TARBALL" -C "$APP_DIR" unify-syslog
 chmod 0755 "$APP_DIR/unify-syslog"
 chown "$SVC_USER:$SVC_USER" "$APP_DIR/unify-syslog"
 ln -sf "$APP_DIR/unify-syslog" /usr/local/bin/unify-syslog
-ok "Programma geïnstalleerd in $APP_DIR ($("$APP_DIR/unify-syslog" version))"
+ok "Program installed in $APP_DIR ($("$APP_DIR/unify-syslog" version))"
 
 if [[ ! -f "$CONF_DIR/config.yaml" ]]; then
   cat > "$CONF_DIR/config.yaml" <<EOF
-# UniFi Syslog Server - bootstrap configuratie.
-# Alle overige instellingen beheer je in de webinterface.
+# UniFi Syslog Server - bootstrap configuration.
+# All other settings are managed in the web interface.
 http_listen: ":8080"
 data_dir: ${DATA_DIR}
 syslog:
@@ -255,7 +255,7 @@ cat > /etc/sysctl.d/90-unify-syslog.conf <<EOF
 net.core.rmem_max = 33554432
 net.core.rmem_default = 8388608
 EOF
-sysctl -q -p /etc/sysctl.d/90-unify-syslog.conf 2>/dev/null || warn "sysctl niet toegepast (normaal in een unprivileged LXC)"
+sysctl -q -p /etc/sysctl.d/90-unify-syslog.conf 2>/dev/null || warn "sysctl not applied (normal in an unprivileged LXC)"
 
 cat > /etc/systemd/system/unify-syslog.service <<EOF
 [Unit]
@@ -293,8 +293,8 @@ if [[ ! -f "$DATA_DIR/meta.db" ]]; then
   cat > /root/unify-syslog.creds <<EOF
 UniFi Syslog Server
 Web:        http://$(hostname -I | awk '{print $1}'):8080
-Gebruiker:  admin
-Wachtwoord: ${ADMIN_PW}
+User:       admin
+Password:   ${ADMIN_PW}
 EOF
   chmod 0600 /root/unify-syslog.creds
 fi
@@ -302,14 +302,14 @@ fi
 systemctl enable -q unify-syslog
 systemctl restart unify-syslog
 sleep 2
-systemctl is-active -q unify-syslog || die "De dienst start niet; zie journalctl -u unify-syslog"
+systemctl is-active -q unify-syslog || die "The service does not start; see journalctl -u unify-syslog"
 
 IP="$(hostname -I | awk '{print $1}')"
 echo
-ok "Installatie voltooid!"
-echo -e "   Webinterface:  ${c_info}http://${IP}:8080${c_off}"
+ok "Installation complete!"
+echo -e "   Web interface: ${c_info}http://${IP}:8080${c_off}"
 echo -e "   Syslog:        UDP/TCP ${IP}:514"
 if [[ $FIRST_RUN -eq 1 ]]; then
-  echo -e "   Inloggen:      admin / ${c_ok}${ADMIN_PW}${c_off}   (ook opgeslagen in /root/unify-syslog.creds)"
+  echo -e "   Login:         admin / ${c_ok}${ADMIN_PW}${c_off}   (also saved in /root/unify-syslog.creds)"
 fi
-echo -e "   Bijwerken:     via Info & updates in de webinterface, of: unify-syslog update && systemctl restart unify-syslog"
+echo -e "   Update:        via Info & updates in the web interface, or: unify-syslog update && systemctl restart unify-syslog"

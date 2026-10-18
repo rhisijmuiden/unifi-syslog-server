@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Versie om uit te brengen, bijvoorbeeld v0.1.0 (de tag wordt aangemaakt)'
+        description: 'Version to release, for example v0.1.0 (the tag will be created)'
         required: true
 
 permissions:

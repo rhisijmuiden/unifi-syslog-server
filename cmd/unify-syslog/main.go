@@ -278,7 +278,7 @@ func simulateCmd(args []string) error {
 	target := fs.String("target", "127.0.0.1:514", "syslog server address (UDP)")
 	rate := fs.Int("rate", 200, "messages per second")
 	dur := fs.Duration("duration", time.Minute, "how long to send")
-	sites := fs.Int("sites", 3, "number of simulated locations")
+	sites := fs.Int("sites", 3, "number of simulated sites")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}

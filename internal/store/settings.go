@@ -86,7 +86,7 @@ func (m *Meta) General() GeneralSettings {
 }
 
 func (m *Meta) SSO() SSOSettings {
-	s := SSOSettings{DefaultRole: "viewer", AutoProvision: true, ButtonLabel: "Aanmelden met Microsoft"}
+	s := SSOSettings{DefaultRole: "viewer", AutoProvision: true, ButtonLabel: "Sign in with Microsoft"}
 	m.GetSetting("sso", &s)
 	s.ClientSecret = m.Decrypt(s.ClientSecret)
 	return s

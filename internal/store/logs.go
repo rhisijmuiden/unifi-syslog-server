@@ -122,7 +122,7 @@ func (l *Logs) migrate(ctx context.Context, retention int) error {
 
 func (l *Logs) SetRetention(ctx context.Context, days int) error {
 	if days < 1 {
-		return fmt.Errorf("retentie moet minimaal 1 dag zijn")
+		return fmt.Errorf("retention must be at least 1 day")
 	}
 	return l.Conn.Exec(ctx, fmt.Sprintf("ALTER TABLE %s MODIFY TTL toDateTime(ts) + INTERVAL %d DAY DELETE", l.t("logs"), days))
 }

@@ -69,22 +69,22 @@ export default function App() {
 interface NavItem { to: string; label: string; icon: ReactNode; admin?: boolean }
 const nav: { section: string; items: NavItem[] }[] = [
   { section: 'Monitoring', items: [
-    { to: '/', label: 'Overzicht', icon: <LayoutDashboard /> },
+    { to: '/', label: 'Overview', icon: <LayoutDashboard /> },
     { to: '/logs', label: 'Logs', icon: <ScrollText /> },
-    { to: '/categories', label: 'Categorieën', icon: <Tags /> },
-    { to: '/devices', label: 'Apparaten', icon: <RouterIcon /> },
-    { to: '/sites', label: 'Locaties', icon: <MapPin /> },
+    { to: '/categories', label: 'Categories', icon: <Tags /> },
+    { to: '/devices', label: 'Devices', icon: <RouterIcon /> },
+    { to: '/sites', label: 'Sites', icon: <MapPin /> },
   ] },
-  { section: 'Configuratie', items: [
-    { to: '/alerts', label: 'Meldingen', icon: <BellRing />, admin: true },
+  { section: 'Configuration', items: [
+    { to: '/alerts', label: 'Alerts', icon: <BellRing />, admin: true },
   ] },
-  { section: 'Beheer', items: [
-    { to: '/users', label: 'Gebruikers', icon: <Users />, admin: true },
+  { section: 'Administration', items: [
+    { to: '/users', label: 'Users', icon: <Users />, admin: true },
     { to: '/sso', label: 'Microsoft Entra SSO', icon: <KeyRound />, admin: true },
-    { to: '/mail', label: 'Mailserver', icon: <Mail />, admin: true },
-    { to: '/backup', label: 'Back-up & herstel', icon: <DatabaseBackup />, admin: true },
-    { to: '/settings', label: 'Instellingen', icon: <Settings />, admin: true },
-    { to: '/audit', label: 'Auditlog', icon: <History />, admin: true },
+    { to: '/mail', label: 'Mail server', icon: <Mail />, admin: true },
+    { to: '/backup', label: 'Backup & restore', icon: <DatabaseBackup />, admin: true },
+    { to: '/settings', label: 'Settings', icon: <Settings />, admin: true },
+    { to: '/audit', label: 'Audit log', icon: <History />, admin: true },
   ] },
 ]
 
@@ -103,7 +103,7 @@ function Shell() {
         <div className="grid size-9 place-items-center rounded-xl bg-gradient-to-br from-indigo-500 to-cyan-500 text-white shadow-lg shadow-indigo-500/30"><Radio className="size-5" /></div>
         <div className="min-w-0">
           <div className="truncate text-sm font-semibold">{instance}</div>
-          <div className="text-[11px] text-muted">Centrale UniFi-logging</div>
+          <div className="text-[11px] text-muted">Central UniFi logging</div>
         </div>
       </div>
       <nav className="flex-1 space-y-5 overflow-y-auto scroll-thin px-3 pb-4">
@@ -129,15 +129,15 @@ function Shell() {
           <Info /> Info & updates
         </button>
         <button onClick={() => setDark(!dark)} className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm text-muted hover:bg-[var(--panel-2)] hover:text-[var(--text)] cursor-pointer [&_svg]:size-4">
-          {dark ? <Sun /> : <Moon />} {dark ? 'Lichte modus' : 'Donkere modus'}
+          {dark ? <Sun /> : <Moon />} {dark ? 'Light mode' : 'Dark mode'}
         </button>
         <div className="mt-2 flex items-center gap-3 rounded-xl px-3 py-2">
           <div className="grid size-8 place-items-center rounded-full bg-gradient-to-br from-indigo-500/30 to-cyan-500/30 text-xs font-semibold uppercase">{(user.name || user.username).slice(0, 2)}</div>
           <div className="min-w-0 flex-1">
             <div className="truncate text-sm font-medium">{user.name || user.username}</div>
-            <div className="text-[11px] text-muted">{user.role === 'admin' ? 'Beheerder' : 'Lezer'}{user.provider === 'entra' && ' · Entra'}</div>
+            <div className="text-[11px] text-muted">{user.role === 'admin' ? 'Admin' : 'Viewer'}{user.provider === 'entra' && ' · Entra'}</div>
           </div>
-          <button title="Afmelden" onClick={logout} className="rounded-lg p-1.5 text-muted hover:bg-red-500/10 hover:text-red-500 cursor-pointer"><LogOut className="size-4" /></button>
+          <button title="Sign out" onClick={logout} className="rounded-lg p-1.5 text-muted hover:bg-red-500/10 hover:text-red-500 cursor-pointer"><LogOut className="size-4" /></button>
         </div>
       </div>
     </aside>

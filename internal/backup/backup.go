@@ -81,7 +81,7 @@ func (m *Manager) begin(job string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.status.Running {
-		return fmt.Errorf("er loopt al een taak: %s", m.status.Job)
+		return fmt.Errorf("a job is already running: %s", m.status.Job)
 	}
 	m.status = Status{Running: true, Job: job, Started: time.Now(), LastDone: m.status.LastDone}
 	return nil
@@ -176,7 +176,7 @@ func (m *Manager) run(ctx context.Context, kind string) (*store.BackupRecord, er
 		return rec, err
 	}
 
-	m.step("configuratie veiligstellen")
+	m.step("saving configuration")
 	if err := m.Meta.Snapshot(filepath.Join(work, "meta.db")); err != nil {
 		return fail(fmt.Errorf("snapshot: %w", err))
 	}
@@ -186,7 +186,7 @@ func (m *Manager) run(ctx context.Context, kind string) (*store.BackupRecord, er
 		}
 	}
 	if man.IncludeLogs {
-		m.step("logdata exporteren")
+		m.step("exporting log data")
 		from := time.UnixMilli(man.FromMS)
 		to := time.UnixMilli(man.ToMS)
 		n, _ := m.Logs.CountReceivedBetween(ctx, from, to)
@@ -204,7 +204,7 @@ func (m *Manager) run(ctx context.Context, kind string) (*store.BackupRecord, er
 	mb, _ := json.MarshalIndent(man, "", "  ")
 	os.WriteFile(filepath.Join(work, "manifest.json"), mb, 0o640)
 
-	m.step("archief schrijven")
+	m.step("writing archive")
 	archive := filepath.Join(m.Dir, name)
 	if err := writeTar(archive, work, []string{"manifest.json", "meta.db", "secret.key", "logs.native.gz"}); err != nil {
 		return fail(err)
@@ -219,7 +219,7 @@ func (m *Manager) run(ctx context.Context, kind string) (*store.BackupRecord, er
 		if !t.Enabled {
 			continue
 		}
-		m.step("uploaden naar " + t.Name)
+		m.step("uploading to " + t.Name)
 		if err := m.upload(ctx, t, archive, name); err != nil {
 			errs = append(errs, t.Name+": "+err.Error())
 			m.Log.Error("backup upload", "target", t.Name, "err", err)
@@ -242,10 +242,10 @@ func (m *Manager) run(ctx context.Context, kind string) (*store.BackupRecord, er
 	}
 	m.Meta.SaveBackupRecord(rec)
 
-	m.step("oude back-ups opruimen")
+	m.step("pruning old backups")
 	m.prune(ctx, cfg)
 	if len(errs) > 0 {
-		return rec, fmt.Errorf("upload mislukt: %s", strings.Join(errs, "; "))
+		return rec, fmt.Errorf("upload failed: %s", strings.Join(errs, "; "))
 	}
 	return rec, nil
 }
@@ -371,14 +371,14 @@ func (m *Manager) notify(rec *store.BackupRecord, err error) {
 	if err == nil && cfg.NotifyOn != "always" {
 		return
 	}
-	subject := "Back-up geslaagd"
+	subject := "Backup succeeded"
 	body := ""
 	if rec != nil {
-		body = fmt.Sprintf("Type: %s\nBestand: %s\nGrootte: %d bytes\nRegels: %d\nDoelen: %s\n", rec.Kind, rec.File, rec.Size, rec.Rows, rec.Targets)
+		body = fmt.Sprintf("Type: %s\nFile: %s\nSize: %d bytes\nRows: %d\nTargets: %s\n", rec.Kind, rec.File, rec.Size, rec.Rows, rec.Targets)
 	}
 	if err != nil {
-		subject = "Back-up MISLUKT"
-		body += "\nFout: " + err.Error()
+		subject = "Backup FAILED"
+		body += "\nError: " + err.Error()
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
@@ -442,7 +442,7 @@ func (m *Manager) remote(ctx context.Context, targetID string) (Remote, error) {
 			return Connect(ctx, t)
 		}
 	}
-	return nil, fmt.Errorf("doel niet gevonden")
+	return nil, fmt.Errorf("target not found")
 }
 
 // Test connects to a target and lists it, returning a short description.
@@ -463,10 +463,10 @@ func Test(ctx context.Context, t store.BackupTarget) (string, error) {
 	defer os.Remove(tmp.Name())
 	probe := ".unify-syslog-probe"
 	if err := r.Upload(ctx, tmp.Name(), probe); err != nil {
-		return "", fmt.Errorf("verbinden gelukt, schrijven mislukt: %w", err)
+		return "", fmt.Errorf("connected, but write failed: %w", err)
 	}
 	r.Delete(ctx, probe)
-	return fmt.Sprintf("Verbinding OK, schrijven OK, %d back-up(s) gevonden", len(files)), nil
+	return fmt.Sprintf("Connection OK, write OK, %d backup(s) found", len(files)), nil
 }
 
 // ---------------------------------------------------------------- restore
@@ -509,7 +509,7 @@ func (m *Manager) restore(ctx context.Context, opts RestoreOptions) error {
 		}
 	}
 	if sel == nil {
-		return fmt.Errorf("back-up %s niet gevonden", opts.Name)
+		return fmt.Errorf("backup %s not found", opts.Name)
 	}
 	// Build the chain: full base + incrementals up to the selected one.
 	var chain []Entry
@@ -525,7 +525,7 @@ func (m *Manager) restore(ctx context.Context, opts RestoreOptions) error {
 		return chain[i].Time.Before(chain[j].Time)
 	})
 	if len(chain) == 0 || chain[0].Kind != "full" {
-		return fmt.Errorf("volledige basis-back-up %s ontbreekt", sel.BaseID)
+		return fmt.Errorf("full base backup %s is missing", sel.BaseID)
 	}
 	work, err := os.MkdirTemp(m.Dir, ".restore-")
 	if err != nil {
@@ -543,20 +543,20 @@ func (m *Manager) restore(ctx context.Context, opts RestoreOptions) error {
 		if !opts.Logs && e.Name != sel.Name {
 			continue
 		}
-		m.step(fmt.Sprintf("downloaden %d/%d: %s", i+1, len(chain), e.Name))
+		m.step(fmt.Sprintf("downloading %d/%d: %s", i+1, len(chain), e.Name))
 		local := filepath.Join(work, e.Name)
 		if err := r.Download(ctx, e.Name, local); err != nil {
 			return fmt.Errorf("download %s: %w", e.Name, err)
 		}
 		d := filepath.Join(work, fmt.Sprintf("%03d", i))
 		if err := extractTar(local, d); err != nil {
-			return fmt.Errorf("uitpakken %s: %w", e.Name, err)
+			return fmt.Errorf("extracting %s: %w", e.Name, err)
 		}
 		os.Remove(local)
 		dirs = append(dirs, d)
 	}
 	if opts.Logs {
-		m.step("huidige logdata leegmaken")
+		m.step("clearing current log data")
 		if err := m.Logs.Truncate(ctx); err != nil {
 			return err
 		}
@@ -569,7 +569,7 @@ func (m *Manager) restore(ctx context.Context, opts RestoreOptions) error {
 			if err != nil {
 				return err
 			}
-			m.step(fmt.Sprintf("logdata importeren %d/%d", i+1, len(dirs)))
+			m.step(fmt.Sprintf("importing log data %d/%d", i+1, len(dirs)))
 			err = m.Logs.Import(ctx, f)
 			f.Close()
 			if err != nil {
@@ -578,7 +578,7 @@ func (m *Manager) restore(ctx context.Context, opts RestoreOptions) error {
 		}
 	}
 	if opts.Config {
-		m.step("configuratie klaarzetten")
+		m.step("staging configuration")
 		last := dirs[len(dirs)-1]
 		src, err := os.Open(filepath.Join(last, "meta.db"))
 		if err != nil {

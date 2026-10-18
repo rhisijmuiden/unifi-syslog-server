@@ -15,40 +15,40 @@ export default function SSO() {
   const up = (p: Partial<SSOSettings>) => setS({ ...s, ...p })
   const save = async () => {
     setBusy(true)
-    try { setS(await api.put<SSOSettings>('/settings/sso', s)); toast('ok', 'SSO-instellingen opgeslagen') } catch (e) { toast('err', (e as Error).message) } finally { setBusy(false) }
+    try { setS(await api.put<SSOSettings>('/settings/sso', s)); toast('ok', 'SSO settings saved') } catch (e) { toast('err', (e as Error).message) } finally { setBusy(false) }
   }
   return (
     <>
-      <PageHeader title="Microsoft Entra SSO" subtitle="Aanmelden met je Microsoft 365 / Entra ID-account" icon={<KeyRound className="size-5" />}
-        actions={<Button variant="primary" loading={busy} onClick={save} icon={<Save className="size-4" />}>Opslaan</Button>} />
+      <PageHeader title="Microsoft Entra SSO" subtitle="Sign in with your Microsoft 365 / Entra ID account" icon={<KeyRound className="size-5" />}
+        actions={<Button variant="primary" loading={busy} onClick={save} icon={<Save className="size-4" />}>Save</Button>} />
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-        <Card className="xl:col-span-2" title="Configuratie">
+        <Card className="xl:col-span-2" title="Configuration">
           <div className="space-y-5">
-            <Toggle checked={s.enabled} onChange={(enabled) => up({ enabled })} label="Entra SSO inschakelen" description="Toont 'Aanmelden met Microsoft' op het inlogscherm. Lokale accounts blijven werken." />
+            <Toggle checked={s.enabled} onChange={(enabled) => up({ enabled })} label="Enable Entra SSO" description="Shows 'Sign in with Microsoft' on the login screen. Local accounts keep working." />
             <div className="grid gap-4 md:grid-cols-2">
-              <Field label="Tenant-ID (Directory ID)"><Input value={s.tenant_id} onChange={(e) => up({ tenant_id: e.target.value.trim() })} placeholder="00000000-0000-0000-0000-000000000000" /></Field>
-              <Field label="Client-ID (Application ID)"><Input value={s.client_id} onChange={(e) => up({ client_id: e.target.value.trim() })} /></Field>
-              <Field label="Clientgeheim" hint="Wordt versleuteld opgeslagen"><Input type="password" value={s.client_secret} onChange={(e) => up({ client_secret: e.target.value })} /></Field>
-              <Field label="Tekst op knop"><Input value={s.button_label} onChange={(e) => up({ button_label: e.target.value })} /></Field>
-              <Field label="Beheerdersgroep (Object-ID)" hint="Leden worden beheerder"><Input value={s.admin_group_id} onChange={(e) => up({ admin_group_id: e.target.value.trim() })} /></Field>
-              <Field label="Toegestane groep (Object-ID)" hint="Leeg = iedereen in de tenant"><Input value={s.allowed_group_id} onChange={(e) => up({ allowed_group_id: e.target.value.trim() })} /></Field>
-              <Field label="Standaardrol"><Select value={s.default_role} onChange={(default_role) => up({ default_role })} options={[{ value: 'viewer', label: 'Lezer' }, { value: 'admin', label: 'Beheerder' }]} /></Field>
+              <Field label="Tenant ID (Directory ID)"><Input value={s.tenant_id} onChange={(e) => up({ tenant_id: e.target.value.trim() })} placeholder="00000000-0000-0000-0000-000000000000" /></Field>
+              <Field label="Client ID (Application ID)"><Input value={s.client_id} onChange={(e) => up({ client_id: e.target.value.trim() })} /></Field>
+              <Field label="Client secret" hint="Stored encrypted"><Input type="password" value={s.client_secret} onChange={(e) => up({ client_secret: e.target.value })} /></Field>
+              <Field label="Button text"><Input value={s.button_label} onChange={(e) => up({ button_label: e.target.value })} /></Field>
+              <Field label="Admin group (Object ID)" hint="Members become admins"><Input value={s.admin_group_id} onChange={(e) => up({ admin_group_id: e.target.value.trim() })} /></Field>
+              <Field label="Allowed group (Object ID)" hint="Empty = everyone in the tenant"><Input value={s.allowed_group_id} onChange={(e) => up({ allowed_group_id: e.target.value.trim() })} /></Field>
+              <Field label="Default role"><Select value={s.default_role} onChange={(default_role) => up({ default_role })} options={[{ value: 'viewer', label: 'Viewer' }, { value: 'admin', label: 'Admin' }]} /></Field>
             </div>
-            <Toggle checked={s.auto_provision} onChange={(auto_provision) => up({ auto_provision })} label="Gebruikers automatisch aanmaken" description="Maakt bij de eerste aanmelding een account aan" />
+            <Toggle checked={s.auto_provision} onChange={(auto_provision) => up({ auto_provision })} label="Auto-provision users" description="Creates an account on first sign-in" />
           </div>
         </Card>
-        <Card title="App-registratie in Entra">
+        <Card title="App registration in Entra">
           <ol className="list-decimal space-y-3 pl-4 text-sm text-muted">
-            <li>Ga in het <span className="text-[var(--text)]">Entra-beheercentrum</span> naar App-registraties → Nieuwe registratie.</li>
-            <li>Kies platform <span className="text-[var(--text)]">Web</span> en vul deze omleidings-URI in:
+            <li>In the <span className="text-[var(--text)]">Entra admin center</span>, go to App registrations → New registration.</li>
+            <li>Choose platform <span className="text-[var(--text)]">Web</span> and enter this redirect URI:
               <div className="mt-2 flex items-center gap-2 rounded-lg bg-[var(--panel-2)] px-2.5 py-2 font-mono text-xs text-[var(--text)]">
                 <span className="truncate">{redirect}</span>
-                <button onClick={() => { navigator.clipboard.writeText(redirect); toast('ok', 'Gekopieerd') }} className="cursor-pointer"><Copy className="size-3.5" /></button>
+                <button onClick={() => { navigator.clipboard.writeText(redirect); toast('ok', 'Copied') }} className="cursor-pointer"><Copy className="size-3.5" /></button>
               </div>
             </li>
-            <li>Maak onder Certificaten & geheimen een clientgeheim aan.</li>
-            <li>Voeg onder Tokenconfiguratie de claim <span className="text-[var(--text)]">groups</span> toe (Beveiligingsgroepen) als je groepen gebruikt.</li>
-            <li>Werkt de URI niet achter een reverse proxy? Stel de basis-URL in bij Instellingen.</li>
+            <li>Under Certificates & secrets, create a client secret.</li>
+            <li>If you use groups, add the <span className="text-[var(--text)]">groups</span> claim (Security groups) under Token configuration.</li>
+            <li>URI not working behind a reverse proxy? Set the base URL under Settings.</li>
           </ol>
         </Card>
       </div>

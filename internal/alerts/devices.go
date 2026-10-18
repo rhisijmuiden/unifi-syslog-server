@@ -58,9 +58,9 @@ func deviceMail(silent, back []store.InvDevice, minutes int) (subject, body stri
 		}
 		site := d.Site
 		if site == "" || site == store.DefaultSite {
-			site = "Standaard"
+			site = "Default"
 		}
-		return fmt.Sprintf("%s (%s, locatie %s, laatst gezien %s)", name, strings.TrimSpace(d.Model+" "+d.MAC), site, time.Unix(d.LastSeen, 0).Local().Format("2006-01-02 15:04"))
+		return fmt.Sprintf("%s (%s, site %s, last seen %s)", name, strings.TrimSpace(d.Model+" "+d.MAC), site, time.Unix(d.LastSeen, 0).Local().Format("2006-01-02 15:04"))
 	}
 	var b strings.Builder
 	write := func(title string, list []store.InvDevice) {
@@ -74,19 +74,19 @@ func deviceMail(silent, back []store.InvDevice, minutes int) (subject, body stri
 		}
 		b.WriteString("\n")
 	}
-	write(fmt.Sprintf("Geen logs meer ontvangen (langer dan %d minuten):", minutes), silent)
-	write("Weer actief:", back)
+	write(fmt.Sprintf("No logs received (for more than %d minutes):", minutes), silent)
+	write("Back online:", back)
 	switch {
 	case len(silent) > 0 && len(back) > 0:
-		subject = fmt.Sprintf("%d apparaten stil, %d weer actief", len(silent), len(back))
+		subject = fmt.Sprintf("%d devices silent, %d back online", len(silent), len(back))
 	case len(silent) == 1:
-		subject = "Apparaat stil: " + firstNonEmpty(silent[0].Name, silent[0].Hostname)
+		subject = "Device silent: " + firstNonEmpty(silent[0].Name, silent[0].Hostname)
 	case len(silent) > 1:
-		subject = fmt.Sprintf("%d apparaten sturen geen logs meer", len(silent))
+		subject = fmt.Sprintf("%d devices stopped sending logs", len(silent))
 	case len(back) == 1:
-		subject = "Apparaat weer actief: " + firstNonEmpty(back[0].Name, back[0].Hostname)
+		subject = "Device back online: " + firstNonEmpty(back[0].Name, back[0].Hostname)
 	default:
-		subject = fmt.Sprintf("%d apparaten weer actief", len(back))
+		subject = fmt.Sprintf("%d devices back online", len(back))
 	}
 	return subject, b.String()
 }

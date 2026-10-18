@@ -24,13 +24,13 @@ export function RangePicker({ value, onChange }: { value: RangeState; onChange: 
         <select value={value.preset} onChange={(e) => onChange(e.target.value === 'custom' ? { preset: 'custom', from: toLocalInput(r.from), to: toLocalInput(r.to) } : { preset: e.target.value })}
           className="cursor-pointer bg-transparent px-2 py-1 text-sm outline-none">
           {rangePresets.map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
-          <option value="custom">Aangepast…</option>
+          <option value="custom">Custom…</option>
         </select>
       </div>
       {value.preset === 'custom' && (
         <div className="panel flex items-center gap-2 rounded-xl px-2 py-1 text-sm">
           <input type="datetime-local" value={value.from} onChange={(e) => onChange({ ...value, from: e.target.value })} className="bg-transparent outline-none" />
-          <span className="text-muted">tot</span>
+          <span className="text-muted">to</span>
           <input type="datetime-local" value={value.to} onChange={(e) => onChange({ ...value, to: e.target.value })} className="bg-transparent outline-none" />
         </div>
       )}
@@ -46,8 +46,8 @@ export function SiteFilter({ value, onChange }: { value: string; onChange: (s: s
     <div className="panel flex items-center gap-1 rounded-xl p-1">
       <MapPin className="ml-2 size-4 text-muted" />
       <select value={value} onChange={(e) => onChange(e.target.value)} className="cursor-pointer bg-transparent px-2 py-1 text-sm outline-none">
-        <option value="">Alle locaties</option>
-        {sites.map((s) => <option key={s} value={s}>{s === 'default' ? 'Standaard' : s}</option>)}
+        <option value="">All sites</option>
+        {sites.map((s) => <option key={s} value={s}>{s === 'default' ? 'Default' : s}</option>)}
       </select>
     </div>
   )

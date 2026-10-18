@@ -144,7 +144,7 @@ func (s *Server) Handler() http.Handler {
 				r.Get("/audit", s.audit)
 			})
 		})
-		r.NotFound(func(w http.ResponseWriter, r *http.Request) { jerr(w, 404, "niet gevonden") })
+		r.NotFound(func(w http.ResponseWriter, r *http.Request) { jerr(w, 404, "not found") })
 	})
 	r.Get("/*", s.spa)
 	return r
@@ -171,7 +171,7 @@ func csrf(next http.Handler) http.Handler {
 		case http.MethodGet, http.MethodHead, http.MethodOptions:
 		default:
 			if r.Header.Get("X-USS") != "1" {
-				jerr(w, 403, "CSRF-controle mislukt")
+				jerr(w, 403, "CSRF check failed")
 				return
 			}
 		}
@@ -183,12 +183,12 @@ func (s *Server) requireUser(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c, err := r.Cookie(cookieName)
 		if err != nil {
-			jerr(w, 401, "niet aangemeld")
+			jerr(w, 401, "not signed in")
 			return
 		}
 		u, err := s.Meta.SessionUser(c.Value)
 		if err != nil {
-			jerr(w, 401, "sessie verlopen")
+			jerr(w, 401, "session expired")
 			return
 		}
 		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), userKey, u)))
@@ -198,7 +198,7 @@ func (s *Server) requireUser(next http.Handler) http.Handler {
 func requireAdmin(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if u := user(r); u == nil || u.Role != "admin" {
-			jerr(w, 403, "alleen voor beheerders")
+			jerr(w, 403, "administrators only")
 			return
 		}
 		next.ServeHTTP(w, r)
@@ -346,19 +346,19 @@ func (s *Server) recordFail(ip string) {
 func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 	ip := clientIP(r)
 	if s.tooManyAttempts(ip) {
-		jerr(w, 429, "te veel mislukte pogingen, probeer het over 15 minuten opnieuw")
+		jerr(w, 429, "too many failed attempts, try again in 15 minutes")
 		return
 	}
 	var req struct{ Username, Password string }
 	if err := decode(r, &req); err != nil {
-		jerr(w, 400, "ongeldig verzoek")
+		jerr(w, 400, "invalid request")
 		return
 	}
 	u, err := s.Meta.CheckPassword(req.Username, req.Password)
 	if err != nil {
 		s.recordFail(ip)
 		s.Meta.Audit(req.Username, "login_failed", ip)
-		jerr(w, 401, "onjuiste gebruikersnaam of wachtwoord")
+		jerr(w, 401, "incorrect username or password")
 		return
 	}
 	if err := s.setSession(w, r, u); err != nil {
@@ -396,7 +396,7 @@ func (s *Server) entraCallback(w http.ResponseWriter, r *http.Request) {
 	c, err := r.Cookie("uss_oidc")
 	state := r.URL.Query().Get("state")
 	if err != nil || c.Value != state {
-		fail("ongeldige aanmeldstatus")
+		fail("invalid sign-in state")
 		return
 	}
 	id, err := s.Entra.Finish(r.Context(), s.baseURL(r), state, r.URL.Query().Get("code"))
@@ -411,7 +411,7 @@ func (s *Server) entraCallback(w http.ResponseWriter, r *http.Request) {
 		if lu, lerr := s.Meta.UserByName(id.Username); lerr == nil && lu.Provider == "entra" {
 			u, err = lu, nil
 		} else if !s.Meta.SSO().AutoProvision {
-			fail("er bestaat geen account voor " + id.Username)
+			fail("no account exists for " + id.Username)
 			return
 		} else {
 			u = &store.User{Username: id.Username, Email: id.Email, Name: id.Name, Role: role, Provider: "entra", ExternalID: id.Subject}
@@ -426,7 +426,7 @@ func (s *Server) entraCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if u.Disabled {
-		fail("account is uitgeschakeld")
+		fail("account is disabled")
 		return
 	}
 	// Group membership is authoritative for admin rights on every sign-in.
@@ -452,20 +452,20 @@ func (s *Server) changePassword(w http.ResponseWriter, r *http.Request) {
 		New     string `json:"new"`
 	}
 	if err := decode(r, &req); err != nil {
-		jerr(w, 400, "ongeldig verzoek")
+		jerr(w, 400, "invalid request")
 		return
 	}
 	u := user(r)
 	if u.Provider != "local" {
-		jerr(w, 400, "wachtwoord wordt beheerd door Microsoft Entra")
+		jerr(w, 400, "password is managed by Microsoft Entra")
 		return
 	}
 	if _, err := s.Meta.CheckPassword(u.Username, req.Current); err != nil {
-		jerr(w, 400, "huidig wachtwoord klopt niet")
+		jerr(w, 400, "current password is incorrect")
 		return
 	}
 	if len(req.New) < 10 {
-		jerr(w, 400, "nieuw wachtwoord moet minimaal 10 tekens zijn")
+		jerr(w, 400, "new password must be at least 10 characters")
 		return
 	}
 	if err := s.Meta.SetPassword(u.ID, req.New); err != nil {
