@@ -36,6 +36,8 @@ jobs:
       - name: Boot the image with systemd-nspawn
         run: |
           R="$WORK/root"
+          # mktemp made the work directory root-only; the checks below run as the runner user.
+          sudo chmod 0755 "$WORK"
           test -x "$R/opt/unify-syslog-probe/unify-syslog-probe"
           test -L "$R/etc/systemd/system/multi-user.target.wants/unify-syslog-probe.service"
           # A damaged key on the boot partition must be reported, not crash the probe.
@@ -64,8 +66,8 @@ jobs:
       - name: Diagnostics
         if: always()
         run: |
-          { echo '===== build'; cat build.txt 2>/dev/null; echo '===== boot'; tail -n 150 boot.txt 2>/dev/null
-            echo '===== journal'; cat probe-journal.txt 2>/dev/null; echo '===== status'; cat status.json 2>/dev/null; } > diag.txt
+          { echo '===== build'; cat build.txt; echo '===== boot'; tail -n 150 boot.txt
+            echo '===== journal'; cat probe-journal.txt; echo '===== status'; cat status.json; } > diag.txt 2>&1 || true
           cat diag.txt
           git config user.name ci; git config user.email ci@localhost
           git checkout -q --orphan diag && git rm -rq --cached . && git add -f diag.txt
