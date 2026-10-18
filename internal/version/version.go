@@ -5,5 +5,5 @@ var (
 	Version   = "0.0.0-dev"
 	Commit    = "none"
 	BuildDate = "unknown"
-	Repo      = "rhisijmuiden/unify-syslog-server"
+	Repo      = "rhisijmuiden/unifi-syslog-server"
 )

@@ -3,7 +3,7 @@
 # Copyright (c) 2021-2026 community-scripts ORG (engine helpers, MIT)
 # Author: rhisijmuiden
 # License: MIT
-# Source: https://github.com/rhisijmuiden/unify-syslog-server
+# Source: https://github.com/rhisijmuiden/unifi-syslog-server
 
 source /dev/stdin <<<"$FUNCTIONS_FILE_PATH"
 color
@@ -14,7 +14,7 @@ network_check
 update_os
 
 msg_info "Installing UniFi Syslog Server (ClickHouse + app)"
-curl -fsSL "https://raw.githubusercontent.com/rhisijmuiden/unify-syslog-server/main/deploy/install.sh" -o /tmp/uss-install.sh
+curl -fsSL "https://raw.githubusercontent.com/rhisijmuiden/unifi-syslog-server/main/deploy/install.sh" -o /tmp/uss-install.sh
 USS_NONINTERACTIVE=1 $STD bash /tmp/uss-install.sh
 rm -f /tmp/uss-install.sh
 msg_ok "Installed UniFi Syslog Server"

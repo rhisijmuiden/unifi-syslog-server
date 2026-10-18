@@ -2,7 +2,7 @@
 
 Last updated: 18 October 2026
 
-This document describes where Unify Syslog Server is heading. Order and scope are a plan, not a promise; priorities may shift between releases.
+This document describes where UniFi Syslog Server is heading. Order and scope are a plan, not a promise; priorities may shift between releases.
 
 Milestone numbers (1.1, 1.2, …) are planning labels. They are not the same as release version numbers; shipped milestones list the release that delivered them.
 
