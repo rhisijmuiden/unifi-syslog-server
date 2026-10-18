@@ -1,13 +1,21 @@
 name: release
 
+# Production releases (v0.4.0) are published as the latest release; test
+# releases (v0.4.0-beta.1, v0.4.0-rc.1) as GitHub pre-releases, which only
+# servers on the test channel are offered.
 on:
   push:
     tags: ['v*']
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version to release, for example v0.1.0 (the tag will be created)'
+        description: 'Version to release, for example v0.4.0 or v0.4.0-beta.1 (the tag will be created)'
         required: true
+      channel:
+        description: 'production: stable release for every server; test: pre-release, only for servers on the test channel'
+        type: choice
+        options: [production, test]
+        default: production
 
 permissions:
   contents: write
@@ -17,7 +25,25 @@ jobs:
     runs-on: ubuntu-latest
     env:
       TAG: ${{ inputs.version || github.ref_name }}
+      CHANNEL: ${{ inputs.channel }}
     steps:
+      - name: Validate version and channel
+        id: meta
+        run: |
+          if [[ ! "$TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-([0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*))?$ ]]; then
+            echo "::error::'$TAG' is not a version like v0.4.0 or v0.4.0-beta.1"; exit 1
+          fi
+          pre=false; [[ -n "${BASH_REMATCH[4]}" ]] && pre=true
+          # A tag push has no channel input: the suffix decides.
+          [[ -z "$CHANNEL" ]] && { $pre && CHANNEL=test || CHANNEL=production; }
+          if [[ "$CHANNEL" == test && "$pre" == false ]]; then
+            echo "::error::Test releases need a pre-release suffix, for example ${TAG}-beta.1"; exit 1
+          fi
+          if [[ "$CHANNEL" == production && "$pre" == true ]]; then
+            echo "::error::Production releases cannot have a pre-release suffix; use $(echo "$TAG" | cut -d- -f1) or choose the test channel"; exit 1
+          fi
+          echo "prerelease=$pre" >> "$GITHUB_OUTPUT"
+          echo "Releasing $TAG on the $CHANNEL channel (prerelease=$pre)" >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -35,6 +61,8 @@ jobs:
         with:
           tag_name: ${{ env.TAG }}
           target_commitish: ${{ github.sha }}
+          prerelease: ${{ steps.meta.outputs.prerelease }}
+          make_latest: ${{ steps.meta.outputs.prerelease == 'true' && 'false' || 'true' }}
           files: |
             dist/*.tar.gz
             dist/checksums.txt

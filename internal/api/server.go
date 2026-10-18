@@ -85,6 +85,7 @@ func (s *Server) Handler() http.Handler {
 			r.Get("/stats", s.stats)
 			r.Get("/update/check", s.updateCheck)
 			r.Get("/update/status", s.updateStatus)
+			r.Get("/update/versions", s.updateVersions)
 
 			r.Post("/search", s.search)
 			r.Post("/search/histogram", s.histogram)
@@ -148,6 +149,8 @@ func (s *Server) Handler() http.Handler {
 				r.Delete("/users/{id}", s.deleteUser)
 
 				r.Post("/update/apply", s.updateApply)
+				r.Post("/update/rollback", s.updateRollback)
+				r.Put("/settings/update", s.putUpdateSettings)
 				r.Get("/audit", s.audit)
 			})
 		})

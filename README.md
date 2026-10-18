@@ -16,7 +16,7 @@ A central syslog server built specifically for UniFi. All UniFi sites send their
 - **Backup**: full and incremental backups to FTP, FTPS, SCP or a local folder, with scheduling, retention policy and restore from the remote location.
 - **Branding**: your company name and logo (separate light and dark mode variants) and favicon in the menu, on the sign-in page and in e-mails.
 - **Languages**: English and Dutch. Each user picks their own language; Entra SSO users get the language of their Microsoft account. E-mails are sent in the language of the recipient.
-- **Updates**: the Info button shows the version, checks for updates and installs them from the interface.
+- **Updates**: the Info button shows the version, checks for updates and installs them from the interface. Choose the **Production** channel (stable releases) or **Test** (pre-releases such as `v0.4.0-beta.1`), and roll back to a previous version with one click.
 - The web interface runs on **port 8080**.
 
 ## Screenshots
@@ -27,7 +27,7 @@ A central syslog server built specifically for UniFi. All UniFi sites send their
 |---|---|
 | ![Logs and search](docs/screenshots/logs.png)<br>**Logs**: search with the query language, histogram, live tail and CSV/JSON export. | ![Sites](docs/screenshots/sites.png)<br>**Sites**: status per site over the last 24 hours, and sender-to-site mapping. |
 | ![Devices](docs/screenshots/devices.png)<br>**Devices**: inventory of gateways, switches and access points with firmware and silent-device monitoring. | ![Categories](docs/screenshots/categories.png)<br>**Categories**: saved searches with a color, used as filters. |
-| ![Backup and restore](docs/screenshots/backup.png)<br>**Backup & restore**: full and incremental backups to FTP, FTPS or SCP. | ![Info and updates](docs/screenshots/info.png)<br>**Info & updates**: current version, update check and in-app update. |
+| ![Backup and restore](docs/screenshots/backup.png)<br>**Backup & restore**: full and incremental backups to FTP, FTPS or SCP. | ![Info and updates](docs/screenshots/info.png)<br>**Info & updates**: current version, release channel, in-app update and rollback. |
 | ![Microsoft Entra SSO](docs/screenshots/sso.png)<br>**Microsoft Entra SSO** with group-to-role mapping. | ![Mail server](docs/screenshots/mail.png)<br>**Mail server**: your own SMTP server with modern TLS and authentication. |
 | ![Light mode](docs/screenshots/dashboard-light.png)<br>**Light mode**. | ![Sign in](docs/screenshots/login.png)<br>**Sign in** page. |
 
@@ -142,12 +142,24 @@ Configure backups under **Backup** in the web interface.
 
 A backup contains the encryption key, so store backups in a trusted location.
 
+## Updates, release channels and rollback
+
+*Info & updates* has two release channels:
+
+- **Production**: stable releases only. This is the default, and what the installer installs.
+- **Test**: also pre-releases (`v0.4.0-beta.1`, `v0.4.0-rc.1`), to try new features early. Switching back to Production offers the newest stable release, even when its version number is lower than the test version that is running.
+
+Before every update the server keeps the running binary and a snapshot of the settings database in `/var/lib/unify-syslog/versions` (the last three versions). *Previous versions* lists them with a **Roll back** button; a rollback restores the binary and the settings as they were for that version, and keeps the logs.
+
+A new version has to prove itself: when it does not run healthy for 30 seconds within 5 minutes of the update, or keeps crashing (more than 3 starts), the server puts the previous version back by itself and shows that in *Info & updates*. Changes to the log store in ClickHouse are additive only, so an older version can always read the data.
+
 ## Command line
 
 ```bash
 unify-syslog user add jan --admin       # create a user
 unify-syslog user passwd admin          # reset a password
-unify-syslog update [--check]           # update to the latest release
+unify-syslog update [--check]           # update to the latest release on the configured channel
+unify-syslog update rollback [version]  # go back to a kept previous version
 unify-syslog simulate --target 127.0.0.1:514 --rate 500 --sites 3   # test traffic
 unify-syslog version
 ```
@@ -163,7 +175,7 @@ make test
 make dist     # release tarballs for amd64 and arm64 with checksums.txt
 ```
 
-A `v*` tag makes GitHub Actions create a release. The install script and the updater use that release.
+Releases are made with the **release** workflow in GitHub Actions (*Run workflow*): enter the version and choose the channel. `production` needs a plain version (`v0.4.0`) and becomes the latest release; `test` needs a pre-release suffix (`v0.4.0-beta.1`) and is published as a GitHub pre-release, which only servers on the Test channel are offered. The install script and the updater use these releases.
 
 ## Architecture
 
