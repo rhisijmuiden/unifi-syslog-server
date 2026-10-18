@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -150,7 +151,8 @@ func (s *Server) listClients(w http.ResponseWriter, r *http.Request) {
 		jsonOut(w, []store.ClientName{})
 		return
 	}
-	jsonOut(w, s.Enrich.Clients())
+	u := user(r)
+	jsonOut(w, slices.DeleteFunc(s.Enrich.Clients(), func(c store.ClientName) bool { return !u.SiteAllowed(c.Site) }))
 }
 
 func (s *Server) controllerDevice(mac string) (store.ControllerDevice, bool) {
@@ -161,7 +163,9 @@ func (s *Server) controllerDevice(mac string) (store.ControllerDevice, bool) {
 }
 
 func (s *Server) firmware(w http.ResponseWriter, r *http.Request) {
-	jsonOut(w, alerts.Firmware(s.Meta.Devices(), s.controllerDevice, time.Now()))
+	u := user(r)
+	devs := slices.DeleteFunc(s.Meta.Devices(), func(d store.InvDevice) bool { return !u.SiteAllowed(d.Site) })
+	jsonOut(w, alerts.Firmware(devs, s.controllerDevice, time.Now()))
 }
 
 // ---------------------------------------------------------------- GeoIP
@@ -265,6 +269,7 @@ func (s *Server) panels(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	normalizeRange(&b.SearchReq)
+	b.Sites = user(r).ScopeSites(b.Sites)
 	type res struct {
 		key string
 		v   panelRes

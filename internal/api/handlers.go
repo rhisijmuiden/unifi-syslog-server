@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -47,6 +48,7 @@ func (s *Server) parseSearch(w http.ResponseWriter, r *http.Request) (*searchBod
 		jerr(w, 400, err.Error())
 		return nil, false
 	}
+	b.Sites = user(r).ScopeSites(b.Sites)
 	return &b, true
 }
 
@@ -63,6 +65,9 @@ func (s *Server) search(w http.ResponseWriter, r *http.Request) {
 	b, ok := s.parseSearch(w, r)
 	if !ok {
 		return
+	}
+	if b.Before.IsZero() {
+		s.auditView(r, "logs_viewed", searchDetail(b.Query, b.Sites))
 	}
 	start := time.Now()
 	rows, err := s.Logs.Search(r.Context(), b.SearchReq)
@@ -103,6 +108,8 @@ func (s *Server) top(w http.ResponseWriter, r *http.Request) {
 	jsonOut(w, items)
 }
 
+// reqFromQuery reads a search from URL parameters, limited to the sites
+// the user may see.
 func reqFromQuery(r *http.Request) store.SearchReq {
 	q := r.URL.Query()
 	req := store.SearchReq{Query: q.Get("query")}
@@ -111,8 +118,21 @@ func reqFromQuery(r *http.Request) store.SearchReq {
 	if s := q.Get("sites"); s != "" {
 		req.Sites = strings.Split(s, ",")
 	}
+	req.Sites = user(r).ScopeSites(req.Sites)
 	normalizeRange(&req)
 	return req
+}
+
+// searchDetail describes a search for the audit log.
+func searchDetail(query string, sites []string) string {
+	d := "query: " + query
+	if query == "" {
+		d = "all messages"
+	}
+	if len(sites) > 0 {
+		d += "; sites: " + strings.Join(sites, ", ")
+	}
+	return d
 }
 
 func (s *Server) export(w http.ResponseWriter, r *http.Request) {
@@ -128,6 +148,10 @@ func (s *Server) export(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/csv; charset=utf-8")
 		w.Header().Set("Content-Disposition", `attachment; filename="`+name+`.csv"`)
 	}
+	if format != "json" {
+		format = "csv"
+	}
+	s.audit_(r, "export_logs", fmt.Sprintf("%s, %s, %s to %s", format, searchDetail(req.Query, req.Sites), req.From.Format(time.RFC3339), req.To.Format(time.RFC3339)))
 	cw := csv.NewWriter(w)
 	enc := json.NewEncoder(w)
 	if format != "json" {
@@ -167,6 +191,7 @@ func (s *Server) live(w http.ResponseWriter, r *http.Request) {
 	if s := q.Get("sites"); s != "" {
 		req.Sites = strings.Split(s, ",")
 	}
+	req.Sites = user(r).ScopeSites(req.Sites)
 	if after > 0 {
 		req.AfterReceived = time.UnixMilli(after)
 	}
@@ -321,11 +346,13 @@ func (s *Server) deleteCategory(w http.ResponseWriter, r *http.Request) {
 		jerr(w, 500, err.Error())
 		return
 	}
+	s.audit_(r, "category_deleted", strconv.FormatInt(idParam(r), 10))
 	jsonOut(w, map[string]bool{"ok": true})
 }
 
 func (s *Server) listSources(w http.ResponseWriter, r *http.Request) {
-	src := s.Meta.Sources()
+	u := user(r)
+	src := slices.DeleteFunc(s.Meta.Sources(), func(x store.Source) bool { return !u.SiteAllowed(x.Site) })
 	sort.Slice(src, func(i, j int) bool { return src[i].LastSeen > src[j].LastSeen })
 	jsonOut(w, src)
 }
@@ -351,10 +378,14 @@ func (s *Server) deleteSource(w http.ResponseWriter, r *http.Request) {
 		jerr(w, 500, err.Error())
 		return
 	}
+	s.audit_(r, "source_deleted", ip)
 	jsonOut(w, map[string]bool{"ok": true})
 }
 
-func (s *Server) listSites(w http.ResponseWriter, r *http.Request) { jsonOut(w, s.Meta.Sites()) }
+func (s *Server) listSites(w http.ResponseWriter, r *http.Request) {
+	u := user(r)
+	jsonOut(w, slices.DeleteFunc(s.Meta.Sites(), func(x string) bool { return !u.SiteAllowed(x) }))
+}
 
 func (s *Server) listRanges(w http.ResponseWriter, r *http.Request) {
 	rs, err := s.Meta.SiteRanges()
@@ -376,12 +407,14 @@ func (s *Server) saveRange(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Pipeline.ReloadRanges()
+	s.audit_(r, "site_range_saved", sr.Site+" "+sr.CIDR)
 	jsonOut(w, sr)
 }
 
 func (s *Server) deleteRange(w http.ResponseWriter, r *http.Request) {
 	s.Meta.DeleteSiteRange(idParam(r))
 	s.Pipeline.ReloadRanges()
+	s.audit_(r, "site_range_deleted", strconv.FormatInt(idParam(r), 10))
 	jsonOut(w, map[string]bool{"ok": true})
 }
 
@@ -622,6 +655,7 @@ func (s *Server) backupDownload(w http.ResponseWriter, r *http.Request) {
 		jerr(w, 404, "not found")
 		return
 	}
+	s.audit_(r, "backup_downloaded", name)
 	w.Header().Set("Content-Disposition", `attachment; filename="`+name+`"`)
 	http.ServeFile(w, r, p)
 }
@@ -660,6 +694,7 @@ func (s *Server) saveAlert(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) deleteAlert(w http.ResponseWriter, r *http.Request) {
 	s.Meta.DeleteAlertRule(idParam(r))
+	s.audit_(r, "alert_deleted", strconv.FormatInt(idParam(r), 10))
 	jsonOut(w, map[string]bool{"ok": true})
 }
 
@@ -679,8 +714,6 @@ type userBody struct {
 	Password string `json:"password"`
 }
 
-func validRole(r string) bool { return r == "admin" || r == "viewer" }
-
 func (s *Server) createUser(w http.ResponseWriter, r *http.Request) {
 	var b userBody
 	if err := decode(r, &b); err != nil {
@@ -688,7 +721,7 @@ func (s *Server) createUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	b.Username = strings.TrimSpace(b.Username)
-	if b.Username == "" || !validRole(b.Role) {
+	if b.Username == "" || !store.ValidRole(b.Role) {
 		jerr(w, 400, "username and role are required")
 		return
 	}
@@ -697,14 +730,17 @@ func (s *Server) createUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	u := b.User
-	u.Provider = "local"
+	u.Provider, u.RoleManaged = "local", false
+	if u.Role == store.RoleAdmin {
+		u.Sites = nil
+	}
 	u.Language = i18n.Normalize(u.Language)
 	u.LanguageManual = u.Language != ""
 	if err := s.Meta.CreateUser(&u, b.Password); err != nil {
 		jerr(w, 400, "user already exists")
 		return
 	}
-	s.audit_(r, "user_created", u.Username)
+	s.audit_(r, "user_created", fmt.Sprintf("%s (role %s, sites %s)", u.Username, u.Role, sitesText(u.Sites)))
 	jsonOut(w, u)
 }
 
@@ -719,16 +755,25 @@ func (s *Server) updateUser(w http.ResponseWriter, r *http.Request) {
 		jerr(w, 404, "not found")
 		return
 	}
-	if !validRole(b.Role) {
+	if !store.ValidRole(b.Role) {
 		jerr(w, 400, "invalid role")
 		return
 	}
 	me := user(r)
-	if u.ID == me.ID && (b.Role != "admin" || b.Disabled) {
+	if u.ID == me.ID && (b.Role != store.RoleAdmin || b.Disabled) {
 		jerr(w, 400, "you cannot remove your own admin rights")
 		return
 	}
-	u.Email, u.Name, u.Role, u.Disabled = b.Email, b.Name, b.Role, b.Disabled
+	sites := store.CleanSites(b.Sites)
+	if b.Role == store.RoleAdmin {
+		sites = []string{}
+	}
+	if u.RoleManaged && (b.Role != u.Role || !slices.Equal(sites, u.Sites)) {
+		jerr(w, 400, "role and sites of this user come from Entra group mappings")
+		return
+	}
+	before := fmt.Sprintf("role %s, sites %s", u.Role, sitesText(u.Sites))
+	u.Email, u.Name, u.Role, u.Disabled, u.Sites = b.Email, b.Name, b.Role, b.Disabled, sites
 	if lang := i18n.Normalize(b.Language); lang != u.Language {
 		u.Language, u.LanguageManual = lang, lang != ""
 	}
@@ -747,7 +792,14 @@ func (s *Server) updateUser(w http.ResponseWriter, r *http.Request) {
 		}
 		s.Meta.SetPassword(u.ID, b.Password)
 	}
-	s.audit_(r, "user_updated", u.Username)
+	detail := u.Username
+	if after := fmt.Sprintf("role %s, sites %s", u.Role, sitesText(u.Sites)); after != before {
+		detail += ": " + before + " → " + after
+	}
+	if b.Password != "" {
+		detail += ", password set"
+	}
+	s.audit_(r, "user_updated", detail)
 	jsonOut(w, u)
 }
 
@@ -757,31 +809,13 @@ func (s *Server) deleteUser(w http.ResponseWriter, r *http.Request) {
 		jerr(w, 400, "you cannot delete yourself")
 		return
 	}
+	name := strconv.FormatInt(id, 10)
+	if u, err := s.Meta.UserByID(id); err == nil {
+		name = u.Username
+	}
 	s.Meta.DeleteUser(id)
-	s.audit_(r, "user_deleted", strconv.FormatInt(id, 10))
+	s.audit_(r, "user_deleted", name)
 	jsonOut(w, map[string]bool{"ok": true})
-}
-
-func (s *Server) audit(w http.ResponseWriter, r *http.Request) {
-	rows, err := s.Meta.DB.Query(`SELECT ts,username,action,detail FROM audit ORDER BY id DESC LIMIT 300`)
-	if err != nil {
-		jerr(w, 500, err.Error())
-		return
-	}
-	defer rows.Close()
-	type a struct {
-		TS     int64  `json:"ts"`
-		User   string `json:"user"`
-		Action string `json:"action"`
-		Detail string `json:"detail"`
-	}
-	out := []a{}
-	for rows.Next() {
-		var x a
-		rows.Scan(&x.TS, &x.User, &x.Action, &x.Detail)
-		out = append(out, x)
-	}
-	jsonOut(w, out)
 }
 
 // ---------------------------------------------------------------- info / update
@@ -793,6 +827,7 @@ func (s *Server) ingestStats() map[string]any {
 		"tcp_messages":  s.SysStats.TCPMsgs.Load(),
 		"tcp_conns":     s.SysStats.TCPConns.Load(),
 		"dropped":       s.SysStats.Dropped.Load(),
+		"rejected":      s.rejected(),
 		"parsed":        s.IngStats.Parsed.Load(),
 		"inserted":      s.IngStats.Inserted.Load(),
 		"insert_errors": s.IngStats.InsertErrs.Load(),
@@ -800,6 +835,13 @@ func (s *Server) ingestStats() map[string]any {
 		"last_insert":   s.IngStats.LastInsert.Load(),
 		"last_error":    le,
 	}
+}
+
+func (s *Server) rejected() uint64 {
+	if s.Filter == nil {
+		return 0
+	}
+	return s.Filter.Rejected.Load()
 }
 
 func (s *Server) stats(w http.ResponseWriter, r *http.Request) { jsonOut(w, s.ingestStats()) }

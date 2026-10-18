@@ -1,6 +1,9 @@
 package store
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 // Secret is the placeholder the API returns instead of stored secrets.
 const Secret = "••••••••"
@@ -19,11 +22,24 @@ type SSOSettings struct {
 	TenantID      string `json:"tenant_id"`
 	ClientID      string `json:"client_id"`
 	ClientSecret  string `json:"client_secret"`
+	// AdminGroupID is the single admin group of earlier versions. It is
+	// still written (the first admin mapping) so a rollback keeps working.
 	AdminGroupID  string `json:"admin_group_id"`
 	AllowedGroup  string `json:"allowed_group_id"`
 	AutoProvision bool   `json:"auto_provision"`
 	DefaultRole   string `json:"default_role"`
 	ButtonLabel   string `json:"button_label"`
+	// GroupRoles assigns roles and sites from Entra group membership. When
+	// set, it decides role and sites of Entra users on every sign-in.
+	GroupRoles []GroupRole `json:"group_roles"`
+}
+
+// GroupRole maps one Entra group (object ID) to a role and sites.
+type GroupRole struct {
+	GroupID string   `json:"group_id"`
+	Name    string   `json:"name"` // label for the interface only
+	Role    string   `json:"role"`
+	Sites   []string `json:"sites"` // empty = all sites
 }
 
 type SMTPSettings struct {
@@ -94,6 +110,12 @@ func (m *Meta) SSO() SSOSettings {
 	s := SSOSettings{DefaultRole: "viewer", AutoProvision: true, ButtonLabel: "Sign in with Microsoft", SyncLanguage: true}
 	m.GetSetting("sso", &s)
 	s.ClientSecret = m.Decrypt(s.ClientSecret)
+	if len(s.GroupRoles) == 0 && s.AdminGroupID != "" {
+		s.GroupRoles = []GroupRole{{GroupID: s.AdminGroupID, Name: "Administrators", Role: RoleAdmin, Sites: []string{}}}
+	}
+	if s.GroupRoles == nil {
+		s.GroupRoles = []GroupRole{}
+	}
 	return s
 }
 
@@ -102,6 +124,23 @@ func (m *Meta) SaveSSO(s SSOSettings) error {
 		s.ClientSecret = m.SSO().ClientSecret
 	}
 	s.ClientSecret = m.Encrypt(s.ClientSecret)
+	s.AdminGroupID = ""
+	groups := []GroupRole{}
+	for _, g := range s.GroupRoles {
+		g.GroupID = strings.TrimSpace(g.GroupID)
+		if g.GroupID == "" {
+			continue
+		}
+		g.Sites = CleanSites(g.Sites)
+		if g.Role == RoleAdmin {
+			g.Sites = []string{}
+			if s.AdminGroupID == "" {
+				s.AdminGroupID = g.GroupID
+			}
+		}
+		groups = append(groups, g)
+	}
+	s.GroupRoles = groups
 	return m.SetSetting("sso", s)
 }
 

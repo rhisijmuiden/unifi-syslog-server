@@ -148,7 +148,11 @@ func serve(cfgPath string) error {
 	queue := make(chan syslogd.Message, cfg.Ingest.QueueSize)
 	sysStats := &syslogd.Stats{}
 	ingStats := &ingest.Stats{}
-	srv := &syslogd.Server{UDPAddr: cfg.Syslog.UDP, TCPAddr: cfg.Syslog.TCP, ReadBuf: cfg.Syslog.UDPReadBuffer, Out: queue, Stats: sysStats, Log: log}
+	filter := &syslogd.Filter{}
+	if err := api.ApplyAllowlist(filter, meta.Allowlist()); err != nil {
+		log.Warn("source allowlist", "err", err)
+	}
+	srv := &syslogd.Server{UDPAddr: cfg.Syslog.UDP, TCPAddr: cfg.Syslog.TCP, ReadBuf: cfg.Syslog.UDPReadBuffer, Out: queue, Stats: sysStats, Log: log, Filter: filter}
 	pipe := &ingest.Pipeline{In: queue, Meta: meta, Logs: logs, Workers: cfg.Ingest.Workers, BatchSize: cfg.Ingest.BatchSize,
 		Flush: time.Duration(cfg.Ingest.FlushInterval) * time.Millisecond, Location: getLoc, Stats: ingStats, Log: log}
 
@@ -174,7 +178,7 @@ func serve(cfgPath string) error {
 		}
 	}()
 	apiSrv := &api.Server{Cfg: cfg, Meta: meta, Logs: logs, Mailer: mailer, Backup: bk, Updater: upd, Entra: &auth.Entra{Meta: meta},
-		Alerts: al, Pipeline: pipe, Enrich: enricher, Syncer: syncer, Geo: geo, SysStats: sysStats, IngStats: ingStats, UI: web.Dist(), Log: log, Started: time.Now(), Restart: restart,
+		Alerts: al, Pipeline: pipe, Enrich: enricher, Syncer: syncer, Geo: geo, SysStats: sysStats, IngStats: ingStats, UI: web.Dist(), Log: log, Started: time.Now(), Restart: restart, Filter: filter,
 		OnSettings: func(g store.GeneralSettings) { setLoc(g.Timezone) }}
 
 	httpSrv := &http.Server{Addr: cfg.HTTPListen, Handler: apiSrv.Handler(), ReadHeaderTimeout: 10 * time.Second}
@@ -196,6 +200,7 @@ func serve(cfgPath string) error {
 				return
 			case <-t.C:
 				meta.PurgeSessions()
+				meta.PurgeAudit(meta.Security().AuditRetentionDays)
 			}
 		}
 	}()

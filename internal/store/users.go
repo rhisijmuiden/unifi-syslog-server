@@ -3,9 +3,11 @@ package store
 import (
 	"crypto/rand"
 	"crypto/sha256"
-	"database/sql"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
+	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -17,7 +19,7 @@ type User struct {
 	Username   string `json:"username"`
 	Email      string `json:"email"`
 	Name       string `json:"name"`
-	Role       string `json:"role"` // admin | viewer
+	Role       string `json:"role"` // admin | analyst | viewer
 	Provider   string `json:"provider"`
 	ExternalID string `json:"-"`
 	Disabled   bool   `json:"disabled"`
@@ -28,7 +30,17 @@ type User struct {
 	// the Entra account language no longer overrides it.
 	Language       string `json:"language"`
 	LanguageManual bool   `json:"language_manual"`
-	hash           string
+	// Sites limits what a non-admin sees; empty means every site.
+	Sites []string `json:"sites"`
+	// RoleManaged is set when Entra group mappings decide role and sites.
+	RoleManaged bool `json:"role_managed"`
+	TOTPEnabled bool `json:"totp_enabled"`
+	// RecoveryLeft is the number of unused 2FA recovery codes.
+	RecoveryLeft int `json:"recovery_left"`
+	hash         string
+	totpSecret   string
+	totpLast     int64
+	recovery     string
 }
 
 var ErrNotFound = errors.New("not found")
@@ -38,15 +50,59 @@ var (
 	dummyHash []byte
 )
 
-const userCols = `id,username,email,name,password_hash,role,provider,external_id,disabled,created_at,last_login,language,language_manual`
+var userColList = []string{"id", "username", "email", "name", "password_hash", "role", "provider", "external_id", "disabled", "created_at", "last_login",
+	"language", "language_manual", "sites", "role_managed", "totp_secret", "totp_enabled", "totp_last", "recovery_codes"}
 
-func scanUser(r interface{ Scan(...any) error }) (*User, error) {
-	var u User
-	err := r.Scan(&u.ID, &u.Username, &u.Email, &u.Name, &u.hash, &u.Role, &u.Provider, &u.ExternalID, &u.Disabled, &u.CreatedAt, &u.LastLogin, &u.Language, &u.LanguageManual)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, ErrNotFound
+var userCols = strings.Join(userColList, ",")
+
+// userColsAs prefixes every user column with a table alias for joins.
+func userColsAs(alias string) string {
+	out := make([]string, len(userColList))
+	for i, c := range userColList {
+		out[i] = alias + "." + c
 	}
-	return &u, err
+	return strings.Join(out, ",")
+}
+
+type scanner interface{ Scan(...any) error }
+
+func scanUser(r scanner) (*User, error) { return scanUserWith(r) }
+
+func decodeList(s string) []string {
+	var l []string
+	if s != "" {
+		json.Unmarshal([]byte(s), &l)
+	}
+	return l
+}
+
+func decodeSites(s string) []string {
+	l := decodeList(s)
+	if l == nil {
+		l = []string{}
+	}
+	return l
+}
+
+func encodeSites(l []string) string {
+	l = CleanSites(l)
+	if len(l) == 0 {
+		return ""
+	}
+	b, _ := json.Marshal(l)
+	return string(b)
+}
+
+// CleanSites trims, de-duplicates and sorts a site list.
+func CleanSites(l []string) []string {
+	out := []string{}
+	for _, s := range l {
+		if s = strings.TrimSpace(s); s != "" && !slices.Contains(out, s) {
+			out = append(out, s)
+		}
+	}
+	slices.Sort(out)
+	return out
 }
 
 func (m *Meta) UserCount() int {
@@ -111,11 +167,12 @@ func (m *Meta) CreateUser(u *User, password string) error {
 		u.Provider = "local"
 	}
 	if u.Role == "" {
-		u.Role = "viewer"
+		u.Role = RoleViewer
 	}
 	u.CreatedAt = time.Now().Unix()
-	res, err := m.DB.Exec(`INSERT INTO users(username,email,name,password_hash,role,provider,external_id,disabled,created_at,language,language_manual) VALUES(?,?,?,?,?,?,?,?,?,?,?)`,
-		u.Username, u.Email, u.Name, hash, u.Role, u.Provider, u.ExternalID, u.Disabled, u.CreatedAt, u.Language, u.LanguageManual)
+	u.Sites = CleanSites(u.Sites)
+	res, err := m.DB.Exec(`INSERT INTO users(username,email,name,password_hash,role,provider,external_id,disabled,created_at,language,language_manual,sites,role_managed) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		u.Username, u.Email, u.Name, hash, u.Role, u.Provider, u.ExternalID, u.Disabled, u.CreatedAt, u.Language, u.LanguageManual, encodeSites(u.Sites), u.RoleManaged)
 	if err != nil {
 		return err
 	}
@@ -124,7 +181,9 @@ func (m *Meta) CreateUser(u *User, password string) error {
 }
 
 func (m *Meta) UpdateUser(u *User) error {
-	_, err := m.DB.Exec(`UPDATE users SET email=?,name=?,role=?,disabled=?,language=?,language_manual=? WHERE id=?`, u.Email, u.Name, u.Role, u.Disabled, u.Language, u.LanguageManual, u.ID)
+	u.Sites = CleanSites(u.Sites)
+	_, err := m.DB.Exec(`UPDATE users SET email=?,name=?,role=?,disabled=?,language=?,language_manual=?,sites=?,role_managed=? WHERE id=?`,
+		u.Email, u.Name, u.Role, u.Disabled, u.Language, u.LanguageManual, encodeSites(u.Sites), u.RoleManaged, u.ID)
 	return err
 }
 
@@ -182,7 +241,7 @@ func (m *Meta) CreateSession(userID int64, ttl time.Duration) (string, error) {
 }
 
 func (m *Meta) SessionUser(tok string) (*User, error) {
-	u, err := scanUser(m.DB.QueryRow(`SELECT u.id,u.username,u.email,u.name,u.password_hash,u.role,u.provider,u.external_id,u.disabled,u.created_at,u.last_login,u.language,u.language_manual
+	u, err := scanUser(m.DB.QueryRow(`SELECT `+userColsAs("u")+`
 		FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>?`, hashToken(tok), time.Now().Unix()))
 	if err != nil {
 		return nil, err
