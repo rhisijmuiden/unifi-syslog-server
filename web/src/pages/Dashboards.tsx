@@ -150,6 +150,15 @@ function formatter(field: string): (k: string) => string {
   return (k) => k
 }
 
+interface GeoState { enabled: boolean; loaded: boolean; error: string }
+
+// Why a country map is empty, so the hint matches the real situation.
+function geoHint(g?: GeoState) {
+  if (!g?.enabled) return t('No country data yet. Turn on GeoIP under Configuration → GeoIP.')
+  if (!g.loaded) return g.error ? t('GeoIP is on, but the database could not be downloaded: {error}', { error: g.error }) : t('GeoIP is on, but the database is still being downloaded.')
+  return t('No blocked traffic from internet addresses in this period. Only logs received after GeoIP was turned on have a country.')
+}
+
 interface Panels { [key: string]: { count?: number; items?: TopItem[]; error?: string } }
 
 export default function Dashboards() {
@@ -167,7 +176,7 @@ function DashboardView({ kind }: { kind: string }) {
   }
   const { data, loading, reload } = useAsync(async () => {
     const b = body()
-    const [panels, hist] = await Promise.all([
+    const [panels, hist, geo] = await Promise.all([
       api.post<Panels>('/search/panels', { ...b, panels: [
         ...spec.stats.map((s) => ({ key: 'stat:' + s.key, query: s.query })),
         ...spec.tops.map((x) => ({ key: 'top:' + x.key, query: x.query, field: x.field, n: x.n ?? 10 })),
@@ -175,8 +184,9 @@ function DashboardView({ kind }: { kind: string }) {
         ...spec.tops.filter((x) => x.fallback).map((x) => ({ key: 'fb:' + x.key, query: x.query, field: x.fallback, n: x.n ?? 10 })),
       ] }),
       api.post<{ buckets: Bucket[]; step: number }>('/search/histogram', { ...b, query: spec.timeline.query, group_by: spec.timeline.group }),
+      spec.tops.some((x) => x.map) ? api.get<GeoState>('/geoip/status').catch(() => undefined) : Promise.resolve(undefined),
     ])
-    return { panels, hist }
+    return { panels, hist, geo }
   }, [kind, st.preset, st.from, st.to, st.site])
 
   const go = (query: string) => {
@@ -227,7 +237,7 @@ function DashboardView({ kind }: { kind: string }) {
               if (x.map) {
                 return (
                   <Card key={x.key} className="lg:col-span-3" title={x.title} subtitle={x.subtitle}>
-                    {!list.length ? <p className="py-6 text-center text-sm text-muted">{t('No country data yet. Turn on GeoIP under Configuration → GeoIP.')}</p> : (
+                    {!list.length ? <p className="py-6 text-center text-sm text-muted">{geoHint(data.geo)}</p> : (
                       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
                         <div className="lg:col-span-2"><WorldMap items={list} onSelect={(cc) => go(drill(x.query, `src_country:${cc}`))} /></div>
                         <BarList mono={false} items={list.slice(0, 10)} format={fmt} color="#e66767" onClick={(k) => go(drill(x.query, term(x.field, k)))} />

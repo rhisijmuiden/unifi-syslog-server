@@ -174,6 +174,17 @@ func (s *Server) getGeoIP(w http.ResponseWriter, r *http.Request) {
 	jsonOut(w, out)
 }
 
+// geoIPState tells dashboard viewers (not only admins) why a map may be
+// empty: GeoIP off, no database yet, or simply no matching traffic.
+func (s *Server) geoIPState(w http.ResponseWriter, r *http.Request) {
+	out := map[string]any{"enabled": s.Meta.GeoIP().Enabled, "loaded": false, "error": ""}
+	if s.Geo != nil {
+		st := s.Geo.Status()
+		out["loaded"], out["error"] = st.Loaded, st.LastError
+	}
+	jsonOut(w, out)
+}
+
 func (s *Server) putGeoIP(w http.ResponseWriter, r *http.Request) {
 	var v store.GeoIPSettings
 	if err := decode(r, &v); err != nil {

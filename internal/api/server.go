@@ -108,6 +108,7 @@ func (s *Server) Handler() http.Handler {
 			r.Get("/sites/overview", s.siteOverview)
 			r.Get("/clients", s.listClients)
 			r.Get("/firmware", s.firmware)
+			r.Get("/geoip/status", s.geoIPState)
 
 			r.Group(func(r chi.Router) {
 				r.Use(requireAdmin)
