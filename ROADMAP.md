@@ -76,11 +76,9 @@ Goal: enrich logs so you see *who* and *what* instead of only IP and MAC address
 | More UniFi sources | UniFi Protect and UniFi Access logs, UniFi OS system events (CEF) |
 | Firmware warnings | Alert when devices run mixed or outdated firmware |
 
-## 1.3 Security and administration (in testing on the Test channel)
+## 1.3 Security and administration (shipped in v0.6.0)
 
 Goal: safe to use with several administrators and customers.
-
-This milestone is being rolled out as a pre-release on the Test channel. It moves to Production once testing is complete.
 
 | Item | Description |
 |---|---|
@@ -153,7 +151,6 @@ Goal: insight and accountability, not just storage.
 
 ## Up next
 
-1. **Security and administration** (1.3): finish testing on the Test channel and release to Production.
-2. **Notification channels** (1.1): Teams, Slack, Telegram and SMS via MessageBird next to e-mail, so the server tells you when something is wrong.
-3. **Forwarding to Sentinel and ELK** (1.4): send selected UniFi events to the security tools you already use.
-4. **Remote probes** (1.5): no lost logs from remote sites and no unencrypted syslog over the internet.
+1. **Notification channels** (1.1): Teams, Slack, Telegram and SMS via MessageBird next to e-mail, so the server tells you when something is wrong.
+2. **Forwarding to Sentinel and ELK** (1.4): send selected UniFi events to the security tools you already use.
+3. **Remote probes** (1.5): no lost logs from remote sites and no unencrypted syslog over the internet.
