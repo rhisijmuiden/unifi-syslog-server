@@ -82,6 +82,21 @@ curl -s -H "Authorization: Bearer $TOKEN" -o blocked.csv \
 
 These need an administrator.
 
+## Remote probes
+
+| Method and path | Does |
+|---|---|
+| `GET /api/probes/summary` | Per probe: name, site, status and buffer, limited to the sites of the token's user |
+| `GET /api/probes` | All probes with their latest status, plus the server version, the probe address of the server and the probe settings |
+| `POST /api/probes` | Create a probe (`name`, `site`, `settings`); returns the enrollment key |
+| `PUT /api/probes/{id}` | Change the name, site, or listener and buffer settings |
+| `DELETE /api/probes/{id}` | Remove a probe and revoke its key |
+| `POST /api/probes/{id}/code` | Create a new enrollment key for a probe |
+| `POST /api/probes/update` | Update probes to the server version: `{"ids":[1,2]}` or `{"all":true}` |
+| `GET /api/settings/probes`, `PUT /api/settings/probes` | Automatic updates, alert thresholds, recipients and the address probes use |
+
+All of these except the summary need an administrator. The probes themselves use `/api/probe/v1/…` with their own key; see [PROBES.md](PROBES.md).
+
 Admins can also use the configuration endpoints the interface uses (users, settings, backups and so on) with a read-and-write token. These are not a stable interface and may change between versions.
 
 ## Errors

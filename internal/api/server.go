@@ -31,6 +31,7 @@ import (
 	"github.com/rhisijmuiden/unify-syslog-server/internal/i18n"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/ingest"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/mail"
+	"github.com/rhisijmuiden/unify-syslog-server/internal/probehub"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/store"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/syslogd"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/update"
@@ -49,6 +50,9 @@ type Server struct {
 	Enrich   *enrich.Enricher
 	Syncer   *enrich.Syncer
 	Forward  *forward.Manager
+	Probes   *probehub.Hub
+	// TLSPin is the public key pin of the server certificate, for probes.
+	TLSPin   string
 	Geo      *geoip.Manager
 	SysStats *syslogd.Stats
 	IngStats *ingest.Stats
@@ -98,6 +102,12 @@ func (s *Server) Handler() http.Handler {
 
 		r.Post("/auth/login/totp", s.loginTOTP)
 
+		// Remote probes authenticate with their own key.
+		r.Post("/probe/v1/enroll", s.probeEnroll)
+		r.Post("/probe/v1/heartbeat", s.probeHeartbeat)
+		r.Post("/probe/v1/ingest", s.probeIngest)
+		r.Get("/probe/v1/download", s.probeDownload)
+
 		r.Group(func(r chi.Router) {
 			r.Use(s.requireUser)
 			r.Get("/me", s.me)
@@ -123,6 +133,7 @@ func (s *Server) Handler() http.Handler {
 			r.Get("/clients", s.listClients)
 			r.Get("/firmware", s.firmware)
 			r.Get("/geoip/status", s.geoIPState)
+			r.Get("/probes/summary", s.probeSummary)
 
 			// Account self-service needs a browser session, not an API token.
 			r.Group(func(r chi.Router) {
@@ -207,6 +218,15 @@ func (s *Server) Handler() http.Handler {
 				r.Put("/forward/{id}", s.saveForward)
 				r.Delete("/forward/{id}", s.deleteForward)
 
+				r.Get("/probes", s.listProbes)
+				r.Post("/probes", s.createProbe)
+				r.Post("/probes/update", s.updateProbes)
+				r.Put("/probes/{id}", s.updateProbe)
+				r.Delete("/probes/{id}", s.deleteProbe)
+				r.Post("/probes/{id}/code", s.probeCode)
+				r.Get("/settings/probes", s.getProbeSettings)
+				r.Put("/settings/probes", s.putProbeSettings)
+
 				r.Get("/alerts", s.listAlerts)
 				r.Post("/alerts", s.saveAlert)
 				r.Put("/alerts/{id}", s.saveAlert)
@@ -252,7 +272,8 @@ func csrf(next http.Handler) http.Handler {
 		switch r.Method {
 		case http.MethodGet, http.MethodHead, http.MethodOptions:
 		default:
-			if r.Header.Get("X-USS") != "1" && bearer(r) == "" {
+			// Probe endpoints never use the session cookie.
+			if r.Header.Get("X-USS") != "1" && bearer(r) == "" && !strings.HasPrefix(r.URL.Path, "/api/probe/v1/") {
 				jerr(w, 403, "CSRF check failed")
 				return
 			}

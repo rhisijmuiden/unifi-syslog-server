@@ -18,6 +18,8 @@ type Source struct {
 	FirstSeen int64  `json:"first_seen"`
 	LastSeen  int64  `json:"last_seen"`
 	dirty     bool
+	// siteChanged makes FlushSources store the site of an existing row.
+	siteChanged bool
 }
 
 type SiteRange struct {
@@ -69,13 +71,16 @@ func (m *Meta) SiteRanges() ([]SiteRange, error) {
 
 // Resolve returns the site and display name for an incoming event and
 // records the source if it is new. It is called on the hot ingest path and
-// only touches memory; FlushSources persists the changes.
-func (m *Meta) Resolve(ip, hostname, model, mac, version string, ranges []SiteRange) (site, name string) {
+// only touches memory; FlushSources persists the changes. key is the
+// source IP, or "IP@probe" for messages relayed by a probe (addresses
+// behind different probes may overlap); site is the probe's site then.
+func (m *Meta) Resolve(key, hostname, model, mac, version string, ranges []SiteRange, site string) (string, string) {
+	ip := key
 	now := time.Now().Unix()
 	m.mu.RLock()
 	s, ok := m.sources[ip]
 	m.mu.RUnlock()
-	if ok && now-s.LastSeen < 30 {
+	if ok && now-s.LastSeen < 30 && (site == "" || s.Site == site) {
 		return s.Site, s.Name
 	}
 	m.mu.Lock()
@@ -83,6 +88,11 @@ func (m *Meta) Resolve(ip, hostname, model, mac, version string, ranges []SiteRa
 	s, ok = m.sources[ip]
 	if !ok {
 		s = Source{IP: ip, FirstSeen: now, Site: siteFor(ip, ranges)}
+	}
+	if site != "" && s.Site != site {
+		// The probe's site decides; persisted below with the source.
+		s.Site = site
+		s.siteChanged = true
 	}
 	if hostname != "" {
 		s.Hostname = hostname
@@ -116,7 +126,7 @@ func (m *Meta) FlushSources() error {
 	for k, s := range m.sources {
 		if s.dirty {
 			dirty = append(dirty, s)
-			s.dirty = false
+			s.dirty, s.siteChanged = false, false
 			m.sources[k] = s
 		}
 	}
@@ -129,6 +139,12 @@ func (m *Meta) FlushSources() error {
 		return err
 	}
 	for _, s := range dirty {
+		if s.siteChanged {
+			if _, err := tx.Exec(`UPDATE sources SET site=? WHERE ip=?`, s.Site, s.IP); err != nil {
+				tx.Rollback()
+				return err
+			}
+		}
 		_, err := tx.Exec(`INSERT INTO sources(ip,name,site,hostname,model,mac,version,first_seen,last_seen) VALUES(?,?,?,?,?,?,?,?,?)
 			ON CONFLICT(ip) DO UPDATE SET hostname=excluded.hostname, model=excluded.model, mac=excluded.mac, version=excluded.version, last_seen=excluded.last_seen`,
 			s.IP, s.Name, s.Site, s.Hostname, s.Model, s.MAC, s.Version, s.FirstSeen, s.LastSeen)
@@ -217,6 +233,12 @@ func (m *Meta) Sites() []string {
 		if s.Site != "" && !seen[s.Site] {
 			seen[s.Site] = true
 			out = append(out, s.Site)
+		}
+	}
+	for _, site := range m.probeSites() {
+		if !seen[site] {
+			seen[site] = true
+			out = append(out, site)
 		}
 	}
 	if rs, err := m.SiteRanges(); err == nil {

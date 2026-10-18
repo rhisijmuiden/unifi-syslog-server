@@ -1,4 +1,4 @@
-package forward
+package diskqueue
 
 import (
 	"fmt"
@@ -17,7 +17,7 @@ func recs(from, n int) [][]byte {
 
 func TestQueueDeliveryAndRestart(t *testing.T) {
 	dir := t.TempDir()
-	q, err := OpenQueue(dir, 0)
+	q, err := Open(dir, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,7 +51,7 @@ func TestQueueDeliveryAndRestart(t *testing.T) {
 	f.WriteString(`{"n":9`)
 	f.Close()
 
-	q, err = OpenQueue(dir, 0)
+	q, err = Open(dir, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,7 +79,7 @@ func TestQueueDeliveryAndRestart(t *testing.T) {
 }
 
 func TestQueueLimitDropsOldest(t *testing.T) {
-	q, err := OpenQueue(t.TempDir(), 1000)
+	q, err := Open(t.TempDir(), 1000)
 	if err != nil {
 		t.Fatal(err)
 	}

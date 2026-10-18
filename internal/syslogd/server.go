@@ -18,6 +18,9 @@ type Message struct {
 	Data     []byte
 	SourceIP string
 	Received time.Time
+	// Probe and Site are set for messages relayed by a remote probe.
+	Probe string
+	Site  string
 }
 
 type Stats struct {

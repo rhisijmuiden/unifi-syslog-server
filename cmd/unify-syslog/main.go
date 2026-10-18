@@ -12,6 +12,7 @@ package main
 import (
 	"bufio"
 	"context"
+	"crypto/tls"
 	"errors"
 	"flag"
 	"fmt"
@@ -36,9 +37,12 @@ import (
 	"github.com/rhisijmuiden/unify-syslog-server/internal/geoip"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/ingest"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/mail"
+	"github.com/rhisijmuiden/unify-syslog-server/internal/probehub"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/simulate"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/store"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/syslogd"
+	"github.com/rhisijmuiden/unify-syslog-server/internal/tlscert"
+	"github.com/rhisijmuiden/unify-syslog-server/internal/tlsmux"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/update"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/version"
 	"github.com/rhisijmuiden/unify-syslog-server/web"
@@ -171,6 +175,13 @@ func serve(cfgPath string) error {
 	pipe.Forward = fwd.Submit
 
 	mailer := &mail.Mailer{Meta: meta}
+	// The web port also speaks HTTPS, for remote probes (and browsers).
+	cert, err := tlscert.LoadOrCreate(filepath.Join(cfg.DataDir, "tls"), cfg.TLSCert, cfg.TLSKey)
+	if err != nil {
+		return fmt.Errorf("tls certificate: %w", err)
+	}
+	pin := tlscert.LeafPin(cert)
+	hub := &probehub.Hub{Meta: meta, Out: queue, Dir: filepath.Join(cfg.DataDir, "probes"), Log: log, Mailer: mailer, Pin: pin}
 	bk := &backup.Manager{Meta: meta, Logs: logs, Mailer: mailer, Dir: cfg.BackupDir(), KeyPath: cfg.SecretKeyPath(), Log: log, Restart: restart}
 	al := &alerts.Engine{Meta: meta, Logs: logs, Mailer: mailer, Log: log, Started: time.Now(), Controller: enricher.Device, Forward: fwd}
 	go func() {
@@ -181,7 +192,7 @@ func serve(cfgPath string) error {
 		}
 	}()
 	apiSrv := &api.Server{Cfg: cfg, Meta: meta, Logs: logs, Mailer: mailer, Backup: bk, Updater: upd, Entra: &auth.Entra{Meta: meta},
-		Alerts: al, Forward: fwd, Pipeline: pipe, Enrich: enricher, Syncer: syncer, Geo: geo, SysStats: sysStats, IngStats: ingStats, UI: web.Dist(), Log: log, Started: time.Now(), Restart: restart, Filter: filter,
+		Alerts: al, Forward: fwd, Probes: hub, TLSPin: pin, Pipeline: pipe, Enrich: enricher, Syncer: syncer, Geo: geo, SysStats: sysStats, IngStats: ingStats, UI: web.Dist(), Log: log, Started: time.Now(), Restart: restart, Filter: filter,
 		OnSettings: func(g store.GeneralSettings) { setLoc(g.Timezone) }}
 
 	httpSrv := &http.Server{Addr: cfg.HTTPListen, Handler: apiSrv.Handler(), ReadHeaderTimeout: 10 * time.Second}
@@ -195,6 +206,7 @@ func serve(cfgPath string) error {
 	fwdDone := make(chan struct{})
 	go func() { fwd.Run(ctx); close(fwdDone) }()
 	go geo.Run(ctx)
+	go hub.Run(ctx)
 	go syncer.Run(ctx)
 	go func() {
 		t := time.NewTicker(time.Hour)
@@ -213,12 +225,19 @@ func serve(cfgPath string) error {
 	if err != nil {
 		return fmt.Errorf("web interface: %w", err)
 	}
+	plainLn, tlsLn := tlsmux.Split(ln)
 	ready.Store(true)
 	go func() {
-		log.Info("web interface listening", "addr", cfg.HTTPListen)
-		if err := httpSrv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		log.Info("web interface listening", "addr", cfg.HTTPListen, "https", true, "pin", pin)
+		if err := httpSrv.Serve(plainLn); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			ready.Store(false)
 			errc <- err
+		}
+	}()
+	go func() {
+		tl := tls.NewListener(tlsLn, &tls.Config{Certificates: []tls.Certificate{cert}, MinVersion: tls.VersionTLS12, NextProtos: []string{"http/1.1"}})
+		if err := httpSrv.Serve(tl); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Warn("https", "err", err)
 		}
 	}()
 
