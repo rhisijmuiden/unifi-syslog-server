@@ -14,7 +14,10 @@ A central syslog server built specifically for UniFi. All UniFi sites send their
 - **Sites**: map source IPs to a site, manually or via IP ranges. Sites behind NAT work too. An overview shows, per site, the status, devices and logs, blocks, IPS alerts and errors of the last 24 hours.
 - **Devices**: a persistent inventory of all UniFi devices (by MAC address, so also behind NAT), with a custom name and notes, firmware per model and updated firmware. Devices that have not sent logs for too long are marked as *silent* and, optionally, reported by email, as is their return. **Firmware warnings** flag devices that run older firmware than other devices of the same model, or for which UniFi Network offers an update, optionally by email.
 - **Alerts**: email when a search exceeds a threshold.
-- **Microsoft Entra SSO** (OIDC + PKCE), with groups mapped to roles (admin or viewer).
+- **Microsoft Entra SSO** (OIDC + PKCE), with Entra groups mapped to roles and sites automatically.
+- **Roles and permissions**: administrator, analyst and read-only viewer, each limited to one or more sites if you want, so customers or branch offices only see their own logs.
+- **Security**: two-factor authentication (TOTP) for local accounts, optionally mandatory; a source allowlist that only accepts syslog from known IP addresses or networks; an audit log of who viewed, changed, exported or restored what.
+- **REST API**: personal API tokens (read-only or read and write) for scripts and integrations, see [docs/API.md](docs/API.md).
 - **Mail**: your own SMTP server with STARTTLS or TLS, minimum TLS 1.2/1.3, and PLAIN, LOGIN, CRAM-MD5, SCRAM-SHA-256 or OAuth2 (Microsoft 365).
 - **Backup**: full and incremental backups to FTP, FTPS, SCP or a local folder, with scheduling, retention policy and restore from the remote location.
 - **Branding**: your company name and logo (separate light and dark mode variants) and favicon in the menu, on the sign-in page and in e-mails.
@@ -102,6 +105,28 @@ Then open `http://<server>:8080`.
 **GeoIP (optional)**: turn it on under **Configuration → GeoIP**. DB-IP Lite needs no account; for MaxMind GeoLite2, enter your account ID and license key. The server needs outbound HTTPS to download the databases.
 
 **Multiple sites**: each site sends to the public IP or the VPN tunnel of this server. Then go to **Sites** in the interface and map each source IP (for example the WAN IP of a branch office) or IP range to a site name.
+
+## Users, roles and security
+
+**Roles** (Administration → Users):
+
+| Role | Can |
+|---|---|
+| Viewer | View logs, dashboards, devices, clients and sites (read-only) |
+| Analyst | Everything a viewer can, plus export logs (CSV/JSON) and manage the shared categories |
+| Admin | Everything, on all sites |
+
+Viewers and analysts can be limited to one or more **sites**: they then only see logs, dashboards, devices, clients and senders of those sites. Without sites they see everything.
+
+**Entra groups to roles** (Administration → Microsoft Entra SSO): map Entra security groups (object IDs) to a role and sites. On every sign-in, the highest role of all the user's groups wins and the sites of the groups with that role are combined; users in no mapped group get the default role. The app registration needs the `groups` claim (Token configuration → Add groups claim → Security groups). Without mappings, roles of Entra users are set by hand.
+
+**Two-factor authentication**: every local user can turn on TOTP under **My account** (Microsoft Authenticator, Google Authenticator, 1Password and similar apps) and gets ten one-time recovery codes. Under **Administration → Security** you can make it mandatory for local accounts; users then set it up at their next sign-in. Admins can reset it for a user who lost their phone. Entra users use the MFA of Microsoft Entra.
+
+**API tokens**: under **My account → API tokens**, see [docs/API.md](docs/API.md).
+
+**Source allowlist** (Configuration → Source allowlist): when on, only syslog from the listed IP addresses or networks is accepted on UDP and TCP; everything else is dropped. *Add known senders* fills the list from the devices that already send logs, and rejected senders are listed so you can allow them with one click. For sites behind NAT, list the public WAN address.
+
+**Audit log** (Administration → Audit log): sign-ins (including failed ones and the IP address), changes, log searches, exports, backup downloads, restores and rollbacks, with filters and CSV export. Entries are kept for 365 days by default (Administration → Security).
 
 ## Query language
 

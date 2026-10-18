@@ -1,24 +1,54 @@
 import { useState } from 'react'
-import { LogIn } from 'lucide-react'
+import { LogIn, ShieldCheck, ArrowRight } from 'lucide-react'
 import { api, type Branding, type User } from '../api'
 import { BrandMark } from '../components/Brand'
+import { RecoveryCodes } from '../components/Access'
 import { t } from '../i18n'
 import { Button, Field, Input } from '../components/ui'
+
+interface Enrollment { secret: string; uri: string; qr: string }
+type LoginResult = User | { totp_required?: boolean; totp_setup?: boolean; ticket: string; enrollment?: Enrollment }
 
 export default function Login({ instance, branding, sso, onLogin, initialError }: { instance: string; branding: Branding; sso?: { enabled: boolean; label: string }; onLogin: (u: User) => void; initialError?: string }) {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState(initialError)
   const [busy, setBusy] = useState(false)
+  // Second step: a code from the authenticator app, or setting one up.
+  const [ticket, setTicket] = useState<string>()
+  const [enroll, setEnroll] = useState<Enrollment>()
+  const [code, setCode] = useState('')
+  const [recovery, setRecovery] = useState<{ codes: string[]; user: User }>()
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     setBusy(true)
     setError(undefined)
     try {
-      onLogin(await api.post<User>('/auth/login', { username, password }))
+      const res = await api.post<LoginResult>('/auth/login', { username, password })
+      if ('ticket' in res) {
+        setTicket(res.ticket)
+        setEnroll(res.enrollment)
+        setCode('')
+      } else onLogin(res)
     } catch (err) {
       setError((err as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const submitCode = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setBusy(true)
+    setError(undefined)
+    try {
+      const res = await api.post<{ user: User; recovery_codes?: string[] }>('/auth/login/totp', { ticket, code })
+      if (res.recovery_codes) setRecovery({ codes: res.recovery_codes, user: res.user })
+      else onLogin(res.user)
+    } catch (err) {
+      setError((err as Error).message)
+      if ((err as Error).message === t('sign-in expired, please start again')) { setTicket(undefined); setEnroll(undefined) }
     } finally {
       setBusy(false)
     }
@@ -36,6 +66,28 @@ export default function Login({ instance, branding, sso, onLogin, initialError }
           <p className="mt-1 text-sm text-muted">{t('Sign in to continue')}</p>
         </div>
         {error && <div className="mb-4 rounded-xl bg-red-500/10 px-4 py-3 text-sm text-red-500 ring-1 ring-red-500/30">{t(error)}</div>}
+        {recovery ? (
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 text-sm font-medium text-emerald-500"><ShieldCheck className="size-4" />{t('Two-factor authentication is on')}</div>
+            <RecoveryCodes codes={recovery.codes} />
+            <Button variant="primary" className="w-full" icon={<ArrowRight className="size-4" />} onClick={() => onLogin(recovery.user)}>{t('Continue')}</Button>
+          </div>
+        ) : ticket ? (
+          <form onSubmit={submitCode} className="space-y-4">
+            {enroll ? (
+              <>
+                <p className="text-sm text-muted">{t('Two-factor authentication is required. Scan this code with an authenticator app (Microsoft Authenticator, Google Authenticator, 1Password …) and enter the 6-digit code.')}</p>
+                <div className="flex justify-center"><img src={enroll.qr} alt={t('QR code for the authenticator app')} className="size-44 rounded-xl bg-white p-2" /></div>
+                <p className="break-all text-center font-mono text-xs text-muted">{enroll.secret}</p>
+              </>
+            ) : (
+              <p className="text-sm text-muted">{t('Enter the 6-digit code from your authenticator app, or one of your recovery codes.')}</p>
+            )}
+            <Field label={t('Code')}><Input autoFocus inputMode={enroll ? 'numeric' : 'text'} autoComplete="one-time-code" value={code} onChange={(e) => setCode(e.target.value)} placeholder="123456" /></Field>
+            <Button type="submit" variant="primary" loading={busy} disabled={code.trim().length < 6} className="w-full" icon={<ShieldCheck className="size-4" />}>{t('Verify')}</Button>
+            <button type="button" onClick={() => { setTicket(undefined); setEnroll(undefined); setError(undefined) }} className="w-full cursor-pointer text-center text-xs text-muted hover:text-[var(--text)]">{t('Back')}</button>
+          </form>
+        ) : <>
         {sso?.enabled && (
           <>
             <a href="/api/auth/entra/login" className="flex w-full items-center justify-center gap-3 rounded-xl bg-[#2f2f2f] px-4 py-2.5 text-sm font-medium text-white ring-1 ring-white/10 transition hover:bg-[#3a3a3a]">
@@ -50,6 +102,7 @@ export default function Login({ instance, branding, sso, onLogin, initialError }
           <Field label={t('Password')}><Input type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} /></Field>
           <Button type="submit" variant="primary" loading={busy} className="w-full" icon={<LogIn className="size-4" />}>{t('Sign in')}</Button>
         </form>
+        </>}
       </div>
     </div>
   )

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Tags, Plus, Pencil, Trash2, ArrowRight } from 'lucide-react'
-import { api, type Category } from '../api'
+import { api, can, type Category } from '../api'
 import { useAuth } from '../App'
 import { Button, Empty, Field, Input, Modal, PageHeader, Spinner, Toggle, useAsync, useToast } from '../components/ui'
 import { RangePicker, SiteFilter, toRange, useUrlState } from '../components/Filters'
@@ -12,7 +12,7 @@ const colors = ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#008300'
 
 export default function Categories() {
   const { user } = useAuth()
-  const admin = user.role === 'admin'
+  const admin = can.categories(user)
   const [st, set] = useUrlState({ preset: '24h', from: '', to: '', site: '' })
   const nav = useNavigate()
   const toast = useToast()

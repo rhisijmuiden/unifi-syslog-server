@@ -46,13 +46,28 @@ export interface User {
   username: string
   email: string
   name: string
-  role: 'admin' | 'viewer'
+  role: Role
   provider: string
   disabled: boolean
   created_at: number
   last_login: number
   language: string
   language_manual: boolean
+  /** Sites a non-admin may see; empty means every site. */
+  sites: string[]
+  /** Role and sites come from Entra group mappings. */
+  role_managed: boolean
+  totp_enabled: boolean
+  recovery_left: number
+}
+
+export type Role = 'admin' | 'analyst' | 'viewer'
+
+/** What a role may do; mirrors internal/store/roles.go. */
+export const can = {
+  admin: (u: User) => u.role === 'admin',
+  export: (u: User) => u.role === 'admin' || u.role === 'analyst',
+  categories: (u: User) => u.role === 'admin' || u.role === 'analyst',
 }
 
 export type BrandingAssetName = 'logo_light' | 'logo_dark' | 'favicon'

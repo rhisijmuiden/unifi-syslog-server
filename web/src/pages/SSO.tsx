@@ -1,10 +1,12 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { KeyRound, Save, Copy } from 'lucide-react'
+import { KeyRound, Save, Copy, Plus, Trash2 } from 'lucide-react'
 import { api } from '../api'
+import { SitePicker, roleOptions } from '../components/Access'
 import { Button, Card, Field, Input, PageHeader, Select, Spinner, Toggle, useToast } from '../components/ui'
 import { t } from '../i18n'
 
-interface SSOSettings { enabled: boolean; tenant_id: string; client_id: string; client_secret: string; admin_group_id: string; allowed_group_id: string; auto_provision: boolean; default_role: string; button_label: string; sync_language: boolean }
+interface SSOSettings { enabled: boolean; tenant_id: string; client_id: string; client_secret: string; admin_group_id: string; allowed_group_id: string; auto_provision: boolean; default_role: string; button_label: string; sync_language: boolean; group_roles: GroupRole[] }
+interface GroupRole { group_id: string; name: string; role: string; sites: string[] }
 
 export default function SSO() {
   const toast = useToast()
@@ -31,14 +33,36 @@ export default function SSO() {
               <Field label="Client ID (Application ID)"><Input value={s.client_id} onChange={(e) => up({ client_id: e.target.value.trim() })} /></Field>
               <Field label={t('Client secret')} hint={t('Stored encrypted')}><Input type="password" value={s.client_secret} onChange={(e) => up({ client_secret: e.target.value })} /></Field>
               <Field label={t('Button text')}><Input value={s.button_label} onChange={(e) => up({ button_label: e.target.value })} /></Field>
-              <Field label={t('Admin group (Object ID)')} hint={t('Members become admins')}><Input value={s.admin_group_id} onChange={(e) => up({ admin_group_id: e.target.value.trim() })} /></Field>
               <Field label={t('Allowed group (Object ID)')} hint={t('Empty = everyone in the tenant')}><Input value={s.allowed_group_id} onChange={(e) => up({ allowed_group_id: e.target.value.trim() })} /></Field>
-              <Field label={t('Default role')}><Select value={s.default_role} onChange={(default_role) => up({ default_role })} options={[{ value: 'viewer', label: t('Viewer') }, { value: 'admin', label: t('Admin') }]} /></Field>
+              <Field label={t('Default role')} hint={t('For users in none of the groups below')}><Select value={s.default_role} onChange={(default_role) => up({ default_role })} options={roleOptions()} /></Field>
             </div>
             <Toggle checked={s.auto_provision} onChange={(auto_provision) => up({ auto_provision })} label={t('Auto-provision users')} description={t('Creates an account on first sign-in')} />
             <Toggle checked={s.sync_language} onChange={(sync_language) => up({ sync_language })} label={t('Use the language of the Microsoft account')}
               description={t('Read on every sign-in until the user picks a language here. Needs the delegated Graph permission User.Read.')} />
           </div>
+        </Card>
+        <Card className="order-last xl:col-span-2" title={t('Entra groups to roles')} subtitle={t('Members of a group get its role and sites automatically at every sign-in. The highest role wins; sites of groups with that role are combined.')}
+          actions={<Button icon={<Plus className="size-4" />} onClick={() => up({ group_roles: [...s.group_roles, { group_id: '', name: '', role: 'viewer', sites: [] }] })}>{t('Add group')}</Button>}>
+          {!s.group_roles.length ? (
+            <p className="text-sm text-muted">{t('No groups mapped: roles and sites of Entra users are set by hand under Users.')}</p>
+          ) : (
+            <div className="space-y-3">
+              {s.group_roles.map((g, i) => {
+                const set = (p: Partial<GroupRole>) => up({ group_roles: s.group_roles.map((x, j) => (j === i ? { ...x, ...p } : x)) })
+                return (
+                  <div key={i} className="rounded-xl border border-app p-4">
+                    <div className="grid gap-3 md:grid-cols-[1fr_1fr_1fr_auto] md:items-end">
+                      <Field label={t('Group (Object ID)')}><Input value={g.group_id} onChange={(e) => set({ group_id: e.target.value.trim() })} placeholder="00000000-0000-0000-0000-000000000000" /></Field>
+                      <Field label={t('Label')}><Input value={g.name} onChange={(e) => set({ name: e.target.value })} placeholder={t('e.g. Customer A analysts')} /></Field>
+                      <Field label={t('Role')}><Select value={g.role} onChange={(role) => set({ role })} options={roleOptions()} /></Field>
+                      <button aria-label={t('Remove')} onClick={() => up({ group_roles: s.group_roles.filter((_, j) => j !== i) })} className="mb-1 cursor-pointer rounded-lg p-2 text-red-500 hover:bg-red-500/10"><Trash2 className="size-4" /></button>
+                    </div>
+                    {g.role !== 'admin' && <div className="mt-3"><Field label={t('Sites')}><SitePicker value={g.sites} onChange={(sites) => set({ sites })} /></Field></div>}
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </Card>
         <Card title={t('App registration in Entra')}>
           <ol className="list-decimal space-y-3 pl-4 text-sm text-muted">
