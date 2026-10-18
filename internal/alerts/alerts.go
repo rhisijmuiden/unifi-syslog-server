@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rhisijmuiden/unify-syslog-server/internal/forward"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/i18n"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/mail"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/store"
@@ -25,6 +26,8 @@ type Engine struct {
 	Started time.Time
 	// Controller returns what a UniFi controller reports about a device.
 	Controller func(mac string) (store.ControllerDevice, bool)
+	// Forward delivers fired alerts to forwarding destinations; optional.
+	Forward *forward.Manager
 
 	lastFirmware time.Time
 }
@@ -74,6 +77,7 @@ func (e *Engine) evaluate(ctx context.Context, now time.Time) {
 
 func (e *Engine) fire(ctx context.Context, r store.AlertRule, n uint64, req store.SearchReq) {
 	e.Log.Info("alert fired", "rule", r.Name, "count", n)
+	e.Forward.SendAlert(r.Destinations, forward.Alert{Rule: r.Name, Query: r.Query, Count: n, Window: r.WindowMinutes, Threshold: r.Threshold})
 	if e.Mailer == nil || !e.Mailer.Configured() {
 		return
 	}

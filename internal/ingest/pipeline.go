@@ -37,6 +37,8 @@ type Pipeline struct {
 	Log       *slog.Logger
 	// Enrich adds client, device and GeoIP information; optional.
 	Enrich *enrich.Enricher
+	// Forward hands every batch to the forwarding destinations; optional.
+	Forward func([]*unifi.Event)
 
 	rangesMu sync.RWMutex
 	ranges   []store.SiteRange
@@ -134,6 +136,11 @@ func (p *Pipeline) batchLoop(in <-chan *unifi.Event) {
 	flush := func() {
 		if len(batch) == 0 {
 			return
+		}
+		// Forwarding queues on disk first, so a ClickHouse outage does not
+		// delay delivery to the destinations.
+		if p.Forward != nil {
+			p.Forward(batch)
 		}
 		p.write(batch)
 		batch = make([]*unifi.Event, 0, p.BatchSize)

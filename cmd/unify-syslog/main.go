@@ -32,6 +32,7 @@ import (
 	"github.com/rhisijmuiden/unify-syslog-server/internal/backup"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/config"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/enrich"
+	"github.com/rhisijmuiden/unify-syslog-server/internal/forward"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/geoip"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/ingest"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/mail"
@@ -166,10 +167,12 @@ func serve(cfgPath string) error {
 	}
 	syncer := &enrich.Syncer{Enricher: enricher, Log: log}
 	pipe.Enrich = enricher
+	fwd := forward.NewManager(meta, filepath.Join(cfg.DataDir, "forward"), log)
+	pipe.Forward = fwd.Submit
 
 	mailer := &mail.Mailer{Meta: meta}
 	bk := &backup.Manager{Meta: meta, Logs: logs, Mailer: mailer, Dir: cfg.BackupDir(), KeyPath: cfg.SecretKeyPath(), Log: log, Restart: restart}
-	al := &alerts.Engine{Meta: meta, Logs: logs, Mailer: mailer, Log: log, Started: time.Now(), Controller: enricher.Device}
+	al := &alerts.Engine{Meta: meta, Logs: logs, Mailer: mailer, Log: log, Started: time.Now(), Controller: enricher.Device, Forward: fwd}
 	go func() {
 		sctx, cancel := context.WithTimeout(ctx, time.Minute)
 		defer cancel()
@@ -178,7 +181,7 @@ func serve(cfgPath string) error {
 		}
 	}()
 	apiSrv := &api.Server{Cfg: cfg, Meta: meta, Logs: logs, Mailer: mailer, Backup: bk, Updater: upd, Entra: &auth.Entra{Meta: meta},
-		Alerts: al, Pipeline: pipe, Enrich: enricher, Syncer: syncer, Geo: geo, SysStats: sysStats, IngStats: ingStats, UI: web.Dist(), Log: log, Started: time.Now(), Restart: restart, Filter: filter,
+		Alerts: al, Forward: fwd, Pipeline: pipe, Enrich: enricher, Syncer: syncer, Geo: geo, SysStats: sysStats, IngStats: ingStats, UI: web.Dist(), Log: log, Started: time.Now(), Restart: restart, Filter: filter,
 		OnSettings: func(g store.GeneralSettings) { setLoc(g.Timezone) }}
 
 	httpSrv := &http.Server{Addr: cfg.HTTPListen, Handler: apiSrv.Handler(), ReadHeaderTimeout: 10 * time.Second}
@@ -186,9 +189,11 @@ func serve(cfgPath string) error {
 	errc := make(chan error, 2)
 	go func() { errc <- srv.Run(ctx) }()
 	pipeDone := make(chan struct{})
-	go func() { pipe.Run(ctx); close(pipeDone) }()
+	go func() { pipe.Run(ctx); fwd.InputDone(); close(pipeDone) }()
 	go bk.Scheduler(ctx, getLoc)
 	go al.Run(ctx)
+	fwdDone := make(chan struct{})
+	go func() { fwd.Run(ctx); close(fwdDone) }()
 	go geo.Run(ctx)
 	go syncer.Run(ctx)
 	go func() {
@@ -230,6 +235,10 @@ func serve(cfgPath string) error {
 	httpSrv.Shutdown(sctx)
 	select {
 	case <-pipeDone:
+	case <-sctx.Done():
+	}
+	select {
+	case <-fwdDone:
 	case <-sctx.Done():
 	}
 	log.Info("stopped")

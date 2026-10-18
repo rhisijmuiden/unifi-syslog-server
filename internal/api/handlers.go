@@ -340,6 +340,7 @@ func (s *Server) saveCategory(w http.ResponseWriter, r *http.Request) {
 		jerr(w, 500, err.Error())
 		return
 	}
+	s.reloadForward() // saved searches can be forwarding filters
 	s.audit_(r, "category_saved", c.Name)
 	jsonOut(w, c)
 }
@@ -349,6 +350,7 @@ func (s *Server) deleteCategory(w http.ResponseWriter, r *http.Request) {
 		jerr(w, 500, err.Error())
 		return
 	}
+	s.reloadForward()
 	s.audit_(r, "category_deleted", strconv.FormatInt(idParam(r), 10))
 	jsonOut(w, map[string]bool{"ok": true})
 }
