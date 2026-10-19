@@ -21,7 +21,7 @@ Milestone numbers (1.1, 1.2, …) are planning labels. They are not the same as 
 
 ---
 
-## 1.1 Usability and alerting
+## 1.1 Usability and alerting (shipped in v0.10.0)
 
 Goal: move from "looking at logs" to "knowing in time that something is wrong".
 
@@ -32,10 +32,10 @@ Goal: move from "looking at logs" to "knowing in time that something is wrong".
 | Notification channels | Next to e-mail: **Microsoft Teams** (Workflows webhook into a channel), **Telegram** (bot to a chat, group or topic), **Slack** (incoming webhook or bot into a channel), **SMS via MessageBird** or Bird, **Pushover** and a generic signed webhook | Shipped in v0.9.0 |
 | Channels per rule | Choose per alert rule which channels and recipients are used, with a severity per rule and a minimum severity per channel, e.g. Teams for everything and SMS only for critical alerts. Silent devices, offline probes, firmware and backups can go to channels too | Shipped in v0.9.0 |
 | Quiet hours and batching | Quiet hours per channel (no SMS at night unless critical), batching to avoid alert storms, retries, and a test button per channel | Shipped in v0.9.0 |
-| Richer alert rules | On top of threshold alerts: fewer events than expected (a site or device that went quiet), many different values (port scans), spikes compared with normal, evaluation per value of a field (per source IP, site, device…), a schedule per rule and a *Test now* button | In test (v0.10.0-beta.1) |
-| Saved searches | Save searches with their time range, private or shared with everyone, pinned as a personal shortcut in the menu, with a link and *Create alert* per search | In test (v0.10.0-beta.1) |
-| Retention per category | For example firewall 90 days, Wi-Fi 30 days, IPS 1 year (ClickHouse TTL), under *Settings* with the stored messages and oldest message per category | In test (v0.10.0-beta.1) |
-| System status | Page with messages per second, dropped packets (ingest queue and kernel), disk usage, ClickHouse health and the state of probes, forwarding, notifications and backups. Problems go to notification channels and e-mail | In test (v0.10.0-beta.1) |
+| Richer alert rules | On top of threshold alerts: fewer events than expected (a site or device that went quiet), many different values (port scans), spikes compared with normal, evaluation per value of a field (per source IP, site, device…), a schedule per rule and a *Test now* button | Shipped in v0.10.0 |
+| Saved searches | Save searches with their time range, private or shared with everyone, pinned as a personal shortcut in the menu, with a link and *Create alert* per search | Shipped in v0.10.0 |
+| Retention per category | For example firewall 90 days, Wi-Fi 30 days, IPS 1 year (ClickHouse TTL), under *Settings* with the stored messages and oldest message per category | Shipped in v0.10.0 |
+| System status | Page with messages per second, dropped packets (ingest queue and kernel), disk usage, ClickHouse health and the state of probes, forwarding, notifications and backups. Problems go to notification channels and e-mail | Shipped in v0.10.0 |
 | More languages | German and French next to Dutch and English, with more to follow. Interface, e-mails and notifications, using the existing translation files | Shipped in v0.9.0 |
 
 ## 1.1.x Branding and languages (shipped in v0.3.0)
@@ -152,5 +152,4 @@ Goal: insight and accountability, not just storage.
 
 ## Up next
 
-1. **Remaining 1.1 items**: richer alert rules, saved searches, retention per category and a system status page are in test in v0.10.0-beta.1.
-2. **Scale and reliability** (2.0): external ClickHouse, cold storage and more backup targets for larger environments.
+1. **Scale and reliability** (2.0): external ClickHouse, cold storage and more backup targets for larger environments.
