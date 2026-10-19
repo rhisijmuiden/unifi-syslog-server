@@ -1,0 +1,201 @@
+After this operation, 1341 kB disk space will be freed.
+Get:1 https://packages.clickhouse.com/deb lts/main amd64 clickhouse-client amd64 26.3.56.2 [62.1 kB]
+Get:2 https://packages.clickhouse.com/deb lts/main amd64 clickhouse-common-static amd64 26.3.56.2 [237 MB]
+Get:3 https://packages.clickhouse.com/deb lts/main amd64 clickhouse-server amd64 26.3.56.2 [92.3 kB]
+Fetched 237 MB in 6s (41.6 MB/s)
+dpkg: warning: downgrading clickhouse-client (26.8.31.2) to (26.3.56.2)
+(Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 13681 files and directories currently installed.)
+Preparing to unpack .../clickhouse-client_26.3.56.2_amd64.deb ...
+Unpacking clickhouse-client (26.3.56.2) over (26.8.31.2) ...
+dpkg: warning: downgrading clickhouse-common-static (26.8.31.2) to (26.3.56.2)
+Preparing to unpack .../clickhouse-common-static_26.3.56.2_amd64.deb ...
+Unpacking clickhouse-common-static (26.3.56.2) over (26.8.31.2) ...
+Selecting previously unselected package clickhouse-server.
+Preparing to unpack .../clickhouse-server_26.3.56.2_amd64.deb ...
+Unpacking clickhouse-server (26.3.56.2) ...
+Setting up clickhouse-common-static (26.3.56.2) ...
+Setting up clickhouse-server (26.3.56.2) ...
+Installing new version of config file /etc/clickhouse-keeper/keeper_config.xml ...
+Installing new version of config file /etc/clickhouse-server/config.xml ...
+Installing new version of config file /etc/clickhouse-server/users.xml ...
+ClickHouse binary is already located at /usr/bin/clickhouse
+Symlink /usr/bin/clickhouse-server already exists but it points to /clickhouse. Will replace the old symlink to /usr/bin/clickhouse.
+Creating symlink /usr/bin/clickhouse-server to /usr/bin/clickhouse.
+Symlink /usr/bin/clickhouse-client already exists but it points to /clickhouse. Will replace the old symlink to /usr/bin/clickhouse.
+Creating symlink /usr/bin/clickhouse-client to /usr/bin/clickhouse.
+Symlink /usr/bin/clickhouse-local already exists but it points to /clickhouse. Will replace the old symlink to /usr/bin/clickhouse.
+Creating symlink /usr/bin/clickhouse-local to /usr/bin/clickhouse.
+Symlink /usr/bin/clickhouse-benchmark already exists but it points to /clickhouse. Will replace the old symlink to /usr/bin/clickhouse.
+Creating symlink /usr/bin/clickhouse-benchmark to /usr/bin/clickhouse.
+Symlink /usr/bin/clickhouse-obfuscator already exists but it points to /clickhouse. Will replace the old symlink to /usr/bin/clickhouse.
+Creating symlink /usr/bin/clickhouse-obfuscator to /usr/bin/clickhouse.
+Symlink /usr/bin/clickhouse-compressor already exists but it points to /clickhouse. Will replace the old symlink to /usr/bin/clickhouse.
+Creating symlink /usr/bin/clickhouse-compressor to /usr/bin/clickhouse.
+Symlink /usr/bin/clickhouse-format already exists but it points to /clickhouse. Will replace the old symlink to /usr/bin/clickhouse.
+Creating symlink /usr/bin/clickhouse-format to /usr/bin/clickhouse.
+Symlink /usr/bin/clickhouse-extract-from-config already exists but it points to /clickhouse. Will replace the old symlink to /usr/bin/clickhouse.
+Creating symlink /usr/bin/clickhouse-extract-from-config to /usr/bin/clickhouse.
+Symlink /usr/bin/clickhouse-keeper already exists but it points to /clickhouse. Will replace the old symlink to /usr/bin/clickhouse.
+Creating symlink /usr/bin/clickhouse-keeper to /usr/bin/clickhouse.
+Symlink /usr/bin/clickhouse-keeper-converter already exists but it points to /clickhouse. Will replace the old symlink to /usr/bin/clickhouse.
+Creating symlink /usr/bin/clickhouse-keeper-converter to /usr/bin/clickhouse.
+Symlink /usr/bin/clickhouse-chdig already exists but it points to /clickhouse. Will replace the old symlink to /usr/bin/clickhouse.
+Creating symlink /usr/bin/clickhouse-chdig to /usr/bin/clickhouse.
+Symlink /usr/bin/chdig already exists. Will keep it.
+Symlink /usr/bin/ch already exists. Will keep it.
+Symlink /usr/bin/chl already exists. Will keep it.
+Symlink /usr/bin/chc already exists. Will keep it.
+Creating clickhouse group if it does not exist.
+ groupadd -r clickhouse
+groupadd: group 'clickhouse' already exists
+Creating clickhouse user if it does not exist.
+ useradd -r --shell /bin/false --home-dir /nonexistent -g clickhouse clickhouse
+useradd: user 'clickhouse' already exists
+Will set ulimits for clickhouse user in /etc/security/limits.d/clickhouse.conf.
+Config file /etc/clickhouse-server/config.xml already exists, will keep it and extract path info from it.
+/etc/clickhouse-server/config.xml has /var/lib/clickhouse/ as data path.
+/etc/clickhouse-server/config.xml has /var/log/clickhouse-server/ as log path.
+Users config file /etc/clickhouse-server/users.xml already exists, will keep it and extract users info from it.
+Log directory /var/log/clickhouse-server/ already exists.
+Data directory /var/lib/clickhouse/ already exists.
+Pid directory /var/run/clickhouse-server already exists.
+ chown -R clickhouse:clickhouse '/var/log/clickhouse-server/'
+ chown -R clickhouse:clickhouse '/var/run/clickhouse-server'
+ chown  clickhouse:clickhouse '/var/lib/clickhouse/'
+[1mPassword for the default user is an empty string. See /etc/clickhouse-server/users.xml and /etc/clickhouse-server/users.d to change it.[0m
+Setting capabilities for clickhouse binary. This is optional.
+ chown -R clickhouse:clickhouse '/etc/clickhouse-server'
+
+ClickHouse has been successfully installed.
+
+Restart clickhouse-server with:
+ sudo clickhouse restart
+
+Start clickhouse-client with:
+ clickhouse-client
+
+Synchronizing state of clickhouse-server.service with SysV service script with /usr/lib/systemd/systemd-sysv-install.
+Executing: /usr/lib/systemd/systemd-sysv-install enable clickhouse-server
+Setting up clickhouse-client (26.3.56.2) ...
+Installing new version of config file /etc/clickhouse-client/config.xml ...
+Oct 19 18:09:45 ct systemd[1]: Starting clickhouse-server.service - ClickHouse Server (analytic DBMS for big data)...
+Oct 19 18:09:45 ct setcap[1713]: File '/usr/sbin/setcap' has no capablity to remove
+Oct 19 18:09:45 ct clickhouse-server[1716]: Processing configuration file '/etc/clickhouse-server/config.xml'.
+Oct 19 18:09:45 ct clickhouse-server[1716]: Merging configuration file '/etc/clickhouse-server/config.d/unify-syslog.xml'.
+Oct 19 18:09:45 ct clickhouse-server[1716]: Merging configuration file '/etc/clickhouse-server/config.d/zz-unify-syslog-managed.xml'.
+Oct 19 18:09:45 ct clickhouse-server[1716]: Logging warning to /var/log/clickhouse-server/clickhouse-server.log
+Oct 19 18:09:45 ct clickhouse-server[1716]: Logging errors to /var/log/clickhouse-server/clickhouse-server.err.log
+Oct 19 18:09:45 ct systemd[1]: clickhouse-server.service: Supervising process 1723 which is not our child. We'll most likely not notice when it exits.
+Oct 19 18:09:46 ct systemd[1]: Started clickhouse-server.service - ClickHouse Server (analytic DBMS for big data).
+Oct 19 18:09:48 ct systemd[1]: clickhouse-server.service: Supervising process 1723 which is not our child. We'll most likely not notice when it exits.
+Oct 19 18:09:48 ct systemd[1]: clickhouse-server.service: Supervising process 1723 which is not our child. We'll most likely not notice when it exits.
+Oct 19 18:09:48 ct systemd[1]: Started unify-syslog.service - UniFi Syslog Server.
+Oct 19 18:09:48 ct unify-syslog[2218]: time=2026-10-19T18:09:48.638Z level=INFO msg=starting version=0.10.0 config=/etc/unify-syslog/config.yaml
+Oct 19 18:09:48 ct unify-syslog[2218]: time=2026-10-19T18:09:48.651Z level=INFO msg="syslog UDP listening" addr=:514
+Oct 19 18:09:48 ct unify-syslog[2218]: time=2026-10-19T18:09:48.651Z level=INFO msg="syslog TCP listening" addr=:514
+Oct 19 18:09:48 ct unify-syslog[2218]: time=2026-10-19T18:09:48.652Z level=INFO msg="web interface listening" addr=:8080 https=true pin="rtqKElxrsiRJQNj1ZDImr+YAmVR+JD1zoSI0minijBY="
+Oct 19 18:10:04 ct systemd[1]: clickhouse-server.service: Supervising process 1723 which is not our child. We'll most likely not notice when it exits.
+Oct 19 18:10:04 ct systemd[1]: clickhouse-server.service: Supervising process 1723 which is not our child. We'll most likely not notice when it exits.
+Oct 19 18:10:04 ct systemd[1]: clickhouse-server.service: Supervising process 1723 which is not our child. We'll most likely not notice when it exits.
+Oct 19 18:10:04 ct systemd[1]: clickhouse-server.service: Supervising process 1723 which is not our child. We'll most likely not notice when it exits.
+Oct 19 18:10:04 ct systemd[1]: clickhouse-server.service: Supervising process 1723 which is not our child. We'll most likely not notice when it exits.
+Oct 19 18:10:05 ct systemd[1]: clickhouse-server.service: Supervising process 1723 which is not our child. We'll most likely not notice when it exits.
+Oct 19 18:10:05 ct systemd[1]: clickhouse-server.service: Supervising process 1723 which is not our child. We'll most likely not notice when it exits.
+Oct 19 18:10:05 ct systemd[1]: clickhouse-server.service: Supervising process 1723 which is not our child. We'll most likely not notice when it exits.
+Oct 19 18:10:05 ct systemd[1]: clickhouse-server.service: Supervising process 1723 which is not our child. We'll most likely not notice when it exits.
+Oct 19 18:10:05 ct systemd[1]: Stopping clickhouse-server.service - ClickHouse Server (analytic DBMS for big data)...
+Oct 19 18:10:09 ct systemd[1]: clickhouse-server.service: Killing process 1723 (n/a) with signal SIGKILL.
+Oct 19 18:10:09 ct systemd[1]: clickhouse-server.service: Deactivated successfully.
+Oct 19 18:10:09 ct systemd[1]: Stopped clickhouse-server.service - ClickHouse Server (analytic DBMS for big data).
+Oct 19 18:10:09 ct systemd[1]: clickhouse-server.service: Consumed 1.045s CPU time, 144M memory peak.
+Oct 19 18:10:09 ct systemd[1]: Starting clickhouse-server.service - ClickHouse Server (analytic DBMS for big data)...
+Oct 19 18:10:09 ct setcap[3926]: File '/usr/sbin/setcap' has no capablity to remove
+Oct 19 18:10:09 ct clickhouse-server[3929]: Processing configuration file '/etc/clickhouse-server/config.xml'.
+Oct 19 18:10:09 ct clickhouse-server[3929]: Merging configuration file '/etc/clickhouse-server/config.d/unify-syslog.xml'.
+Oct 19 18:10:09 ct clickhouse-server[3929]: Merging configuration file '/etc/clickhouse-server/config.d/zz-unify-syslog-managed.xml'.
+Oct 19 18:10:09 ct clickhouse-server[3929]: Logging warning to /var/log/clickhouse-server/clickhouse-server.log
+Oct 19 18:10:09 ct clickhouse-server[3929]: Logging errors to /var/log/clickhouse-server/clickhouse-server.err.log
+Oct 19 18:10:09 ct systemd[1]: clickhouse-server.service: Supervising process 3936 which is not our child. We'll most likely not notice when it exits.
+Oct 19 18:10:09 ct systemd[1]: Started clickhouse-server.service - ClickHouse Server (analytic DBMS for big data).
+Oct 19 18:10:10 ct systemd[1]: clickhouse-server.service: Supervising process 3936 which is not our child. We'll most likely not notice when it exits.
+Oct 19 18:10:10 ct systemd[1]: clickhouse-server.service: Supervising process 3936 which is not our child. We'll most likely not notice when it exits.
+Oct 19 18:10:10 ct systemd[1]: Stopping unify-syslog.service - UniFi Syslog Server...
+Oct 19 18:10:10 ct unify-syslog[2218]: time=2026-10-19T18:10:10.995Z level=INFO msg=stopped
+Oct 19 18:10:11 ct systemd[1]: unify-syslog.service: Deactivated successfully.
+Oct 19 18:10:11 ct systemd[1]: Stopped unify-syslog.service - UniFi Syslog Server.
+Oct 19 18:10:11 ct systemd[1]: Started unify-syslog.service - UniFi Syslog Server.
+Oct 19 18:10:11 ct unify-syslog[4890]: time=2026-10-19T18:10:11.067Z level=INFO msg=starting version=0.10.0 config=/etc/unify-syslog/config.yaml
+Oct 19 18:10:11 ct unify-syslog[4890]: time=2026-10-19T18:10:11.076Z level=INFO msg="syslog UDP listening" addr=:514
+Oct 19 18:10:11 ct unify-syslog[4890]: time=2026-10-19T18:10:11.076Z level=INFO msg="web interface listening" addr=:8080 https=true pin="rtqKElxrsiRJQNj1ZDImr+YAmVR+JD1zoSI0minijBY="
+Oct 19 18:10:11 ct unify-syslog[4890]: time=2026-10-19T18:10:11.076Z level=INFO msg="syslog TCP listening" addr=:514
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/root       145G   62G   83G  43% /
+===== installer output
+[36m==>[0m Installing system packages
+[32m✔[0m Base packages installed
+[36m==>[0m Installing ClickHouse (official repository)
+[32m✔[0m ClickHouse installed
+[32m✔[0m ClickHouse is running (local access only)
+[36m==>[0m Downloading UniFi Syslog Server v0.10.0
+[32m✔[0m Program installed in /opt/unify-syslog (unify-syslog 0.10.0 (commit 2fccc09, built 2026-10-19T15:06:22Z))
+
+[32m✔[0m Installation complete!
+   Web interface: [36mhttp://10.224.162.145:8080[0m
+   Syslog:        UDP/TCP 10.224.162.145:514
+   Login:         admin / [32mn5E9ypnTGbScZyyq[0m   (also saved in /root/unify-syslog.creds)
+   Update:        via Info & updates in the web interface, or: unify-syslog update && systemctl restart unify-syslog
+[33m![0m Found a half-installed ClickHouse from an earlier attempt; reinstalling it.
+[36m==>[0m Installing system packages
+[32m✔[0m Base packages installed
+[36m==>[0m Installing ClickHouse (official repository, version 26.3.*)
+[32m✔[0m ClickHouse installed
+[32m✔[0m ClickHouse is running (local access only)
+[36m==>[0m Downloading UniFi Syslog Server v0.10.0
+[32m✔[0m Program installed in /opt/unify-syslog (unify-syslog 0.10.0 (commit 2fccc09, built 2026-10-19T15:06:22Z))
+
+[32m✔[0m Installation complete!
+   Web interface: [36mhttp://10.224.162.145:8080[0m
+   Syslog:        UDP/TCP 10.224.162.145:514
+   Update:        via Info & updates in the web interface, or: unify-syslog update && systemctl restart unify-syslog
+26.3.56.2
+===== host dmesg
+[    9.454523] systemd-fstab-generator[1413]: x-systemd.device-timeout ignored for ephemeral0
+[    9.518017] Initializing XFRM netlink socket
+[    9.669388] bridge: filtering via arp/ip/ip6tables is no longer available by default. Update your scripts to load br_netfilter if you need this.
+[   17.117027] systemd-fstab-generator[1801]: Checking was requested for "ephemeral0", but it is not a device.
+[   17.117045] systemd-fstab-generator[1801]: x-systemd.device-timeout ignored for ephemeral0
+[   17.280397] systemd-fstab-generator[1866]: Checking was requested for "ephemeral0", but it is not a device.
+[   17.280416] systemd-fstab-generator[1866]: x-systemd.device-timeout ignored for ephemeral0
+[   49.230935] hv_balloon: Max. dynamic memory size: 16384 MB
+[  103.176299] systemd-fstab-generator[2708]: Checking was requested for "ephemeral0", but it is not a device.
+[  103.176334] systemd-fstab-generator[2708]: x-systemd.device-timeout ignored for ephemeral0
+[  103.508456] audit: type=1400 audit(1792433352.692:127): apparmor="STATUS" operation="profile_load" profile="unconfined" name="/usr/bin/lxc-start" pid=2748 comm="apparmor_parser"
+[  103.518451] audit: type=1400 audit(1792433352.702:128): apparmor="STATUS" operation="profile_replace" info="same as current profile, skipping" profile="unconfined" name="/usr/bin/lxc-start" pid=2754 comm="apparmor_parser"
+[  104.054418] systemd-fstab-generator[2846]: Checking was requested for "ephemeral0", but it is not a device.
+[  104.054439] systemd-fstab-generator[2846]: x-systemd.device-timeout ignored for ephemeral0
+[  107.228934] audit: type=1400 audit(1792433356.413:129): apparmor="STATUS" operation="profile_load" profile="unconfined" name="lxc-container-default" pid=2961 comm="apparmor_parser"
+[  107.229412] audit: type=1400 audit(1792433356.413:130): apparmor="STATUS" operation="profile_load" profile="unconfined" name="lxc-container-default-cgns" pid=2961 comm="apparmor_parser"
+[  107.229851] audit: type=1400 audit(1792433356.414:131): apparmor="STATUS" operation="profile_load" profile="unconfined" name="lxc-container-default-with-mounting" pid=2961 comm="apparmor_parser"
+[  107.230374] audit: type=1400 audit(1792433356.414:132): apparmor="STATUS" operation="profile_load" profile="unconfined" name="lxc-container-default-with-nesting" pid=2961 comm="apparmor_parser"
+[  107.295114] NET: Registered PF_VSOCK protocol family
+[  107.499174] spl: loading out-of-tree module taints kernel.
+[  107.763458] zfs: module license 'CDDL' taints kernel.
+[  107.763471] Disabling lock debugging due to kernel taint
+[  107.763496] zfs: module license taints kernel.
+[  108.362869] ZFS: Loaded module v2.4.1-1ubuntu5.1, ZFS pool version 5000, ZFS filesystem version 5
+[  108.362879] ZFS: Using ZFS with kernel 7.0.0-1017-azure is not expressly supported by OpenZFS. Support for this version is maintained by Canonical for the purposes of the (null) kernel
+[  108.362889] ZFS: Please report your results at: https://github.com/openzfs/zfs/issues/new
+[  109.741536] audit: type=1400 audit(1792433358.926:133): apparmor="STATUS" operation="profile_load" profile="unconfined" name="incus_dnsmasq-incusbr0_</var/lib/incus>" pid=3048 comm="apparmor_parser"
+[  112.536507] audit: type=1400 audit(1792433361.721:134): apparmor="STATUS" operation="profile_load" profile="unconfined" name="incus_archive-8a2d603f-b455-4b70-adf7-9f3f1b95d984" pid=3071 comm="apparmor_parser"
+[  112.560519] audit: type=1400 audit(1792433361.745:135): apparmor="STATUS" operation="profile_remove" profile="unconfined" name="incus_archive-8a2d603f-b455-4b70-adf7-9f3f1b95d984" pid=3078 comm="apparmor_parser"
+[  112.578925] audit: type=1400 audit(1792433361.763:136): apparmor="STATUS" operation="profile_load" profile="unconfined" name="incus_archive-ab9154a4-d10d-4b72-9238-ebe900f19484" pid=3080 comm="apparmor_parser"
+[  114.256568] audit: type=1400 audit(1792433363.441:137): apparmor="STATUS" operation="profile_remove" profile="unconfined" name="incus_archive-ab9154a4-d10d-4b72-9238-ebe900f19484" pid=3093 comm="apparmor_parser"
+[  114.855965] incusbr0: port 1(vethce557fb3) entered blocking state
+[  114.855977] incusbr0: port 1(vethce557fb3) entered disabled state
+[  114.856000] vethce557fb3: entered allmulticast mode
+[  114.856074] vethce557fb3: entered promiscuous mode
+[  114.910350] audit: type=1400 audit(1792433364.094:138): apparmor="STATUS" operation="profile_load" profile="unconfined" name="incus-ct_</var/lib/incus>" pid=3135 comm="apparmor_parser"
+[  114.938818] physpvUlCX: renamed from vethd6e155db
+[  114.939174] eth0: renamed from physpvUlCX
+[  114.939419] incusbr0: port 1(vethce557fb3) entered blocking state
+[  114.939437] incusbr0: port 1(vethce557fb3) entered forwarding state
