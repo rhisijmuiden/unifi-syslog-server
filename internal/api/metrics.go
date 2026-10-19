@@ -66,8 +66,10 @@ func b2f(b bool) float64 {
 // allowed network without one.
 func (s *Server) metricsAuth(r *http.Request) bool {
 	if tok := bearer(r); tok != "" {
-		t, _, err := s.Meta.TokenUser(tok)
-		if err != nil {
+		// Metrics name destinations, probes and sites of every customer, so
+		// only administrators read them.
+		t, u, err := s.Meta.TokenUser(tok)
+		if err != nil || u.Role != store.RoleAdmin {
 			return false
 		}
 		s.Meta.TouchToken(t, clientIP(r))

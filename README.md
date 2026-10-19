@@ -14,7 +14,7 @@ A central syslog server built specifically for UniFi. All UniFi sites send their
 - **UniFi parser**: device name `model,mac,version`, iptables rule tags (`WAN_IN-D-3001`, `DESCR="..."`), CEF from UniFi Network SIEM, hostapd/stahtd, dnsmasq/kea DHCP, DNS, Suricata IPS, WireGuard/OpenVPN/IPsec, SSH logins, switch ports and `EVT_*` controller codes. UniFi Protect (cameras, smart detections, doorbells), UniFi Access (doors, granted and denied access) and UniFi OS system events (CEF) get their own categories.
 - **UniFi Network API**: connect one or more consoles with an API key. Client and device names are attached to log lines, so you see "Alex's iPhone" and "AP Attic" instead of MAC addresses. Without a controller, names are learnt from DHCP logs. All known names are listed under **Clients**.
 - **GeoIP**: country and AS number (provider) of external IP addresses from DB-IP Lite (no account) or MaxMind GeoLite2, updated automatically, with a world map on the dashboards.
-- **Storage**: ClickHouse (columnar storage, compression, billions of rows), daily partitions and a configurable retention period, also [per category](#retention-per-category) (for example Wi-Fi 30 days and IPS a year). Metadata in SQLite.
+- **Storage**: ClickHouse (columnar storage, compression, billions of rows), daily partitions and a configurable retention period, also [per category](#retention-per-category) (for example Wi-Fi 30 days and IPS a year). Metadata in SQLite. ClickHouse can run on the same machine, on a [separate server or a cluster](#scale-and-reliability), with older logs on cheap S3 storage.
 
 **Look and search**
 
@@ -46,11 +46,13 @@ A central syslog server built specifically for UniFi. All UniFi sites send their
 - **System status**: messages per second, dropped packets, disk space and ClickHouse health on one page, with a notification when something goes wrong. See [below](#system-status).
 - **REST API** with personal API tokens (read-only or read and write) for scripts and integrations, see [docs/API.md](docs/API.md).
 - **Mail**: your own SMTP server with STARTTLS or TLS, minimum TLS 1.2/1.3, and PLAIN, LOGIN, CRAM-MD5, SCRAM-SHA-256 or OAuth2 (Microsoft 365).
-- **Backup**: full and incremental backups to FTP, FTPS, SCP or a local folder, with scheduling, retention policy and restore from the remote location.
+- **Backup**: full and incremental backups to FTP, FTPS, SCP, SFTP, S3 or a local folder, optionally encrypted with a passphrase, with scheduling, retention policy and restore from the remote location.
 - **Branding**: your company name and logo (separate light and dark mode variants) and favicon in the menu, on the sign-in page and in e-mails.
 - **Languages**: English, Dutch, German and French, per user. Entra SSO users get the language of their Microsoft account. E-mails are sent in the language of the recipient.
 - **Updates**: the Info button shows the version, checks for updates and installs them from the interface. Choose the **Production** channel (stable releases) or **Test** (pre-releases), and roll back to a previous version with one click.
 - **Remote probes**: a small probe at each remote location receives syslog on port 514, buffers it on disk during outages and forwards it over HTTPS. Install it as a Proxmox LXC, on Debian 13 or from a Raspberry Pi image, and update it from the main server. See [below](#remote-probes).
+- **Monitoring**: Prometheus metrics, alert rules and Grafana dashboards, including a read-only Grafana data source for the logs. See [below](#scale-and-reliability).
+- **High availability**: two servers behind one virtual IP with keepalived, sharing one ClickHouse and one configuration. See [below](#scale-and-reliability).
 - **Deployment**: a Proxmox LXC script (Debian 13) and an installer for Debian 13 VMs and physical servers. The web interface runs on **port 8080**.
 
 See the [roadmap](ROADMAP.md) for what is planned next.
@@ -211,6 +213,23 @@ The Remote probes page shows the status, rate, buffer, devices and resources of 
 |---|---|
 | ![Installing a probe](docs/screenshots/probes-install.png)<br>**Add probe** shows the enrollment key with ready-to-paste commands for the Proxmox LXC, Debian 13 and the Raspberry Pi image. | ![The probe's own web page](docs/screenshots/probe-page.png)<br>**The probe's own page** on port 8080 shows its connection, rate, buffer, devices and disk. All settings are managed on the main server. |
 
+## Scale and reliability
+
+For larger environments the logs can move off the syslog server, old logs can move to cheap object storage, and two servers can stand in for each other.
+
+- **External or clustered ClickHouse**: keep the logs on a separate ClickHouse server, installed with `deploy/install-clickhouse.sh`, or on a ClickHouse cluster with replicated tables. Switch an existing installation over under **Administration → Storage**, with the stored logs copied along. See [docs/STORAGE.md](docs/STORAGE.md).
+- **Cold storage**: logs older than a number of days move to S3-compatible storage (MinIO, Wasabi, AWS S3) with ClickHouse tiered storage, and stay searchable.
+- **More backup targets**: SFTP and S3 next to FTP, FTPS, SCP and a local folder, and backups encrypted with a passphrase ([age](https://age-encryption.org)). Restore works from every target.
+- **Monitoring**: `/metrics` for Prometheus, bundled alert rules, and Grafana dashboards for server health and for the logs through a read-only ClickHouse endpoint. See [docs/MONITORING.md](docs/MONITORING.md).
+- **High availability**: two servers behind one virtual IP with keepalived. The standby copies all settings from the active node, scheduled jobs run once, and the page generates the keepalived configuration. See [docs/HA.md](docs/HA.md).
+
+![Storage page with cold storage](docs/screenshots/storage.png)
+
+| | |
+|---|---|
+| ![High availability](docs/screenshots/ha-active.png)<br>**High availability**: both nodes with their role, the settings copy and the keepalived command for this node. | ![Metrics & Grafana](docs/screenshots/metrics-grafana.png)<br>**Metrics & Grafana**: access to `/metrics` and the log store, with the scrape configuration, alert rules and dashboards to download. |
+| ![Switching to another ClickHouse](docs/screenshots/storage-connection.png)<br>**Switching ClickHouse**: test the connection, optionally a cluster, and copy the stored logs along. | ![S3 backup target](docs/screenshots/backup-s3.png)<br>**S3 backup target**: MinIO, Wasabi or AWS, next to SFTP, SCP, FTPS and FTP. |
+
 ## Feature tour
 
 The screenshots show simulated UniFi traffic from five sites (`unify-syslog simulate`), four of them through remote probes, with the *Northwind IT* branding as an example.
@@ -239,7 +258,7 @@ The screenshots show simulated UniFi traffic from five sites (`unify-syslog simu
 | ![Users](docs/screenshots/users.png)<br>**Users**: roles, sites per user, 2FA status and language. | ![Microsoft Entra SSO](docs/screenshots/sso.png)<br>**Microsoft Entra SSO** with Entra groups mapped to roles and sites. |
 | ![Security](docs/screenshots/security.png)<br>**Security**: mandatory two-factor authentication and audit log retention. | ![Audit log](docs/screenshots/audit.png)<br>**Audit log**: sign-ins, views, changes, exports and restores, with filters and CSV export. |
 | ![Source allowlist](docs/screenshots/allowlist.png)<br>**Source allowlist**: only accept syslog from known networks; rejected senders can be allowed with one click. | ![My account](docs/screenshots/account.png)<br>**My account**: password, two-factor authentication and API tokens. |
-| ![Mail server](docs/screenshots/mail.png)<br>**Mail server**: your own SMTP server with modern TLS and authentication, including OAuth2 for Microsoft 365. | ![Backup and restore](docs/screenshots/backup.png)<br>**Backup & restore**: scheduled full and incremental backups to SCP, FTPS, FTP or a local folder. |
+| ![Mail server](docs/screenshots/mail.png)<br>**Mail server**: your own SMTP server with modern TLS and authentication, including OAuth2 for Microsoft 365. | ![Backup and restore](docs/screenshots/backup.png)<br>**Backup & restore**: scheduled full and incremental backups to SFTP, S3, SCP, FTPS, FTP or a local folder, optionally encrypted. |
 | ![Branding](docs/screenshots/branding.png)<br>**Branding**: company name, logos for light and dark mode and a favicon. | ![Info and updates](docs/screenshots/info.png)<br>**Info & updates**: current version, release channel, update check, in-app update and rollback. |
 
 ![Sign in](docs/screenshots/login.png)
@@ -281,6 +300,7 @@ You can adjust its behavior with these environment variables:
 | `USS_ADMIN_PASSWORD=...` | Sets the initial admin password (generated otherwise). |
 | `USS_NONINTERACTIVE=1` | Skips all prompts. |
 | `USS_CH_MEMORY_RATIO=0.5` | Sets the share of RAM that ClickHouse may use. |
+| `USS_CLICKHOUSE=external` | Uses an external ClickHouse server or cluster instead of installing one; see [docs/STORAGE.md](docs/STORAGE.md) for `USS_CH_ADDR` and the other settings. |
 
 Then open `http://<server>:8080`.
 
@@ -293,6 +313,8 @@ A probe for a remote location has its own Proxmox LXC script, Debian 13 installe
 | Path | Contents |
 |---|---|
 | `/etc/unify-syslog/config.yaml` | Ports, ClickHouse connection and ingest settings. |
+| `/var/lib/unify-syslog/node.yaml` | Node-local settings made in the interface: the ClickHouse connection and high availability. |
+| `/var/lib/unify-syslog-ch/storage.xml` | ClickHouse configuration written by the server for cold storage, linked into `/etc/clickhouse-server/config.d/`. |
 | `/var/lib/unify-syslog/` | Metadata (`meta.db`), the encryption key (`secret.key`), local backups, the forwarding queues (`forward/`), the HTTPS certificate (`tls/`) and the cached probe releases (`probes/`). |
 | `/opt/unify-syslog/` | The program. |
 
@@ -390,8 +412,10 @@ Configure backups under **Backup** in the web interface.
 - **Full backup**: all logs plus the configuration (users, settings, categories and the encryption key).
 - **Incremental backup**: only what has arrived since the previous backup in the chain.
 - **Restore**: choose a backup at the remote location. The server fetches the whole chain (the full backup plus the incremental backups), restores the logs and restarts.
+- **Targets**: FTP, FTPS (explicit or implicit), SCP and SFTP (password or SSH key, with host key pinning), S3-compatible storage (MinIO, Wasabi, AWS S3; the target's folder becomes a prefix in the bucket) and a local folder.
+- **Encryption**: with *Encrypt backups* on, every backup file is encrypted with your passphrase ([age](https://age-encryption.org), scrypt) before it leaves the server and gets the extension `.tar.age`. Restoring uses the passphrase from the settings, or the one you enter in the restore dialog. Without the passphrase an encrypted backup cannot be restored, so keep it somewhere safe. Files can also be decrypted by hand with `age -d`.
 
-A backup contains the encryption key, so store backups in a trusted location.
+A backup contains the encryption key of the settings database; store unencrypted backups in a trusted location.
 
 ## Updates, release channels and rollback
 

@@ -1,19 +1,19 @@
 import { useEffect, useState } from 'react'
-import { DatabaseBackup, Save, Play, Plus, Pencil, Trash2, PlugZap, RotateCcw, Download, Server, FolderOpen } from 'lucide-react'
+import { DatabaseBackup, Save, Play, Plus, Pencil, Trash2, PlugZap, RotateCcw, Download, Server, FolderOpen, Cloud, KeyRound } from 'lucide-react'
 import { api } from '../api'
 import { Badge, Button, Card, Field, Input, Modal, PageHeader, Select, Spinner, Toggle, useAsync, useToast } from '../components/ui'
 import { fmtBytes, fmtNum, fmtTime } from '../lib/format'
 import { t } from '../i18n'
 
-interface Target { id: string; name: string; type: string; host: string; port: number; username: string; password: string; private_key: string; host_key: string; path: string; skip_verify: boolean; enabled: boolean }
-interface Settings { enabled: boolean; time: string; full_every_days: number; incremental_hours: number; keep_chains: number; include_logs: boolean; notify_to: string; notify_on: string; targets: Target[] }
+interface Target { id: string; name: string; type: string; host: string; port: number; username: string; password: string; private_key: string; host_key: string; path: string; skip_verify: boolean; enabled: boolean; endpoint: string; bucket: string; region: string }
+interface Settings { enabled: boolean; time: string; full_every_days: number; incremental_hours: number; keep_chains: number; include_logs: boolean; notify_to: string; notify_on: string; encrypt: boolean; passphrase: string; targets: Target[] }
 interface Status { running: boolean; job: string; step: string; started: string; last_error: string; last_done: string }
 interface Rec { id: string; kind: string; file: string; size: number; rows: number; status: string; message: string; targets: string; created_at: number }
 interface Entry { name: string; kind: string; id: string; base_id: string; time: string; size: number }
 
-const typeLabel: Record<string, string> = { ftp: 'FTP', ftps: 'FTPS (explicit)', 'ftps-implicit': 'FTPS (implicit)', scp: 'SCP (SSH)', local: 'Local folder' }
+const typeLabel: Record<string, string> = { ftp: 'FTP', ftps: 'FTPS (explicit)', 'ftps-implicit': 'FTPS (implicit)', scp: 'SCP (SSH)', sftp: 'SFTP (SSH)', s3: 'S3 (MinIO, Wasabi, AWS)', local: 'Local folder' }
 const typeName = (type: string) => t(typeLabel[type] ?? type)
-const blankTarget: Target = { id: '', name: '', type: 'scp', host: '', port: 0, username: '', password: '', private_key: '', host_key: '', path: '/backup/unify-syslog', skip_verify: false, enabled: true }
+const blankTarget: Target = { id: '', name: '', type: 'scp', host: '', port: 0, username: '', password: '', private_key: '', host_key: '', path: '/backup/unify-syslog', skip_verify: false, enabled: true, endpoint: '', bucket: '', region: '' }
 
 export default function Backup() {
   const toast = useToast()
@@ -67,7 +67,7 @@ export default function Backup() {
 
   return (
     <>
-      <PageHeader title={t('Backup & restore')} subtitle={t('Full and incremental backups to FTP, FTPS or SCP')} icon={<DatabaseBackup className="size-5" />}
+      <PageHeader title={t('Backup & restore')} subtitle={t('Full and incremental backups to FTP, FTPS, SCP, SFTP or S3')} icon={<DatabaseBackup className="size-5" />}
         actions={<>
           <Button onClick={() => setRestoreOpen(true)} icon={<RotateCcw className="size-4" />}>{t('Restore')}</Button>
           <Button onClick={() => run('incremental')} disabled={status?.running} icon={<Play className="size-4" />}>{t('Incremental')}</Button>
@@ -90,6 +90,8 @@ export default function Backup() {
               <Field label={t('Extra incremental every (hours)')} hint={t('0 = daily only')}><Input type="number" min={0} value={s.incremental_hours} onChange={(e) => up({ incremental_hours: Number(e.target.value) })} /></Field>
               <Field label={t('Chains to keep')} hint={t('Number of full backups')}><Input type="number" min={1} value={s.keep_chains} onChange={(e) => up({ keep_chains: Number(e.target.value) })} /></Field>
             </div>
+            <Toggle checked={s.encrypt} onChange={(encrypt) => up({ encrypt })} label={t('Encrypt backups')} description={t('With a passphrase (age); needed again to restore')} />
+            {s.encrypt && <Field label={t('Passphrase')} hint={t('At least 12 characters. Keep it somewhere safe: without it the backups cannot be restored.')}><Input type="password" autoComplete="new-password" value={s.passphrase} onChange={(e) => up({ passphrase: e.target.value })} /></Field>}
             <Toggle checked={s.include_logs} onChange={(include_logs) => up({ include_logs })} label={t('Include log data')} description={t('Off: configuration only (users, categories, settings)')} />
             <div className="grid grid-cols-2 gap-3">
               <Field label={t('Email report')}><Select value={s.notify_on} onChange={(notify_on) => up({ notify_on })} options={[{ value: 'never', label: t('Never') }, { value: 'failure', label: t('On failure') }, { value: 'always', label: t('Always') }]} /></Field>
@@ -105,10 +107,10 @@ export default function Backup() {
               {s.targets.map((tg, i) => (
                 <li key={tg.id || i} className="flex items-center justify-between gap-3 py-3">
                   <div className="flex items-center gap-3">
-                    <div className="grid size-9 place-items-center rounded-xl bg-[var(--panel-2)] text-muted">{tg.type === 'local' ? <FolderOpen className="size-4" /> : <Server className="size-4" />}</div>
+                    <div className="grid size-9 place-items-center rounded-xl bg-[var(--panel-2)] text-muted">{tg.type === 'local' ? <FolderOpen className="size-4" /> : tg.type === 's3' ? <Cloud className="size-4" /> : <Server className="size-4" />}</div>
                     <div>
-                      <div className="flex items-center gap-2 font-medium">{tg.name || tg.host}<Badge>{typeName(tg.type)}</Badge>{!tg.enabled && <Badge>{t('off')}</Badge>}</div>
-                      <div className="font-mono text-xs text-muted">{tg.type === 'local' ? tg.path : `${tg.username}@${tg.host}${tg.port ? ':' + tg.port : ''}:${tg.path}`}</div>
+                      <div className="flex items-center gap-2 font-medium">{tg.name || tg.host || tg.bucket}<Badge>{typeName(tg.type)}</Badge>{!tg.enabled && <Badge>{t('off')}</Badge>}</div>
+                      <div className="font-mono text-xs text-muted">{tg.type === 'local' ? tg.path : tg.type === 's3' ? `${tg.endpoint}/${tg.bucket}${tg.path ? '/' + tg.path.replace(/^\/+/, '') : ''}` : `${tg.username}@${tg.host}${tg.port ? ':' + tg.port : ''}:${tg.path}`}</div>
                     </div>
                   </div>
                   <div className="flex gap-1">
@@ -154,20 +156,29 @@ export default function Backup() {
               <Field label={t('Name')}><Input value={et.name} onChange={(e) => upT({ name: e.target.value })} placeholder={t('Office NAS')} /></Field>
               <Field label={t('Type')}><Select value={et.type} onChange={(type) => upT({ type })} options={Object.keys(typeLabel).map((value) => ({ value, label: typeName(value) }))} /></Field>
             </div>
-            {et.type !== 'local' && (
-              <div className="grid grid-cols-3 gap-3">
-                <Field label={t('Host')} className="col-span-2"><Input value={et.host} onChange={(e) => upT({ host: e.target.value.trim() })} /></Field>
-                <Field label={t('Port')}><Input type="number" value={et.port || ''} placeholder={et.type === 'scp' ? '22' : et.type === 'ftps-implicit' ? '990' : '21'} onChange={(e) => upT({ port: Number(e.target.value) })} /></Field>
-                <Field label={t('User')}><Input value={et.username} onChange={(e) => upT({ username: e.target.value })} /></Field>
-                <Field label={et.type === 'scp' && et.private_key ? t('Key passphrase') : t('Password')} className="col-span-2"><Input type="password" value={et.password} autoComplete="new-password" onChange={(e) => upT({ password: e.target.value })} /></Field>
+            {et.type === 's3' && (
+              <div className="grid grid-cols-2 gap-3">
+                <Field label={t('Endpoint')} className="col-span-2"><Input value={et.endpoint} onChange={(e) => upT({ endpoint: e.target.value.trim() })} placeholder="https://s3.eu-central-1.wasabisys.com" /></Field>
+                <Field label={t('Bucket')}><Input value={et.bucket} onChange={(e) => upT({ bucket: e.target.value.trim() })} /></Field>
+                <Field label={t('Region')}><Input value={et.region} onChange={(e) => upT({ region: e.target.value.trim() })} placeholder="us-east-1" /></Field>
+                <Field label={t('Access key')}><Input value={et.username} onChange={(e) => upT({ username: e.target.value.trim() })} /></Field>
+                <Field label={t('Secret key')}><Input type="password" value={et.password} autoComplete="new-password" onChange={(e) => upT({ password: e.target.value })} /></Field>
               </div>
             )}
-            <Field label={et.type === 'local' ? t('Folder on this server') : t('Folder on the server')}><Input value={et.path} onChange={(e) => upT({ path: e.target.value })} /></Field>
-            {et.type === 'scp' && <>
+            {et.type !== 'local' && et.type !== 's3' && (
+              <div className="grid grid-cols-3 gap-3">
+                <Field label={t('Host')} className="col-span-2"><Input value={et.host} onChange={(e) => upT({ host: e.target.value.trim() })} /></Field>
+                <Field label={t('Port')}><Input type="number" value={et.port || ''} placeholder={et.type === 'scp' || et.type === 'sftp' ? '22' : et.type === 'ftps-implicit' ? '990' : '21'} onChange={(e) => upT({ port: Number(e.target.value) })} /></Field>
+                <Field label={t('User')}><Input value={et.username} onChange={(e) => upT({ username: e.target.value })} /></Field>
+                <Field label={(et.type === 'scp' || et.type === 'sftp') && et.private_key ? t('Key passphrase') : t('Password')} className="col-span-2"><Input type="password" value={et.password} autoComplete="new-password" onChange={(e) => upT({ password: e.target.value })} /></Field>
+              </div>
+            )}
+            <Field label={et.type === 'local' ? t('Folder on this server') : et.type === 's3' ? t('Folder in the bucket') : t('Folder on the server')}><Input value={et.path} onChange={(e) => upT({ path: e.target.value })} /></Field>
+            {(et.type === 'scp' || et.type === 'sftp') && <>
               <Field label={t('Private key (optional)')} hint={t('OpenSSH format; ed25519 and RSA are supported')}><textarea rows={4} className="input" value={et.private_key} onChange={(e) => upT({ private_key: e.target.value })} placeholder="-----BEGIN OPENSSH PRIVATE KEY-----" /></Field>
               <Field label={t('Host key fingerprint (recommended)')} hint={t('E.g. {example}', { example: 'SHA256:abc…  (ssh-keyscan host | ssh-keygen -lf -)' })}><Input value={et.host_key} onChange={(e) => upT({ host_key: e.target.value.trim() })} /></Field>
             </>}
-            {et.type.startsWith('ftps') && <Toggle checked={et.skip_verify} onChange={(skip_verify) => upT({ skip_verify })} label={t('Skip certificate verification')} />}
+            {(et.type.startsWith('ftps') || et.type === 's3') && <Toggle checked={et.skip_verify} onChange={(skip_verify) => upT({ skip_verify })} label={t('Skip certificate verification')} />}
             <Toggle checked={et.enabled} onChange={(enabled) => upT({ enabled })} label={t('Enabled')} />
           </div>
         )}
@@ -185,6 +196,7 @@ function RestoreModal({ open, onClose, targets }: { open: boolean; onClose: () =
   const [err, setErr] = useState<string>()
   const [sel, setSel] = useState<string>()
   const [opts, setOpts] = useState({ config: true, logs: true })
+  const [passphrase, setPassphrase] = useState('')
   useEffect(() => {
     if (!open) return
     setList(undefined); setErr(undefined); setSel(undefined)
@@ -195,7 +207,7 @@ function RestoreModal({ open, onClose, targets }: { open: boolean; onClose: () =
     if (!e) return
     const warn = [opts.logs && t('ALL current log data will be replaced.'), opts.config && t('The configuration will be replaced and the service restarted.')].filter(Boolean).join(' ')
     if (!confirm(t('Restore from {name}?', { name: e.name }) + '\n\n' + warn)) return
-    try { await api.post('/backup/restore', { target, name: e.name, ...opts }); toast('ok', t('Restore started')); onClose() } catch (er) { toast('err', (er as Error).message) }
+    try { await api.post('/backup/restore', { target, name: e.name, ...opts, passphrase }); toast('ok', t('Restore started')); onClose() } catch (er) { toast('err', (er as Error).message) }
   }
   return (
     <Modal open={open} onClose={onClose} title={t('Restore from backup')} wide
@@ -209,11 +221,15 @@ function RestoreModal({ open, onClose, targets }: { open: boolean; onClose: () =
               <label key={e.name} className={'flex cursor-pointer items-center gap-3 border-b border-app/60 px-4 py-2.5 text-sm hover:bg-[var(--panel-2)] ' + (sel === e.name ? 'bg-indigo-500/10' : '')}>
                 <input type="radio" checked={sel === e.name} onChange={() => setSel(e.name)} />
                 <span className="flex-1">{fmtTime(e.time + 'Z')}</span>
+                {e.name.endsWith('.age') && <span title={t('Encrypted')}><KeyRound className="size-3.5 text-amber-500" /></span>}
                 {e.kind === 'full' ? <Badge className="bg-indigo-500/15 text-indigo-400 ring-indigo-500/30">{t('Full')}</Badge> : <Badge>{t('Incremental')}</Badge>}
                 <span className="w-20 text-right tabular-nums text-muted">{fmtBytes(e.size)}</span>
               </label>
             ))}
           </div>
+        )}
+        {list?.find((x) => x.name === sel)?.name.endsWith('.age') && (
+          <Field label={t('Passphrase')} hint={t('This backup is encrypted. Leave empty to use the passphrase from the settings.')}><Input type="password" autoComplete="off" value={passphrase} onChange={(e) => setPassphrase(e.target.value)} /></Field>
         )}
         <p className="text-xs text-muted">{t('Restoring an incremental backup automatically restores its full backup and all incremental backups in between.')}</p>
         <div className="grid gap-3 md:grid-cols-2">

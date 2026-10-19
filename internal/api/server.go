@@ -554,6 +554,9 @@ func (s *Server) authStatus(w http.ResponseWriter, r *http.Request) {
 	if c, err := r.Cookie(cookieName); err == nil {
 		if u, err := s.Meta.SessionUser(c.Value); err == nil {
 			out["user"] = u
+			if s.HA != nil && s.HA.Standby() {
+				out["standby"] = map[string]string{"peer_url": s.HA.PeerURL()}
+			}
 		}
 	}
 	if e := r.URL.Query().Get("error"); e != "" {

@@ -141,6 +141,23 @@ Alert rules (`/api/alerts`) take `channels` (channel IDs), `severity` (`info`, `
 
 All of these except the summary need an administrator. The probes themselves use `/api/probe/v1/…` with their own key; see [PROBES.md](PROBES.md).
 
+## Storage, monitoring and high availability
+
+| Method and path | Does |
+|---|---|
+| `GET /metrics` | Prometheus metrics; a token of an administrator, or a source address allowed under *Metrics & Grafana*. See [MONITORING.md](MONITORING.md) |
+| `/clickhouse/` | Read-only ClickHouse HTTP interface for Grafana (basic auth, the password is an administrator's token), when turned on |
+| `GET /api/settings/storage` | ClickHouse connection (password masked), stored rows and size, data per disk, storage policies, cold storage settings and a running switch |
+| `POST /api/storage/clickhouse/test` | Test a ClickHouse connection: version, existing rows and cluster nodes |
+| `PUT /api/settings/storage/clickhouse` | Switch to another ClickHouse: `{"clickhouse":{…},"migrate":true}`, or `{"reset":true}` for the connection in `config.yaml`; the service restarts |
+| `PUT /api/settings/storage/cold` | Cold storage settings; see [STORAGE.md](STORAGE.md) |
+| `GET /api/settings/monitoring`, `PUT /api/settings/monitoring` | `metrics_enabled`, `anonymous_cidrs` and `grafana_enabled` |
+| `GET /api/monitoring/content/{path}` | Download the bundled Grafana dashboards and Prometheus files |
+| `GET /api/settings/ha` | Role of this node and the other one, settings copy, pairing code and keepalived configuration |
+| `PUT /api/settings/ha` | `{"action":"start"|"join"|"update"|"leave"|"sync", …}`; see [HA.md](HA.md) |
+
+These need an administrator. On a standby node, changes other than storage, high availability and updates are refused with `409`.
+
 Admins can also use the configuration endpoints the interface uses (users, settings, backups and so on) with a read-and-write token. These are not a stable interface and may change between versions.
 
 ## Errors

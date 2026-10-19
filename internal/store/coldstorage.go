@@ -137,7 +137,7 @@ func ManagedXML(c ColdStorage) []byte {
 		return b.String()
 	}
 	var b strings.Builder
-	b.WriteString("<clickhouse>\n  <!-- Managed by UniFi Syslog Server (Settings > Storage); changes here are overwritten. -->\n")
+	b.WriteString("<clickhouse>\n  <!-- Managed by UniFi Syslog Server (Administration > Storage); changes here are overwritten. -->\n")
 	b.WriteString("  <storage_configuration>\n    <disks>\n")
 	fmt.Fprintf(&b, "      <%s>\n        <type>s3</type>\n        <endpoint>%s</endpoint>\n", ColdDisk, esc(c.DiskEndpoint()))
 	fmt.Fprintf(&b, "        <access_key_id>%s</access_key_id>\n        <secret_access_key>%s</secret_access_key>\n", esc(c.AccessKey), esc(c.SecretKey))
@@ -184,7 +184,7 @@ func ManagedAvailable(dir string) bool {
 // WriteManaged writes the managed configuration; nil clears it.
 func WriteManaged(dir string, xmlDoc []byte) error {
 	if xmlDoc == nil {
-		xmlDoc = []byte("<clickhouse>\n  <!-- Managed by UniFi Syslog Server (Settings > Storage). -->\n</clickhouse>\n")
+		xmlDoc = []byte("<clickhouse>\n  <!-- Managed by UniFi Syslog Server (Administration > Storage). -->\n</clickhouse>\n")
 	}
 	tmp := ManagedFile(dir) + ".tmp"
 	if err := os.WriteFile(tmp, xmlDoc, 0o640); err != nil {

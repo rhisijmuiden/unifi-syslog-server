@@ -103,7 +103,7 @@ func (s *Server) putHA(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if req.Action == "start" && isLocalCH(s.Logs.Config()) {
-			jerr(w, 400, "both nodes must store logs in the same ClickHouse; connect this node to an external ClickHouse server or cluster first (Settings > Storage)")
+			jerr(w, 400, "both nodes must store logs in the same ClickHouse; connect this node to an external ClickHouse server or cluster first (Administration > Storage)")
 			return
 		}
 		if req.Action == "start" {
@@ -145,7 +145,8 @@ func (s *Server) putHA(w http.ResponseWriter, r *http.Request) {
 
 // standbyGuard refuses changes on the standby node: they would be
 // overwritten by the next copy from the active node. Node-local settings
-// (storage, high availability, updates) and personal settings stay open.
+// (storage, high availability, running an update) stay open; personal
+// settings live in the shared users table and are changed on the active node.
 func (s *Server) standbyGuard(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if s.HA != nil && r.Method != http.MethodGet && r.Method != http.MethodHead && s.HA.Standby() && !standbyAllowed(r.URL.Path) {
@@ -164,7 +165,7 @@ func standbyAllowed(p string) bool {
 	if readOnlyPost(p) {
 		return true
 	}
-	for _, pre := range []string{"/api/auth/", "/api/me/", "/api/settings/ha", "/api/settings/storage", "/api/storage/", "/api/update/", "/api/settings/update", "/api/backup/test-target", "/api/alerts/test", "/api/notify/test", "/api/forward/test", "/api/controllers/test", "/api/settings/smtp/test"} {
+	for _, pre := range []string{"/api/auth/", "/api/settings/ha", "/api/settings/storage", "/api/storage/", "/api/update/", "/api/backup/test-target", "/api/alerts/test", "/api/notify/test", "/api/forward/test", "/api/controllers/test", "/api/settings/smtp/test"} {
 		if strings.HasPrefix(p, pre) {
 			return true
 		}

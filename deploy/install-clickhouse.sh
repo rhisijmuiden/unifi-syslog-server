@@ -13,7 +13,7 @@
 #   USS_CH_VERSION='26.3.*'    pin a ClickHouse version (done automatically on CPUs without AVX2)
 #
 # Cold storage on S3 (logs older than a number of days move to object storage;
-# choose the storage policy "uss_tiered", volume "cold" under Settings > Storage):
+# choose the storage policy "uss_tiered", volume "cold" under Administration > Storage):
 #   USS_S3_ENDPOINT=https://s3.eu-central-1.wasabisys.com  USS_S3_BUCKET=my-bucket
 #   USS_S3_PREFIX=unify-syslog/  USS_S3_REGION=eu-central-1
 #   USS_S3_ACCESS_KEY=...  USS_S3_SECRET_KEY=...  USS_S3_CACHE_GB=10
@@ -167,7 +167,7 @@ if [[ -n "${USS_S3_ENDPOINT:-}" ]]; then
   EP="${USS_S3_ENDPOINT%/}/${USS_S3_BUCKET}/${PREFIX:+$PREFIX/}"
   cat > /etc/clickhouse-server/config.d/zz-unify-syslog-storage.xml <<EOF
 <clickhouse>
-  <!-- Cold storage for UniFi Syslog Server: Settings > Storage > existing policy uss_tiered, volume cold -->
+  <!-- Cold storage for UniFi Syslog Server: Administration > Storage > existing policy uss_tiered, volume cold -->
   <storage_configuration>
     <disks>
       <uss_cold>
@@ -223,7 +223,7 @@ clickhouse-client --user unify --password "$CH_PASS" -q "SELECT 1" >/dev/null 2>
 IP="$(hostname -I | awk '{print $1}')"
 echo
 ok "ClickHouse is ready for UniFi Syslog Server"
-echo "   Enter these under Settings > Storage, or pass them to the installer of the syslog server:"
+echo "   Enter these under Administration > Storage, or pass them to the installer of the syslog server:"
 if [[ -n "${USS_CH_TLS:-}" ]]; then
   echo -e "   Native address:  ${c_info}${IP}:9440${c_off} (TLS, self-signed: turn off certificate verification)"
   echo -e "   HTTP URL:        ${c_info}https://${IP}:8443${c_off}"

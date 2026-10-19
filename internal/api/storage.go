@@ -186,6 +186,7 @@ func (s *Server) putClickHouse(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.Reset {
+		s.coldOffAfterSwitch()
 		node.ClickHouse = nil
 		if err := s.Cfg.SaveNode(node); err != nil {
 			jerr(w, 500, err.Error())
@@ -224,6 +225,7 @@ func (s *Server) putClickHouse(w http.ResponseWriter, r *http.Request) {
 			s.Log.Error("storage switch", "err", err)
 			return
 		}
+		s.coldOffAfterSwitch()
 		node.ClickHouse = &c
 		if err := s.Cfg.SaveNode(node); err != nil {
 			s.storageJob.set(func(j *storageJob) { j.Error = err.Error() })
@@ -232,6 +234,19 @@ func (s *Server) putClickHouse(w http.ResponseWriter, r *http.Request) {
 		s.Restart()
 	}()
 	jsonOut(w, map[string]bool{"started": true})
+}
+
+// coldOffAfterSwitch turns cold storage off: its disk or storage policy
+// belongs to the previous ClickHouse and must be set up again on the new one.
+func (s *Server) coldOffAfterSwitch() {
+	c := s.Meta.ColdStorage()
+	if !c.Enabled {
+		return
+	}
+	c.Enabled = false
+	if err := s.Meta.SaveColdStorage(c); err != nil {
+		s.Log.Warn("turn off cold storage", "err", err)
+	}
 }
 
 func (s *Server) switchClickHouse(c config.ClickHouse, migrate bool) error {

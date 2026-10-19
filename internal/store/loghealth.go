@@ -46,7 +46,7 @@ func (l *Logs) Health(ctx context.Context) LogHealth {
 	l.Conn.QueryRow(ctx, `SELECT count() FROM system.merges WHERE database = ?`, l.db).Scan(&h.Merges)
 	l.Conn.QueryRow(ctx, `SELECT count() FROM system.mutations WHERE database = ? AND NOT is_done`, l.db).Scan(&h.Mutations)
 	l.Conn.QueryRow(ctx, `SELECT toInt64(value) FROM system.metrics WHERE metric = 'MemoryTracking'`).Scan(&h.MemoryBytes)
-	if rows, err := l.Conn.Query(ctx, `SELECT name, path, total_space, free_space FROM system.disks`); err == nil {
+	if rows, err := l.Conn.Query(ctx, `SELECT name, path, total_space, free_space FROM system.disks WHERE total_space < 9223372036854775807`); err == nil {
 		for rows.Next() {
 			var d Disk
 			if rows.Scan(&d.Name, &d.Path, &d.Total, &d.Free) == nil {

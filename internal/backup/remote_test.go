@@ -19,11 +19,11 @@ import (
 
 func TestBackupNames(t *testing.T) {
 	for n, want := range map[string]bool{
-		"unify-syslog-20261019-120000-full-abcd1234.tar":                      true,
-		"unify-syslog-20261019-120000-full-abcd1234.tar.age":                  true,
-		"unify-syslog-20261019-120000-incr-abcd1234-base-0123abcd.tar.age":    true,
-		"unify-syslog-20261019-120000-full-abcd1234.tar.part":                 false,
-		"other.tar":                                                           false,
+		"unify-syslog-20261019-120000-full-abcd1234.tar":                   true,
+		"unify-syslog-20261019-120000-full-abcd1234.tar.age":               true,
+		"unify-syslog-20261019-120000-incr-abcd1234-base-0123abcd.tar.age": true,
+		"unify-syslog-20261019-120000-full-abcd1234.tar.part":              false,
+		"other.tar": false,
 		"unify-syslog-20261019-120000-full-abcd1234.tar.age/../../etc/passwd": false,
 	} {
 		if got := IsBackupName(n); got != want {

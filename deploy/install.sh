@@ -17,7 +17,7 @@
 #   USS_CH_USER=unify  USS_CH_PASSWORD=...  USS_CH_DATABASE=unify_syslog
 #   USS_CH_SECURE=1                    use TLS (USS_CH_SKIP_VERIFY=1 for a self-signed certificate)
 #   USS_CH_CLUSTER=name                store logs replicated on this cluster
-# The connection can also be changed later under Settings > Storage.
+# The connection can also be changed later under Administration > Storage.
 set -euo pipefail
 
 REPO="rhisijmuiden/unifi-syslog-server"
@@ -186,7 +186,7 @@ cat > /etc/clickhouse-server/users.d/unify-syslog.xml <<EOF
 EOF
 rm -f /etc/clickhouse-server/users.d/default-password.xml
 chown -R clickhouse:clickhouse /etc/clickhouse-server/config.d /etc/clickhouse-server/users.d 2>/dev/null || true
-# Configuration the server writes itself (cold storage on S3, Settings > Storage):
+# Configuration the server writes itself (cold storage on S3, Administration > Storage):
 # a directory it owns, readable by ClickHouse, linked into config.d.
 install -d -m 2750 -o "$SVC_USER" -g clickhouse "$MANAGED_DIR"
 [[ -f "$MANAGED_DIR/storage.xml" ]] || echo '<clickhouse/>' > "$MANAGED_DIR/storage.xml"

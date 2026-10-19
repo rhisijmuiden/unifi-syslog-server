@@ -3,7 +3,7 @@
 #
 # Create a read-only API token under Account > API tokens and store it in a
 # file Prometheus can read, e.g. /etc/prometheus/unifi-syslog.token. Or allow
-# Prometheus's address without a token under Settings > Monitoring.
+# Prometheus's address without a token under Administration > Metrics & Grafana.
 scrape_configs:
   - job_name: unifi-syslog
     scheme: https

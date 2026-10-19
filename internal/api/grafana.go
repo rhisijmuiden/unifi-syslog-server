@@ -30,8 +30,7 @@ func peerIP(r *http.Request) string {
 }
 
 // grafanaUser authenticates the Grafana ClickHouse data source: the
-// password (or a bearer header) is an API token of an administrator or of
-// an analyst who sees every site.
+// password (or a bearer header) is an API token of an administrator.
 func (s *Server) grafanaUser(r *http.Request) (*store.User, bool) {
 	tok := bearer(r)
 	if tok == "" {
@@ -47,7 +46,9 @@ func (s *Server) grafanaUser(r *http.Request) (*store.User, bool) {
 	if err != nil {
 		return nil, false
 	}
-	if !u.CanExport() || (u.Role != store.RoleAdmin && len(u.Sites) > 0) {
+	// Only administrators: a read query can still use table functions such
+	// as url() with the rights of the ClickHouse user.
+	if u.Role != store.RoleAdmin {
 		return nil, false
 	}
 	s.Meta.TouchToken(t, clientIP(r))
@@ -68,7 +69,7 @@ func (s *Server) clickhouseProxy(w http.ResponseWriter, r *http.Request) {
 	u, ok := s.grafanaUser(r)
 	if !ok {
 		w.Header().Set("WWW-Authenticate", `Basic realm="unify-syslog"`)
-		http.Error(w, "Code: 516. Authentication failed: use an API token of an administrator or analyst as the password", http.StatusUnauthorized)
+		http.Error(w, "Code: 516. Authentication failed: use an API token of an administrator as the password", http.StatusUnauthorized)
 		return
 	}
 	cfg := s.Logs.Config()

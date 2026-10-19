@@ -76,7 +76,7 @@ type BackupTarget struct {
 	Password   string `json:"password"`
 	PrivateKey string `json:"private_key"`
 	HostKey    string `json:"host_key"` // optional SHA256 fingerprint for scp and sftp
-	Path       string `json:"path"`       // directory, or the key prefix for s3
+	Path       string `json:"path"`     // directory, or the key prefix for s3
 	SkipVerify bool   `json:"skip_verify"`
 	Enabled    bool   `json:"enabled"`
 	// S3 compatible storage (AWS, MinIO, Wasabi…): Username is the access
