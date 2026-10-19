@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import { ScrollText, Search, Radio, Pause, Download, Bookmark, HelpCircle, X, Plus, Minus } from 'lucide-react'
+import { ScrollText, Search, Radio, Pause, Download, Bookmark, HelpCircle, X, Plus, Minus, Tags } from 'lucide-react'
 import { api, can, type Bucket, type LogRow } from '../api'
 import { useAuth } from '../App'
 import { Badge, Button, Card, Empty, Field, Input, Modal, PageHeader, Spinner, cx, useToast } from '../components/ui'
@@ -8,6 +8,7 @@ import { RangePicker, SiteFilter, toRange, useUrlState } from '../components/Fil
 import { t } from '../i18n'
 import { actionClass, actionLabel, catColor, catLabel, fmtNum, fmtTime, primaryCategories, severities, severityClass } from '../lib/format'
 import { asLabel, countryName, flag } from '../lib/countries'
+import { SearchModal, type SearchDraft } from './SavedSearches'
 
 const PAGE = 200
 
@@ -24,6 +25,7 @@ export default function Logs() {
   const [sel, setSel] = useState<LogRow>()
   const [help, setHelp] = useState(false)
   const [save, setSave] = useState(false)
+  const [saveSearch, setSaveSearch] = useState<SearchDraft>()
   const { user } = useAuth()
 
   const body = useCallback((extra: object = {}) => {
@@ -137,7 +139,8 @@ export default function Logs() {
       {!live && hist && (
         <Card className="mb-5" title={<span>{t('{n} results', { n: fmtNum(hist.total) })} <span className="font-normal text-muted">· {took} ms</span></span>}
           actions={<>
-            {can.categories(user) && <Button variant="ghost" onClick={() => setSave(true)} icon={<Bookmark className="size-4" />}>{t('Save as category')}</Button>}
+            <Button variant="ghost" onClick={() => setSaveSearch({ name: '', description: '', query: st.q, preset: st.preset, from: st.from, to: st.to, site: st.site, shared: false, pinned: true })} icon={<Bookmark className="size-4" />}>{t('Save search')}</Button>
+            {can.categories(user) && <Button variant="ghost" onClick={() => setSave(true)} icon={<Tags className="size-4" />}>{t('Save as category')}</Button>}
             {can.export(user) && <>
               <a href={exportUrl('csv')}><Button variant="ghost" icon={<Download className="size-4" />}>CSV</Button></a>
               <a href={exportUrl('json')}><Button variant="ghost" icon={<Download className="size-4" />}>JSON</Button></a>
@@ -192,6 +195,7 @@ export default function Logs() {
       <Detail row={sel} onClose={() => setSel(undefined)} onFilter={(t) => { addTerm(t); setSel(undefined) }} />
       <HelpModal open={help} onClose={() => setHelp(false)} onUse={(q) => { addTerm(q, true); setHelp(false) }} />
       <SaveCategory open={save} query={st.q} onClose={() => setSave(false)} />
+      <SearchModal draft={saveSearch} onClose={() => setSaveSearch(undefined)} />
     </>
   )
 }

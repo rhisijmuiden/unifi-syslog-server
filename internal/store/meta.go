@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -151,7 +152,7 @@ func OpenMeta(path, keyPath string) (*Meta, error) {
 		return nil, err
 	}
 	db.SetMaxOpenConns(4)
-	for _, sc := range []string{schema, unifiSchema, securitySchema, forwardSchema, probeSchema, notifySchema} {
+	for _, sc := range []string{schema, unifiSchema, securitySchema, forwardSchema, probeSchema, notifySchema, searchSchema} {
 		if _, err := db.Exec(sc); err != nil {
 			return nil, fmt.Errorf("migrate: %w", err)
 		}
@@ -193,6 +194,12 @@ var addedColumns = []struct{ table, column, def string }{
 	{"alert_rules", "channels", "TEXT NOT NULL DEFAULT ''"},
 	{"alert_rules", "severity", "TEXT NOT NULL DEFAULT 'warning'"},
 	{"alert_rules", "email", "INTEGER NOT NULL DEFAULT 1"},
+	{"alert_rules", "condition", "TEXT NOT NULL DEFAULT 'above'"},
+	{"alert_rules", "group_by", "TEXT NOT NULL DEFAULT ''"},
+	{"alert_rules", "distinct_field", "TEXT NOT NULL DEFAULT ''"},
+	{"alert_rules", "spike_percent", "INTEGER NOT NULL DEFAULT 200"},
+	{"alert_rules", "baseline_hours", "INTEGER NOT NULL DEFAULT 24"},
+	{"alert_rules", "schedule", "TEXT NOT NULL DEFAULT ''"},
 }
 
 func migrateColumns(db *sql.DB) error {
@@ -376,6 +383,56 @@ func (m *Meta) DeleteCategory(id int64) error {
 
 // ---------------------------------------------------------------- alert rules
 
+// Alert rule conditions.
+const (
+	// CondAbove fires when at least Threshold events match in the window.
+	CondAbove = "above"
+	// CondBelow fires when fewer than Threshold events match, e.g. a site
+	// or device that went quiet.
+	CondBelow = "below"
+	// CondDistinct fires when DistinctField has at least Threshold
+	// different values, e.g. many destination ports from one source.
+	CondDistinct = "distinct"
+	// CondSpike fires when the window has SpikePercent more events than
+	// the average window of the last BaselineHours (and at least Threshold).
+	CondSpike = "spike"
+)
+
+// AlertSchedule limits when a rule is evaluated, in server time.
+type AlertSchedule struct {
+	// Days are weekdays, 0 = Sunday; empty = every day.
+	Days []int `json:"days"`
+	// From and To are "HH:MM"; empty = all day. From after To spans
+	// midnight, e.g. 22:00 to 06:00.
+	From string `json:"from"`
+	To   string `json:"to"`
+}
+
+// Active reports whether t (in server time) falls in the schedule.
+func (s AlertSchedule) Active(t time.Time) bool {
+	if len(s.Days) > 0 && !slices.Contains(s.Days, int(t.Weekday())) {
+		return false
+	}
+	from, okF := parseHHMM(s.From)
+	to, okT := parseHHMM(s.To)
+	if !okF || !okT || from == to {
+		return true
+	}
+	now := t.Hour()*60 + t.Minute()
+	if from < to {
+		return now >= from && now < to
+	}
+	return now >= from || now < to
+}
+
+func parseHHMM(s string) (int, bool) {
+	t, err := time.Parse("15:04", s)
+	if err != nil {
+		return 0, false
+	}
+	return t.Hour()*60 + t.Minute(), true
+}
+
 type AlertRule struct {
 	ID              int64  `json:"id"`
 	Name            string `json:"name"`
@@ -394,10 +451,78 @@ type AlertRule struct {
 	Severity string `json:"severity"`
 	// Email sends the alert by e-mail to Recipients.
 	Email bool `json:"email"`
+	// Condition is one of the Cond* values; empty means CondAbove.
+	Condition string `json:"condition"`
+	// GroupBy evaluates the rule per value of a field, e.g. per source IP.
+	GroupBy string `json:"group_by"`
+	// DistinctField is the field counted by CondDistinct.
+	DistinctField string        `json:"distinct_field"`
+	SpikePercent  int           `json:"spike_percent"`
+	BaselineHours int           `json:"baseline_hours"`
+	Schedule      AlertSchedule `json:"schedule"`
 }
 
+// Validate normalises a rule and checks its condition.
+func (a *AlertRule) Validate() error {
+	if a.Threshold < 1 {
+		a.Threshold = 1
+	}
+	if a.WindowMinutes < 1 {
+		a.WindowMinutes = 5
+	}
+	if a.WindowMinutes > 7*24*60 {
+		return errors.New("the window can be at most 7 days")
+	}
+	if a.SpikePercent < 1 {
+		a.SpikePercent = 200
+	}
+	if a.BaselineHours < 1 {
+		a.BaselineHours = 24
+	}
+	if a.BaselineHours > 7*24 {
+		return errors.New("the baseline can be at most 7 days")
+	}
+	if a.Schedule.Days == nil {
+		a.Schedule.Days = []int{}
+	}
+	for _, d := range a.Schedule.Days {
+		if d < 0 || d > 6 {
+			return errors.New("invalid weekday")
+		}
+	}
+	for _, t := range []string{a.Schedule.From, a.Schedule.To} {
+		if _, ok := parseHHMM(t); t != "" && !ok {
+			return errors.New("times must look like 08:00")
+		}
+	}
+	switch a.Condition {
+	case "":
+		a.Condition = CondAbove
+	case CondAbove, CondBelow, CondSpike:
+	case CondDistinct:
+		if !AlertFieldOK(a.DistinctField) {
+			return errors.New("choose the field to count distinct values of")
+		}
+	default:
+		return errors.New("unknown condition")
+	}
+	if a.Condition != CondDistinct {
+		a.DistinctField = ""
+	}
+	if a.GroupBy != "" && !AlertFieldOK(a.GroupBy) {
+		return errors.New("unknown field to group by")
+	}
+	if a.GroupBy != "" && a.GroupBy == a.DistinctField {
+		return errors.New("group by and distinct field must differ")
+	}
+	return nil
+}
+
+const alertCols = `id,name,query,threshold,window_minutes,cooldown_minutes,recipients,enabled,last_fired,forward_to,channels,severity,email,
+	condition,group_by,distinct_field,spike_percent,baseline_hours,schedule`
+
 func (m *Meta) AlertRules() ([]AlertRule, error) {
-	rows, err := m.DB.Query(`SELECT id,name,query,threshold,window_minutes,cooldown_minutes,recipients,enabled,last_fired,forward_to,channels,severity,email FROM alert_rules ORDER BY id`)
+	rows, err := m.DB.Query(`SELECT ` + alertCols + ` FROM alert_rules ORDER BY id`)
 	if err != nil {
 		return nil, err
 	}
@@ -405,38 +530,51 @@ func (m *Meta) AlertRules() ([]AlertRule, error) {
 	out := []AlertRule{}
 	for rows.Next() {
 		var a AlertRule
-		var fwd, chans string
-		if err := rows.Scan(&a.ID, &a.Name, &a.Query, &a.Threshold, &a.WindowMinutes, &a.CooldownMinutes, &a.Recipients, &a.Enabled, &a.LastFired, &fwd, &chans, &a.Severity, &a.Email); err != nil {
+		var fwd, chans, sched string
+		if err := rows.Scan(&a.ID, &a.Name, &a.Query, &a.Threshold, &a.WindowMinutes, &a.CooldownMinutes, &a.Recipients, &a.Enabled, &a.LastFired, &fwd, &chans, &a.Severity, &a.Email,
+			&a.Condition, &a.GroupBy, &a.DistinctField, &a.SpikePercent, &a.BaselineHours, &sched); err != nil {
 			return nil, err
 		}
 		a.Destinations = splitIDs(fwd)
 		a.Channels = splitIDs(chans)
+		if sched != "" {
+			json.Unmarshal([]byte(sched), &a.Schedule)
+		}
+		if a.Schedule.Days == nil {
+			a.Schedule.Days = []int{}
+		}
 		out = append(out, a)
 	}
 	return out, rows.Err()
 }
 
 func (m *Meta) SaveAlertRule(a *AlertRule) error {
-	if a.Threshold < 1 {
-		a.Threshold = 1
-	}
-	if a.WindowMinutes < 1 {
-		a.WindowMinutes = 5
+	if err := a.Validate(); err != nil {
+		return err
 	}
 	if SeverityRank(a.Severity) == 1 {
 		a.Severity = SevWarning
 	}
+	sched := ""
+	if len(a.Schedule.Days) > 0 || a.Schedule.From != "" || a.Schedule.To != "" {
+		b, _ := json.Marshal(a.Schedule)
+		sched = string(b)
+	}
 	if a.ID == 0 {
-		res, err := m.DB.Exec(`INSERT INTO alert_rules(name,query,threshold,window_minutes,cooldown_minutes,recipients,enabled,forward_to,channels,severity,email,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`,
-			a.Name, a.Query, a.Threshold, a.WindowMinutes, a.CooldownMinutes, a.Recipients, a.Enabled, joinIDs(a.Destinations), joinIDs(a.Channels), a.Severity, a.Email, time.Now().Unix())
+		res, err := m.DB.Exec(`INSERT INTO alert_rules(name,query,threshold,window_minutes,cooldown_minutes,recipients,enabled,forward_to,channels,severity,email,
+			condition,group_by,distinct_field,spike_percent,baseline_hours,schedule,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+			a.Name, a.Query, a.Threshold, a.WindowMinutes, a.CooldownMinutes, a.Recipients, a.Enabled, joinIDs(a.Destinations), joinIDs(a.Channels), a.Severity, a.Email,
+			a.Condition, a.GroupBy, a.DistinctField, a.SpikePercent, a.BaselineHours, sched, time.Now().Unix())
 		if err != nil {
 			return err
 		}
 		a.ID, _ = res.LastInsertId()
 		return nil
 	}
-	_, err := m.DB.Exec(`UPDATE alert_rules SET name=?,query=?,threshold=?,window_minutes=?,cooldown_minutes=?,recipients=?,enabled=?,forward_to=?,channels=?,severity=?,email=? WHERE id=?`,
-		a.Name, a.Query, a.Threshold, a.WindowMinutes, a.CooldownMinutes, a.Recipients, a.Enabled, joinIDs(a.Destinations), joinIDs(a.Channels), a.Severity, a.Email, a.ID)
+	_, err := m.DB.Exec(`UPDATE alert_rules SET name=?,query=?,threshold=?,window_minutes=?,cooldown_minutes=?,recipients=?,enabled=?,forward_to=?,channels=?,severity=?,email=?,
+		condition=?,group_by=?,distinct_field=?,spike_percent=?,baseline_hours=?,schedule=? WHERE id=?`,
+		a.Name, a.Query, a.Threshold, a.WindowMinutes, a.CooldownMinutes, a.Recipients, a.Enabled, joinIDs(a.Destinations), joinIDs(a.Channels), a.Severity, a.Email,
+		a.Condition, a.GroupBy, a.DistinctField, a.SpikePercent, a.BaselineHours, sched, a.ID)
 	return err
 }
 

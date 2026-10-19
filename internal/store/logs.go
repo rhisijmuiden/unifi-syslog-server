@@ -127,13 +127,6 @@ func (l *Logs) schema(retention int) []string {
 	}
 }
 
-func (l *Logs) SetRetention(ctx context.Context, days int) error {
-	if days < 1 {
-		return fmt.Errorf("retention must be at least 1 day")
-	}
-	return l.Conn.Exec(ctx, fmt.Sprintf("ALTER TABLE %s MODIFY TTL toDateTime(ts) + INTERVAL %d DAY DELETE", l.t("logs"), days))
-}
-
 func (l *Logs) Insert(ctx context.Context, evs []*unifi.Event) error {
 	// Naming the columns keeps inserts working when a later version adds
 	// columns to the table and this one is rolled back to.
@@ -618,6 +611,93 @@ func (l *Logs) SiteStats(ctx context.Context, from time.Time) ([]SiteStat, error
 			return nil, err
 		}
 		out = append(out, s)
+	}
+	return out, rows.Err()
+}
+
+// ---------------------------------------------------------------- alert rules
+
+// AlertFields are the fields an alert rule can group by or count distinct
+// values of.
+func AlertFields() []string {
+	out := make([]string, 0, len(topCols))
+	for k := range topCols {
+		out = append(out, k)
+	}
+	return out
+}
+
+func AlertFieldOK(f string) bool { _, ok := topCols[f]; return ok }
+
+// AlertQuery evaluates an alert rule: the matching events of the window
+// [WindowStart, To], and of the baseline [From, WindowStart) before it.
+type AlertQuery struct {
+	SearchReq
+	WindowStart time.Time
+	// GroupBy splits the counts per value of a field (see AlertFields).
+	GroupBy string
+	// Distinct counts distinct values of a field instead of events.
+	Distinct string
+	// Fewest orders the groups by the lowest window value first.
+	Fewest bool
+}
+
+// AlertGroup is the window value (events or distinct values) and the
+// baseline event count of one group; Key is "" without GroupBy.
+type AlertGroup struct {
+	Key      string `json:"key"`
+	Current  uint64 `json:"current"`
+	Baseline uint64 `json:"baseline"`
+	// First is the oldest baseline event, to tell how much history exists.
+	First time.Time `json:"-"`
+}
+
+func (l *Logs) AlertStats(ctx context.Context, q AlertQuery, limit int) ([]AlertGroup, error) {
+	w, args, err := l.where(q.SearchReq)
+	if err != nil {
+		return nil, err
+	}
+	key := "''"
+	if q.GroupBy != "" {
+		c, ok := topCols[q.GroupBy]
+		if !ok {
+			return nil, fmt.Errorf("unknown field %q", q.GroupBy)
+		}
+		key = c
+	}
+	cur := "countIf(ts >= ?)"
+	if q.Distinct != "" {
+		c, ok := topCols[q.Distinct]
+		if !ok {
+			return nil, fmt.Errorf("unknown field %q", q.Distinct)
+		}
+		cur = fmt.Sprintf("uniqExactIf(%s, ts >= ? AND %s NOT IN ('', '0', '|'))", c, c)
+	}
+	having := ""
+	if q.GroupBy != "" {
+		having = "HAVING k NOT IN ('', '0', '|')"
+	}
+	order := "DESC"
+	if q.Fewest {
+		order = "ASC"
+	}
+	if limit <= 0 || limit > 1000 {
+		limit = 1000
+	}
+	sql := fmt.Sprintf("SELECT %s AS k, %s AS cur, countIf(ts < ?) AS base, minIf(ts, ts < ?) FROM %s WHERE %s GROUP BY k %s ORDER BY cur %s, k LIMIT %d",
+		key, cur, l.t("logs"), w, having, order, limit)
+	rows, err := l.Conn.Query(ctx, sql, append([]any{q.WindowStart, q.WindowStart, q.WindowStart}, args...)...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []AlertGroup{}
+	for rows.Next() {
+		var g AlertGroup
+		if err := rows.Scan(&g.Key, &g.Current, &g.Baseline, &g.First); err != nil {
+			return nil, err
+		}
+		out = append(out, g)
 	}
 	return out, rows.Err()
 }

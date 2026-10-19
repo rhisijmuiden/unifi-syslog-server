@@ -14,6 +14,9 @@ type GeneralSettings struct {
 	BaseURL       string `json:"base_url"`
 	InstanceName  string `json:"instance_name"`
 	Language      string `json:"language"` // default interface and e-mail language
+	// CategoryRetention keeps logs of some categories shorter or longer
+	// than RetentionDays, e.g. {"wifi": 30, "ips": 365}.
+	CategoryRetention map[string]int `json:"category_retention"`
 }
 
 type SSOSettings struct {
@@ -103,6 +106,9 @@ type UpdateSettings struct {
 func (m *Meta) General() GeneralSettings {
 	g := GeneralSettings{Timezone: "Europe/Amsterdam", RetentionDays: 90, InstanceName: "UniFi Syslog Server", Language: "en"}
 	m.GetSetting("general", &g)
+	if g.CategoryRetention == nil {
+		g.CategoryRetention = map[string]int{}
+	}
 	return g
 }
 

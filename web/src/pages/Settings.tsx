@@ -1,11 +1,13 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { Settings as SettingsIcon, Save } from 'lucide-react'
+import { Settings as SettingsIcon, Save, Timer } from 'lucide-react'
 import { api } from '../api'
 import { useAuth } from '../App'
-import { Button, Card, Field, Input, PageHeader, Select, Spinner, useToast } from '../components/ui'
+import { Badge, Button, Card, Field, Input, PageHeader, Select, Spinner, useAsync, useToast } from '../components/ui'
+import { catColor, catLabel, categoryMeta, fmtAgo, fmtNum } from '../lib/format'
 import { languages, t } from '../i18n'
 
-interface General { timezone: string; retention_days: number; base_url: string; instance_name: string; language: string }
+interface General { timezone: string; retention_days: number; category_retention: Record<string, number>; base_url: string; instance_name: string; language: string }
+interface Usage { category: string; rows: number; oldest: string }
 const zones = ['Europe/Amsterdam', 'Europe/Brussels', 'Europe/London', 'Europe/Berlin', 'UTC', 'America/New_York', 'Asia/Singapore']
 
 export default function SettingsPage() {
@@ -13,11 +15,12 @@ export default function SettingsPage() {
   const { reloadStatus } = useAuth()
   const [g, setG] = useState<General>()
   const [busy, setBusy] = useState(false)
-  useEffect(() => { api.get<General>('/settings/general').then(setG) }, [])
+  useEffect(() => { api.get<General>('/settings/general').then((g) => setG({ ...g, category_retention: g.category_retention ?? {} })) }, [])
+  const usage = useAsync(() => api.get<Usage[]>('/settings/retention/usage'))
   if (!g) return <div className="grid place-items-center py-24"><Spinner /></div>
   const save = async () => {
     setBusy(true)
-    try { const saved = await api.put<General>('/settings/general', g); setG(saved); toast('ok', t('Settings saved')); reloadStatus() } catch (e) { toast('err', (e as Error).message) } finally { setBusy(false) }
+    try { const saved = await api.put<General>('/settings/general', g); setG(saved); toast('ok', t('Settings saved')); reloadStatus(); usage.reload() } catch (e) { toast('err', (e as Error).message) } finally { setBusy(false) }
   }
   return (
     <>
@@ -38,6 +41,7 @@ export default function SettingsPage() {
             </Field>
           </div>
         </Card>
+        <RetentionCard g={g} setG={setG} usage={usage.data} />
         <Card title={t('Connect UniFi')} subtitle={t('How to send logs to this server')}>
           <ol className="list-decimal space-y-2 pl-4 text-sm text-muted">
             <li>{rich(t('Open the UniFi Network app → {path} (depending on version: {alt}).'), { path: 'Settings → CyberSecure / System → Traffic & Firewall logging', alt: 'Settings → System → Logging' })}</li>
@@ -48,6 +52,56 @@ export default function SettingsPage() {
         </Card>
       </div>
     </>
+  )
+}
+
+function RetentionCard({ g, setG, usage }: { g: General; setG: (g: General) => void; usage?: Usage[] }) {
+  const per = g.category_retention
+  const cats = [...new Set([...Object.keys(categoryMeta), ...(usage ?? []).map((u) => u.category), ...Object.keys(per)])]
+    .filter((c) => c !== '')
+    .sort((a, b) => (usage?.find((u) => u.category === b)?.rows ?? 0) - (usage?.find((u) => u.category === a)?.rows ?? 0) || catLabel(a).localeCompare(catLabel(b)))
+  const setDays = (c: string, v: string) => {
+    const next = { ...per }
+    if (v === '') delete next[c]
+    else next[c] = Number(v)
+    setG({ ...g, category_retention: next })
+  }
+  return (
+    <Card className="xl:col-span-2" title={<span className="flex items-center gap-2"><Timer className="size-4 text-indigo-400" />{t('Retention per category')}</span>}
+      subtitle={t('Keep some categories shorter or longer than the default of {n} days. Empty = default.', { n: g.retention_days })}>
+      <div className="overflow-x-auto scroll-thin">
+        <table className="w-full text-sm">
+          <thead className="text-left text-[11px] uppercase tracking-wide text-muted">
+            <tr className="border-b border-app">
+              <th className="py-2 pr-3 font-medium">{t('Category')}</th>
+              <th className="px-3 py-2 text-right font-medium">{t('Stored')}</th>
+              <th className="px-3 py-2 font-medium">{t('Oldest')}</th>
+              <th className="py-2 pl-3 font-medium">{t('Keep (days)')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {cats.map((c) => {
+              const u = usage?.find((x) => x.category === c)
+              const days = per[c]
+              return (
+                <tr key={c} className="border-b border-app/60">
+                  <td className="py-2 pr-3"><Badge color={catColor(c)}>{catLabel(c)}</Badge></td>
+                  <td className="px-3 py-2 text-right tabular-nums text-muted">{u ? fmtNum(u.rows) : '–'}</td>
+                  <td className="px-3 py-2 text-muted">{u ? fmtAgo(u.oldest) : '–'}</td>
+                  <td className="py-2 pl-3">
+                    <div className="flex items-center gap-2">
+                      <Input type="number" min={1} max={3650} className="!w-28" value={days ?? ''} placeholder={String(g.retention_days)} onChange={(e) => setDays(c, e.target.value)} />
+                      {days !== undefined && <span className="text-xs text-muted">{days > g.retention_days ? t('longer than default') : days < g.retention_days ? t('shorter than default') : ''}</span>}
+                    </div>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+      <p className="mt-3 text-xs text-muted">{t('ClickHouse removes expired logs in the background, usually within a few hours of saving. Dashboards keep their hourly totals for 400 days.')}</p>
+    </Card>
   )
 }
 
