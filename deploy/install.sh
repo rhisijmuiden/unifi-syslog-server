@@ -252,6 +252,7 @@ chown "$SVC_USER:$SVC_USER" "$APP_DIR/unify-syslog"
 ln -sf "$APP_DIR/unify-syslog" /usr/local/bin/unify-syslog
 ok "Program installed in $APP_DIR ($("$APP_DIR/unify-syslog" version))"
 
+install -d -m 0750 "$CONF_DIR"
 if [[ ! -f "$CONF_DIR/config.yaml" ]]; then
   if [[ "$CH_MODE" == local ]]; then
     CH_YAML="  addr: \"127.0.0.1:9000\"
