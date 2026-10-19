@@ -5,6 +5,7 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net/http"
 	"net/url"
 	"os"
@@ -437,16 +438,19 @@ func (s *Server) putGeneral(w http.ResponseWriter, r *http.Request) {
 		jerr(w, 400, "unknown time zone")
 		return
 	}
-	if g.RetentionDays < 1 || g.RetentionDays > 3650 {
-		jerr(w, 400, "retention must be between 1 and 3650 days")
+	if g.CategoryRetention == nil {
+		g.CategoryRetention = map[string]int{}
+	}
+	if err := store.ValidateRetention(g.RetentionDays, g.CategoryRetention); err != nil {
+		jerr(w, 400, err.Error())
 		return
 	}
 	if g.Language = i18n.Normalize(g.Language); g.Language == "" {
 		g.Language = "en"
 	}
 	old := s.Meta.General()
-	if old.RetentionDays != g.RetentionDays {
-		if err := s.Logs.SetRetention(r.Context(), g.RetentionDays); err != nil {
+	if old.RetentionDays != g.RetentionDays || !maps.Equal(old.CategoryRetention, g.CategoryRetention) {
+		if err := s.Logs.SetRetention(r.Context(), g.RetentionDays, g.CategoryRetention); err != nil {
 			jerr(w, 500, err.Error())
 			return
 		}
@@ -690,12 +694,48 @@ func (s *Server) saveAlert(w http.ResponseWriter, r *http.Request) {
 		jerr(w, 400, "filter: "+err.Error())
 		return
 	}
+	if err := a.Validate(); err != nil {
+		jerr(w, 400, err.Error())
+		return
+	}
 	if err := s.Meta.SaveAlertRule(&a); err != nil {
 		jerr(w, 500, err.Error())
 		return
 	}
 	s.audit_(r, "alert_saved", a.Name)
 	jsonOut(w, a)
+}
+
+func (s *Server) alertFields(w http.ResponseWriter, r *http.Request) {
+	f := store.AlertFields()
+	sort.Strings(f)
+	jsonOut(w, f)
+}
+
+// testAlert evaluates a rule (saved or not) right now without sending.
+func (s *Server) testAlert(w http.ResponseWriter, r *http.Request) {
+	var a store.AlertRule
+	if err := decode(r, &a); err != nil {
+		jerr(w, 400, "invalid request")
+		return
+	}
+	if _, err := query.Compile(a.Query); err != nil {
+		jerr(w, 400, "filter: "+err.Error())
+		return
+	}
+	if err := a.Validate(); err != nil {
+		jerr(w, 400, err.Error())
+		return
+	}
+	res, err := s.Alerts.Check(r.Context(), a, time.Now())
+	if err != nil {
+		jerr(w, 400, err.Error())
+		return
+	}
+	if len(res.Hits) > 100 {
+		res.Hits = res.Hits[:100]
+	}
+	jsonOut(w, res)
 }
 
 func (s *Server) deleteAlert(w http.ResponseWriter, r *http.Request) {

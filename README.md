@@ -14,13 +14,14 @@ A central syslog server built specifically for UniFi. All UniFi sites send their
 - **UniFi parser**: device name `model,mac,version`, iptables rule tags (`WAN_IN-D-3001`, `DESCR="..."`), CEF from UniFi Network SIEM, hostapd/stahtd, dnsmasq/kea DHCP, DNS, Suricata IPS, WireGuard/OpenVPN/IPsec, SSH logins, switch ports and `EVT_*` controller codes. UniFi Protect (cameras, smart detections, doorbells), UniFi Access (doors, granted and denied access) and UniFi OS system events (CEF) get their own categories.
 - **UniFi Network API**: connect one or more consoles with an API key. Client and device names are attached to log lines, so you see "Alex's iPhone" and "AP Attic" instead of MAC addresses. Without a controller, names are learnt from DHCP logs. All known names are listed under **Clients**.
 - **GeoIP**: country and AS number (provider) of external IP addresses from DB-IP Lite (no account) or MaxMind GeoLite2, updated automatically, with a world map on the dashboards.
-- **Storage**: ClickHouse (columnar storage, compression, billions of rows), daily partitions and a configurable retention period. Metadata in SQLite.
+- **Storage**: ClickHouse (columnar storage, compression, billions of rows), daily partitions and a configurable retention period, also [per category](#retention-per-category) (for example Wi-Fi 30 days and IPS a year). Metadata in SQLite.
 
 **Look and search**
 
 - **Overview dashboard**: messages per category, blocked traffic and threats per country, blocked sources and ports, IPS signatures, Wi-Fi clients, SSIDs, DHCP clients, devices, sites and the status of the remote probes. Click through to the logs.
 - **Ready-made dashboards**: Firewall, Wi-Fi (roaming and connection problems), DHCP, VPN (WireGuard, Teleport and site-to-site) and Threats (IPS), each filterable per site and period.
 - **Search**: a dedicated [query language](#query-language) with fields, CIDR, ranges and wildcards, a histogram, live tail, and export to CSV and JSON.
+- **Saved searches**: save a search with its time range, keep it private or share it with everyone, and pin it as a shortcut in the menu. See [below](#saved-searches).
 - **Categories**: your own categories (a saved search with a color) to filter logs, with counters on the Categories page.
 
 **Sites and devices**
@@ -32,7 +33,7 @@ A central syslog server built specifically for UniFi. All UniFi sites send their
 **Act on events**
 
 - **Forwarding** to Microsoft Sentinel, Elasticsearch / Elastic Cloud / OpenSearch, Logstash, syslog (Graylog, Wazuh, QRadar…), Splunk HEC and JSON webhooks, with per-destination filters, an on-disk queue, retries, volume and cost statistics, and ready-made Sentinel and Kibana content. See [below](#forwarding-to-sentinel-elastic-and-other-tools).
-- **Alerts**: notify when a search exceeds a threshold within a time window, by email, in your chat and messaging channels, and optionally as an alert record to Microsoft Sentinel or another forwarding destination. Each rule has a severity (info, warning, critical).
+- **Alerts**: notify when a search exceeds a threshold, gets fewer events than expected (a site or device that went quiet), has many different values (a port scan) or spikes compared with normal, for the whole search or per value of a field, on a schedule if you want. By email, in your chat and messaging channels, and optionally as an alert record to Microsoft Sentinel or another forwarding destination. Each rule has a severity (info, warning, critical) and a *Test now* button. See [below](#alert-rules).
 - **Notification channels**: Microsoft Teams, Slack, Telegram, SMS via MessageBird / Bird, Pushover and JSON webhooks next to email, with channels per alert rule, a minimum severity per channel, quiet hours, batching against alert storms and a test button. Silent devices, offline probes, outdated firmware and backups can go there too. See [below](#notification-channels).
 
 **Administration and security**
@@ -42,6 +43,7 @@ A central syslog server built specifically for UniFi. All UniFi sites send their
 - **Two-factor authentication** (TOTP) for local accounts, optionally mandatory, with recovery codes.
 - **Source allowlist** that only accepts syslog from known IP addresses or networks, and lists rejected senders.
 - **Audit log** of who signed in, viewed, changed, exported or restored what.
+- **System status**: messages per second, dropped packets, disk space and ClickHouse health on one page, with a notification when something goes wrong. See [below](#system-status).
 - **REST API** with personal API tokens (read-only or read and write) for scripts and integrations, see [docs/API.md](docs/API.md).
 - **Mail**: your own SMTP server with STARTTLS or TLS, minimum TLS 1.2/1.3, and PLAIN, LOGIN, CRAM-MD5, SCRAM-SHA-256 or OAuth2 (Microsoft 365).
 - **Backup**: full and incremental backups to FTP, FTPS, SCP or a local folder, with scheduling, retention policy and restore from the remote location.
@@ -52,6 +54,56 @@ A central syslog server built specifically for UniFi. All UniFi sites send their
 - **Deployment**: a Proxmox LXC script (Debian 13) and an installer for Debian 13 VMs and physical servers. The web interface runs on **port 8080**.
 
 See the [roadmap](ROADMAP.md) for what is planned next.
+
+## Alert rules
+
+Alert rules live under **Configuration → Alerts**. Each rule is a search plus a condition within a time window:
+
+| Condition | Fires when | Example |
+|---|---|---|
+| **At least a number of events** | the search matches at least *N* events | 20 failed SSH logins in 5 minutes |
+| **Fewer events than expected** | the search matches fewer than *N* events | a site that sent no logs for 15 minutes |
+| **Many different values** | a field has at least *N* different values | 25 destination ports from one source IP: a port scan |
+| **Spike compared with normal** | the window has *X*% more events than the average window of the last hours (at least a quarter of that history is needed), and at least *N* | blocked traffic 300% above normal |
+
+- **Per value**: evaluate the rule per source IP, site, device, client, SSID or another field. The alert lists every value that matches, for example each IP address that is scanning. With *fewer events than expected*, every value seen in the last hours that went quiet is reported.
+- **Schedule**: only evaluate on some weekdays or between two times (server time), for example sign-ins between 18:00 and 08:00.
+- **Test now** evaluates the rule against the current logs without sending anything, and shows the matches or the highest value.
+- A **cooldown** keeps a rule from firing again too soon; a severity and channels decide who hears about it.
+
+| | |
+|---|---|
+| ![Alert rules](docs/screenshots/alerts-rules.png)<br>**Alert rules** with their condition, schedule and channels. | ![Editing an alert rule](docs/screenshots/alerts-edit.png)<br>**A rule** that counts destination ports per source IP, with the result of *Test now*. |
+
+## Saved searches
+
+On the **Logs** page, *Save search* stores the search with its time range and site. **Saved searches** lists your own searches and the ones shared with everyone:
+
+- **Private or shared**: everyone can save searches for themselves; analysts and administrators can share them with all users. Only the owner and administrators can change a shared search.
+- **In the menu**: pin a search and it appears as a shortcut under *Saved searches* in the menu on the left. Pins are personal, so every user picks their own.
+- **Copy link** and **Create alert from this search** (administrators) on every search.
+
+![Saved searches with shortcuts in the menu](docs/screenshots/saved-searches.png)
+
+## Retention per category
+
+Under **Administration → Settings**, *Retention per category* keeps some categories shorter or longer than the default retention, for example Wi-Fi 30 days, the firewall 90 days and IPS a year. The page shows how many messages each category holds and how old the oldest one is. ClickHouse removes expired logs in the background with its TTL rules, usually within a few hours of saving.
+
+![Retention per category](docs/screenshots/retention.png)
+
+## System status
+
+**Administration → System status** shows the health of the server itself and refreshes every few seconds:
+
+- **Messages per second** received and stored, with a chart of the last hour and the peak.
+- **Dropped and rejected**: messages dropped because the ingest queue was full, packets the kernel dropped because the UDP receive buffer was full (`/proc/net/snmp`), senders rejected by the allowlist and failed inserts.
+- **Disk space** of every ClickHouse disk and the server's data directory.
+- **ClickHouse**: response time, version, uptime, stored rows, size and compression, data parts, merges, mutations and memory.
+- **Components**: remote probes, forwarding destinations, notification channels and the last backup.
+
+When a problem starts (less than 15% or 5% disk space free, ClickHouse unreachable, failing inserts, dropped packets, too many data parts) it is shown at the top of the page and sent to the notification channels that subscribe to *System status* and by e-mail to the default recipient; when it is over, a short *resolved* message follows.
+
+![System status](docs/screenshots/status.png)
 
 ## Notification channels
 

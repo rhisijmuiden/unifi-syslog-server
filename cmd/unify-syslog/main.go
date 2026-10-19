@@ -42,6 +42,7 @@ import (
 	"github.com/rhisijmuiden/unify-syslog-server/internal/simulate"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/store"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/syslogd"
+	"github.com/rhisijmuiden/unify-syslog-server/internal/sysstatus"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/tlscert"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/tlsmux"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/update"
@@ -185,7 +186,7 @@ func serve(cfgPath string) error {
 	pin := tlscert.LeafPin(cert)
 	hub := &probehub.Hub{Meta: meta, Out: queue, Dir: filepath.Join(cfg.DataDir, "probes"), Log: log, Mailer: mailer, Notify: notifier, Pin: pin}
 	bk := &backup.Manager{Meta: meta, Logs: logs, Mailer: mailer, Notify: notifier, Dir: cfg.BackupDir(), KeyPath: cfg.SecretKeyPath(), Log: log, Restart: restart}
-	al := &alerts.Engine{Meta: meta, Logs: logs, Mailer: mailer, Log: log, Started: time.Now(), Controller: enricher.Device, Forward: fwd, Notify: notifier}
+	al := &alerts.Engine{Meta: meta, Logs: logs, Mailer: mailer, Log: log, Started: time.Now(), Controller: enricher.Device, Forward: fwd, Notify: notifier, Loc: getLoc}
 	go func() {
 		sctx, cancel := context.WithTimeout(ctx, time.Minute)
 		defer cancel()
@@ -193,8 +194,10 @@ func serve(cfgPath string) error {
 			log.Warn("seed device inventory", "err", err)
 		}
 	}()
+	mon := &sysstatus.Monitor{Sys: sysStats, Ing: ingStats, Filter: filter, Logs: logs, Notify: notifier, Mailer: mailer, Log: log, DataDir: cfg.DataDir,
+		Queue: func() (int, int) { return len(queue), cap(queue) }, Started: time.Now()}
 	apiSrv := &api.Server{Cfg: cfg, Meta: meta, Logs: logs, Mailer: mailer, Backup: bk, Updater: upd, Entra: &auth.Entra{Meta: meta},
-		Alerts: al, Notify: notifier, Forward: fwd, Probes: hub, TLSPin: pin, Pipeline: pipe, Enrich: enricher, Syncer: syncer, Geo: geo, SysStats: sysStats, IngStats: ingStats, UI: web.Dist(), Log: log, Started: time.Now(), Restart: restart, Filter: filter,
+		Alerts: al, Notify: notifier, Forward: fwd, Probes: hub, TLSPin: pin, Pipeline: pipe, Enrich: enricher, Syncer: syncer, Geo: geo, SysStats: sysStats, Status: mon, IngStats: ingStats, UI: web.Dist(), Log: log, Started: time.Now(), Restart: restart, Filter: filter,
 		OnSettings: func(g store.GeneralSettings) { setLoc(g.Timezone) }}
 
 	httpSrv := &http.Server{Addr: cfg.HTTPListen, Handler: apiSrv.Handler(), ReadHeaderTimeout: 10 * time.Second}
@@ -205,6 +208,7 @@ func serve(cfgPath string) error {
 	go func() { pipe.Run(ctx); fwd.InputDone(); close(pipeDone) }()
 	go bk.Scheduler(ctx, getLoc)
 	go al.Run(ctx)
+	go mon.Run(ctx)
 	go notifier.Run(ctx)
 	fwdDone := make(chan struct{})
 	go func() { fwd.Run(ctx); close(fwdDone) }()

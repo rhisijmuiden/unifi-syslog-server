@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { CalendarClock, MapPin, RefreshCw } from 'lucide-react'
 import { api } from '../api'
 import { rangePresets } from '../lib/format'
@@ -67,6 +68,15 @@ export function useUrlState<T extends Record<string, string>>(defaults: T): [T, 
     return out
   }
   const [s, set] = useState<T>(read)
+  // Links to the same page with other filters (saved searches in the menu)
+  // change the URL through the router; take them over.
+  const loc = useLocation()
+  const first = useRef(true)
+  useEffect(() => {
+    if (first.current) { first.current = false; return }
+    set(read())
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loc.key])
   const update = (p: Partial<T>) => {
     const n = { ...s, ...p } as T
     set(n)

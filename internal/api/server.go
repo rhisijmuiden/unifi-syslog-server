@@ -35,6 +35,7 @@ import (
 	"github.com/rhisijmuiden/unify-syslog-server/internal/probehub"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/store"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/syslogd"
+	"github.com/rhisijmuiden/unify-syslog-server/internal/sysstatus"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/update"
 )
 
@@ -57,6 +58,8 @@ type Server struct {
 	TLSPin   string
 	Geo      *geoip.Manager
 	SysStats *syslogd.Stats
+	// Status watches the server's own health (System status page).
+	Status   *sysstatus.Monitor
 	IngStats *ingest.Stats
 	UI       fs.FS
 	Log      *slog.Logger
@@ -137,6 +140,14 @@ func (s *Server) Handler() http.Handler {
 			r.Get("/geoip/status", s.geoIPState)
 			r.Get("/probes/summary", s.probeSummary)
 
+			// Saved searches: everyone saves their own; sharing needs the
+			// analyst role, which the handler checks.
+			r.Get("/saved-searches", s.listSearches)
+			r.Post("/saved-searches", s.saveSearch)
+			r.Put("/saved-searches/{id}", s.saveSearch)
+			r.Delete("/saved-searches/{id}", s.deleteSearch)
+			r.Put("/saved-searches/{id}/pin", s.pinSearch)
+
 			// Account self-service needs a browser session, not an API token.
 			r.Group(func(r chi.Router) {
 				r.Use(sessionOnly)
@@ -185,6 +196,8 @@ func (s *Server) Handler() http.Handler {
 				r.Post("/site-ranges", s.saveRange)
 				r.Delete("/site-ranges/{id}", s.deleteRange)
 
+				r.Get("/system/status", s.systemStatus)
+				r.Get("/settings/retention/usage", s.retentionUsage)
 				r.Get("/settings/general", s.getGeneral)
 				r.Put("/settings/general", s.putGeneral)
 				r.Get("/settings/branding", s.getBranding)
@@ -236,6 +249,8 @@ func (s *Server) Handler() http.Handler {
 				r.Delete("/notify/{id}", s.deleteNotify)
 
 				r.Get("/alerts", s.listAlerts)
+				r.Get("/alerts/fields", s.alertFields)
+				r.Post("/alerts/test", s.testAlert)
 				r.Post("/alerts", s.saveAlert)
 				r.Put("/alerts/{id}", s.saveAlert)
 				r.Delete("/alerts/{id}", s.deleteAlert)

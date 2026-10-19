@@ -69,6 +69,39 @@ curl -s -H "Authorization: Bearer $TOKEN" -o blocked.csv \
 | `GET /api/info` | Version, uptime and storage |
 | `GET /api/health` | `{"status":"ok"}` when ClickHouse is reachable (no token needed) |
 
+## Saved searches
+
+| Method and path | Does |
+|---|---|
+| `GET /api/saved-searches` | Your own saved searches and all shared ones, with `pinned` (in your menu), `mine` and `can_edit` |
+| `POST /api/saved-searches` | Save a search: `name`, `description`, `query`, `preset` (`""`, `15m`, `1h`, `6h`, `24h`, `7d`, `30d`, `90d` or `custom` with `from`/`to` as `2006-01-02T15:04`), `site`, `shared`, `pinned` |
+| `PUT /api/saved-searches/{id}` | Change a search (owner or administrator) |
+| `DELETE /api/saved-searches/{id}` | Delete a search (owner or administrator) |
+| `PUT /api/saved-searches/{id}/pin` | Add a search to your menu or remove it: `{"pinned":true}` |
+
+Every user can save private searches; sharing needs the analyst or administrator role.
+
+## Alert rules
+
+| Method and path | Does |
+|---|---|
+| `GET /api/alerts` | Alert rules |
+| `POST /api/alerts`, `PUT /api/alerts/{id}` | Create or change a rule |
+| `DELETE /api/alerts/{id}` | Remove a rule |
+| `POST /api/alerts/test` | Evaluate the rule in the request body now, without sending: `{"hits":[{"key":"203.0.113.9","value":31}],"groups":4,"top":{…}}` |
+| `GET /api/alerts/fields` | Fields a rule can group by or count distinct values of |
+
+A rule has `query`, `threshold`, `window_minutes`, `cooldown_minutes` and `condition`: `above` (at least `threshold` events), `below` (fewer than `threshold`), `distinct` (at least `threshold` different values of `distinct_field`) or `spike` (`spike_percent` more than the average window of the last `baseline_hours`, and at least `threshold`; it needs a quarter of that history). `group_by` evaluates per value of a field. `schedule` limits when the rule runs: `{"days":[1,2,3,4,5],"from":"18:00","to":"08:00"}` (0 = Sunday, server time). These need an administrator.
+
+## System status
+
+| Method and path | Returns |
+|---|---|
+| `GET /api/system/status` | Health (`ok`, `warning`, `critical`) with the current issues, messages per second (last hour per 10 seconds), dropped and rejected counters, kernel UDP counters, disks, ClickHouse health and storage, process figures and the state of probes, forwarding, notifications and backups |
+| `GET /api/settings/retention/usage` | Stored messages and the oldest message per category |
+
+Retention per category is part of the general settings: `PUT /api/settings/general` with `"category_retention": {"wifi": 30, "ips": 365}` next to `retention_days`. These need an administrator.
+
 ## Forwarding
 
 | Method and path | Does |

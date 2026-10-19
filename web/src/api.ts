@@ -124,3 +124,46 @@ export interface Category {
   pinned: boolean
   sort: number
 }
+
+/** A search saved from the Logs page; shared ones are visible to everyone. */
+export interface SavedSearch {
+  id: number
+  owner_id: number
+  owner: string
+  name: string
+  description: string
+  query: string
+  /** Time range preset such as "24h", or "custom" with from/to; empty keeps the default. */
+  preset: string
+  from: string
+  to: string
+  site: string
+  shared: boolean
+  /** In the signed-in user's menu. */
+  pinned: boolean
+  mine: boolean
+  can_edit: boolean
+  updated_at: number
+}
+
+/** Logs page link that opens a saved search. */
+export function searchLink(s: Pick<SavedSearch, 'query' | 'preset' | 'from' | 'to' | 'site'>) {
+  const q = new URLSearchParams()
+  if (s.query) q.set('q', s.query)
+  if (s.preset) q.set('preset', s.preset)
+  if (s.preset === 'custom') { q.set('from', s.from); q.set('to', s.to) }
+  if (s.site) q.set('site', s.site)
+  const qs = q.toString()
+  return '/logs' + (qs ? '?' + qs : '')
+}
+
+/** Whether a Logs page query string shows this saved search. */
+export function searchMatches(s: Pick<SavedSearch, 'query' | 'preset' | 'from' | 'to' | 'site'>, search: string) {
+  const q = new URLSearchParams(search)
+  const preset = q.get('preset') || '1h'
+  return (q.get('q') ?? '') === s.query && preset === (s.preset || '1h') && (q.get('site') ?? '') === s.site &&
+    (preset !== 'custom' || ((q.get('from') ?? '') === s.from && (q.get('to') ?? '') === s.to))
+}
+
+/** Tells the menu that saved searches or pins changed. */
+export const searchesChanged = () => window.dispatchEvent(new Event('uss:searches'))

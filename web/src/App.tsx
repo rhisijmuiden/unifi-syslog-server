@@ -1,11 +1,12 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
-import { BrowserRouter, NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { createContext, Fragment, useContext, useEffect, useState, type ReactNode } from 'react'
+import { BrowserRouter, Link, NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, ScrollText, Tags, Router as RouterIcon, MapPin, BellRing, Users, KeyRound, Mail, DatabaseBackup,
   Settings, History, Info, LogOut, Moon, Sun, Menu, X, Languages, Palette,
   ShieldX, Wifi, Network, Lock, Siren, Smartphone, Server, Globe, UserRound, ShieldCheck, ListChecks, Send, RadioTower, Megaphone,
+  Bookmark, Activity, Users2,
 } from 'lucide-react'
-import { api, brandingUrl, can, type Branding, type User } from './api'
+import { api, brandingUrl, can, searchLink, searchMatches, type Branding, type SavedSearch, type User } from './api'
 import { roleLabel } from './components/Access'
 import { languages, setLanguage, t } from './i18n'
 import { BrandHeader } from './components/Brand'
@@ -35,6 +36,8 @@ import Allowlist from './pages/Allowlist'
 import Forwarding from './pages/Forwarding'
 import Probes from './pages/Probes'
 import Notifications from './pages/Notifications'
+import SavedSearches from './pages/SavedSearches'
+import SystemStatus from './pages/Status'
 
 interface AuthCtx {
   user: User
@@ -132,6 +135,7 @@ const nav: { section: string; items: NavItem[] }[] = [
   { section: 'Monitoring', items: [
     { to: '/', label: 'Overview', icon: <LayoutDashboard /> },
     { to: '/logs', label: 'Logs', icon: <ScrollText /> },
+    { to: '/searches', label: 'Saved searches', icon: <Bookmark /> },
     { to: '/categories', label: 'Categories', icon: <Tags /> },
     { to: '/devices', label: 'Devices', icon: <RouterIcon /> },
     { to: '/clients', label: 'Clients', icon: <Smartphone /> },
@@ -154,6 +158,7 @@ const nav: { section: string; items: NavItem[] }[] = [
     { to: '/allowlist', label: 'Source allowlist', icon: <ListChecks />, admin: true },
   ] },
   { section: 'Administration', items: [
+    { to: '/status', label: 'System status', icon: <Activity />, admin: true },
     { to: '/users', label: 'Users', icon: <Users />, admin: true },
     { to: '/sso', label: 'Microsoft Entra SSO', icon: <KeyRound />, admin: true },
     { to: '/security', label: 'Security', icon: <ShieldCheck />, admin: true },
@@ -181,6 +186,17 @@ function Shell() {
   const loc = useLocation()
   useEffect(() => setMobile(false), [loc.pathname])
   const isAdmin = can.admin(user)
+  const [pinned, setPinned] = useState<SavedSearch[]>([])
+  useEffect(() => {
+    const load = () => api.get<SavedSearch[]>('/saved-searches').then((l) => setPinned(l.filter((x) => x.pinned))).catch(() => {})
+    load()
+    window.addEventListener('uss:searches', load)
+    return () => window.removeEventListener('uss:searches', load)
+  }, [])
+  // The Logs page rewrites its URL without the router, so read it here.
+  const activeSearch = loc.pathname === '/logs' ? pinned.find((x) => searchMatches(x, window.location.search)) : undefined
+  const linkClass = (active: boolean) => cx('group flex items-center gap-3 rounded-xl px-3 py-2 text-sm transition [&_svg]:size-4',
+    active ? 'bg-gradient-to-r from-indigo-500/15 to-cyan-500/10 text-indigo-400 font-medium ring-1 ring-indigo-500/20' : 'text-muted hover:bg-[var(--panel-2)] hover:text-[var(--text)]')
 
   const sidebar = (
     <aside className="flex h-full w-64 flex-col border-r border-app bg-[var(--panel)]">
@@ -190,16 +206,27 @@ function Shell() {
           const items = g.items.filter((i) => !i.admin || isAdmin)
           if (!items.length) return null
           return (
-            <div key={g.section}>
-              <div className="px-3 pb-1.5 text-[10px] font-semibold uppercase tracking-widest text-muted">{t(g.section)}</div>
-              {items.map((i) => (
-                <NavLink key={i.to} to={i.to} end={i.to === '/'}
-                  className={({ isActive }) => cx('group flex items-center gap-3 rounded-xl px-3 py-2 text-sm transition [&_svg]:size-4',
-                    isActive ? 'bg-gradient-to-r from-indigo-500/15 to-cyan-500/10 text-indigo-400 font-medium ring-1 ring-indigo-500/20' : 'text-muted hover:bg-[var(--panel-2)] hover:text-[var(--text)]')}>
-                  {i.icon}{t(i.label)}
-                </NavLink>
-              ))}
-            </div>
+            <Fragment key={g.section}>
+              <div>
+                <div className="px-3 pb-1.5 text-[10px] font-semibold uppercase tracking-widest text-muted">{t(g.section)}</div>
+                {items.map((i) => (
+                  <NavLink key={i.to} to={i.to} end={i.to === '/'}
+                    className={({ isActive }) => linkClass(isActive && !(i.to === '/logs' && activeSearch))}>
+                    {i.icon}{t(i.label)}
+                  </NavLink>
+                ))}
+              </div>
+              {g.section === 'Monitoring' && pinned.length > 0 && (
+                <div>
+                  <div className="px-3 pb-1.5 text-[10px] font-semibold uppercase tracking-widest text-muted">{t('Saved searches')}</div>
+                  {pinned.map((x) => (
+                    <Link key={x.id} to={searchLink(x)} title={x.query || t('(all)')} className={linkClass(activeSearch?.id === x.id)}>
+                      {x.shared ? <Users2 /> : <Bookmark />}<span className="truncate">{x.name}</span>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </Fragment>
           )
         })}
       </nav>
@@ -248,6 +275,7 @@ function Shell() {
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/logs" element={<Logs />} />
+            <Route path="/searches" element={<SavedSearches />} />
             <Route path="/categories" element={<Categories />} />
             <Route path="/devices" element={<Devices />} />
             <Route path="/sites" element={<Sites />} />
@@ -255,6 +283,7 @@ function Shell() {
             <Route path="/dashboards/:kind" element={<Dashboards />} />
             <Route path="/account" element={<Account />} />
             {isAdmin && <>
+              <Route path="/status" element={<SystemStatus />} />
               <Route path="/alerts" element={<Alerts />} />
               <Route path="/notifications" element={<Notifications />} />
               <Route path="/forwarding" element={<Forwarding />} />

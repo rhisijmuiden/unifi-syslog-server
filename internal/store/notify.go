@@ -74,9 +74,12 @@ const (
 	SourceFirmware = "firmware"
 	SourceProbes   = "probes"
 	SourceBackup   = "backup"
+	// SourceSystem is the server's own health: disk space, ClickHouse,
+	// dropped messages.
+	SourceSystem = "system"
 )
 
-var NotifySources = []string{SourceDevices, SourceFirmware, SourceProbes, SourceBackup}
+var NotifySources = []string{SourceDevices, SourceFirmware, SourceProbes, SourceBackup, SourceSystem}
 
 // NotifyConfig decides what a channel receives and when.
 type NotifyConfig struct {

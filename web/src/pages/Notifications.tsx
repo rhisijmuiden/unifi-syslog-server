@@ -51,6 +51,7 @@ const events = () => [
   { value: 'probes', label: t('Remote probes offline or buffer filling up') },
   { value: 'firmware', label: t('Outdated firmware') },
   { value: 'backup', label: t('Backups') },
+  { value: 'system', label: t('System status: disk space, ClickHouse, dropped messages') },
 ]
 
 const defaults: Record<Kind, { config?: Partial<Config>; settings?: Settings }> = {
@@ -64,7 +65,7 @@ const defaults: Record<Kind, { config?: Partial<Config>; settings?: Settings }> 
 
 const newChannel = (kind: Kind): Channel => ({
   id: 0, name: kindInfo(kind).name, kind, enabled: true, last_ok: 0, last_error: '', last_error_at: 0, created_at: 0,
-  config: { min_severity: 'info', events: ['devices', 'probes', 'firmware', 'backup'], language: '', quiet_enabled: false, quiet_start: '22:00', quiet_end: '07:00', quiet_critical: true, batch_minutes: 0, ...defaults[kind].config },
+  config: { min_severity: 'info', events: ['devices', 'probes', 'firmware', 'backup', 'system'], language: '', quiet_enabled: false, quiet_start: '22:00', quiet_end: '07:00', quiet_critical: true, batch_minutes: 0, ...defaults[kind].config },
   settings: { ...defaults[kind].settings },
 })
 
@@ -96,7 +97,7 @@ export default function Notifications() {
         <Card title={t('How it works')}>
           <ul className="space-y-3 text-sm text-muted">
             <li className="flex gap-3"><BellRing className="mt-0.5 size-4 shrink-0 text-indigo-400" /><span>{t('Alert rules choose their own channels and severity under Alerts, e.g. Teams for everything and SMS only for critical alerts.')}</span></li>
-            <li className="flex gap-3"><Layers className="mt-0.5 size-4 shrink-0 text-indigo-400" /><span>{t('System events such as silent devices, offline probes, outdated firmware and backups go to every channel that subscribes to them.')}</span></li>
+            <li className="flex gap-3"><Layers className="mt-0.5 size-4 shrink-0 text-indigo-400" /><span>{t('System events such as silent devices, offline probes, outdated firmware, backups and system status go to every channel that subscribes to them.')}</span></li>
             <li className="flex gap-3"><Moon className="mt-0.5 size-4 shrink-0 text-indigo-400" /><span>{t('During quiet hours notifications are held and sent as one summary afterwards; critical ones can still go out right away.')}</span></li>
             <li className="flex gap-3"><Clock className="mt-0.5 size-4 shrink-0 text-indigo-400" /><span>{t('Batching combines everything within a few minutes into one message, so an alert storm does not flood your phone.')}</span></li>
           </ul>

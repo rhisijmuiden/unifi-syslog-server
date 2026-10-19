@@ -12,6 +12,7 @@ Next to e-mail, the server can tell you about problems in **Microsoft Teams**, *
   - remote probes that go offline or whose buffer fills up (warning), and that recover (info)
   - outdated firmware (info)
   - backups: failed (critical) and succeeded (info)
+  - system status: low disk space, ClickHouse unreachable or failing inserts, dropped syslog packets (warning or critical), and when the problem is over (info)
 - **Minimum severity** per channel skips anything below it. Set an SMS channel to *Critical and up* and it only receives critical alerts and failed backups.
 
 The e-mail settings of the inventory, probes and backups are unchanged; channels come on top of them.
