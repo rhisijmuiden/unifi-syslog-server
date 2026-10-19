@@ -41,6 +41,15 @@ function update_script() {
   apt_update_safe
   $STD apt -y upgrade
   msg_ok "Updated OS packages"
+  if [[ -d /etc/clickhouse-server/config.d && ! -L /etc/clickhouse-server/config.d/zz-unify-syslog-managed.xml ]]; then
+    msg_info "Letting ${APP} configure cold storage in ClickHouse"
+    install -d -m 2750 -o unify-syslog -g clickhouse /var/lib/unify-syslog-ch
+    [[ -f /var/lib/unify-syslog-ch/storage.xml ]] || echo '<clickhouse/>' >/var/lib/unify-syslog-ch/storage.xml
+    chown unify-syslog:clickhouse /var/lib/unify-syslog-ch/storage.xml
+    chmod 0640 /var/lib/unify-syslog-ch/storage.xml
+    ln -sfn /var/lib/unify-syslog-ch/storage.xml /etc/clickhouse-server/config.d/zz-unify-syslog-managed.xml
+    msg_ok "Cold storage can be configured"
+  fi
   msg_info "Updating ${APP}"
   if runuser -u unify-syslog -- /opt/unify-syslog/unify-syslog update; then
     systemctl restart unify-syslog

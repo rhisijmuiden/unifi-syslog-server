@@ -4,7 +4,7 @@ import {
   LayoutDashboard, ScrollText, Tags, Router as RouterIcon, MapPin, BellRing, Users, KeyRound, Mail, DatabaseBackup,
   Settings, History, Info, LogOut, Moon, Sun, Menu, X, Languages, Palette,
   ShieldX, Wifi, Network, Lock, Siren, Smartphone, Server, Globe, UserRound, ShieldCheck, ListChecks, Send, RadioTower, Megaphone,
-  Bookmark, Activity, Users2,
+  Bookmark, Activity, Users2, HardDrive, Gauge, ServerCog, Moon as MoonIcon,
 } from 'lucide-react'
 import { api, brandingUrl, can, searchLink, searchMatches, type Branding, type SavedSearch, type User } from './api'
 import { roleLabel } from './components/Access'
@@ -38,6 +38,9 @@ import Probes from './pages/Probes'
 import Notifications from './pages/Notifications'
 import SavedSearches from './pages/SavedSearches'
 import SystemStatus from './pages/Status'
+import Storage from './pages/Storage'
+import Monitoring from './pages/Monitoring'
+import HighAvailability from './pages/HighAvailability'
 
 interface AuthCtx {
   user: User
@@ -47,6 +50,7 @@ interface AuthCtx {
   logout: () => void
   setUser: (u: User) => void
   reloadStatus: () => void
+  standby?: { peer_url: string }
 }
 const Ctx = createContext<AuthCtx>(null as unknown as AuthCtx)
 export const useAuth = () => useContext(Ctx)
@@ -57,6 +61,7 @@ interface Status {
   language: string
   branding: Branding
   sso: { enabled: boolean; label: string }
+  standby?: { peer_url: string }
 }
 
 const noBranding: Branding = { company_name: '', version: '', assets: {} }
@@ -118,7 +123,7 @@ export default function App() {
           <Login instance={instance} branding={branding} sso={status?.sso} initialError={state.error} onLogin={(u) => { window.history.replaceState(null, '', '/'); setUser(u) }} />
         ) : (
           <Ctx.Provider value={{
-            user: status.user, instance, branding, serverLanguage: status.language, setUser, reloadStatus: load,
+            user: status.user, instance, branding, serverLanguage: status.language, setUser, reloadStatus: load, standby: status.standby,
             logout: async () => { await api.post('/auth/logout'); setUser(undefined) },
           }}>
             {/* Remount on language change so every page re-renders its text. */}
@@ -159,6 +164,9 @@ const nav: { section: string; items: NavItem[] }[] = [
   ] },
   { section: 'Administration', items: [
     { to: '/status', label: 'System status', icon: <Activity />, admin: true },
+    { to: '/storage', label: 'Storage', icon: <HardDrive />, admin: true },
+    { to: '/monitoring', label: 'Metrics & Grafana', icon: <Gauge />, admin: true },
+    { to: '/ha', label: 'High availability', icon: <ServerCog />, admin: true },
     { to: '/users', label: 'Users', icon: <Users />, admin: true },
     { to: '/sso', label: 'Microsoft Entra SSO', icon: <KeyRound />, admin: true },
     { to: '/security', label: 'Security', icon: <ShieldCheck />, admin: true },
@@ -174,7 +182,7 @@ const nav: { section: string; items: NavItem[] }[] = [
 ]
 
 function Shell() {
-  const { user, instance, branding, serverLanguage, logout, setUser } = useAuth()
+  const { user, instance, branding, serverLanguage, logout, setUser, standby } = useAuth()
   const toast = useToast()
   const changeLanguage = async (language: string) => {
     try { setUser(await api.put<User>('/me/language', { language })) } catch (e) { toast('err', (e as Error).message) }
@@ -271,6 +279,13 @@ function Shell() {
           <button onClick={() => setMobile(!mobile)} className="cursor-pointer">{mobile ? <X /> : <Menu />}</button>
           <span className="truncate font-semibold">{instance}</span>
         </div>
+        {standby && (
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-amber-500/30 bg-amber-500/10 px-4 py-2 text-sm text-amber-500 sm:px-6 lg:px-8 [&_svg]:size-4">
+            <MoonIcon /><span className="font-medium">{t('Standby node')}</span>
+            <span className="text-amber-500/80">{t('Settings are copied from the active node; make changes there.')}</span>
+            {standby.peer_url && <a href={standby.peer_url} className="underline">{t('Open the active node')}</a>}
+          </div>
+        )}
         <div className="mx-auto max-w-[1600px] p-4 sm:p-6 lg:p-8">
           <Routes>
             <Route path="/" element={<Dashboard />} />
@@ -284,6 +299,9 @@ function Shell() {
             <Route path="/account" element={<Account />} />
             {isAdmin && <>
               <Route path="/status" element={<SystemStatus />} />
+              <Route path="/storage" element={<Storage />} />
+              <Route path="/monitoring" element={<Monitoring />} />
+              <Route path="/ha" element={<HighAvailability />} />
               <Route path="/alerts" element={<Alerts />} />
               <Route path="/notifications" element={<Notifications />} />
               <Route path="/forwarding" element={<Forwarding />} />

@@ -1,10 +1,10 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import {
-  RadioTower, Plus, Pencil, Trash2, KeyRound, RefreshCw, Settings2, Copy, Check, CheckCircle2, AlertCircle, CircleDashed,
+  RadioTower, Plus, Pencil, Trash2, KeyRound, RefreshCw, Settings2, CheckCircle2, AlertCircle, CircleDashed,
   ArrowUpCircle, HardDrive, Cpu, MemoryStick, Router as RouterIcon, Gauge, Database, Server, Terminal, Cpu as Chip,
 } from 'lucide-react'
 import { api } from '../api'
-import { Badge, Button, Card, Empty, Field, Input, Modal, PageHeader, Select, Spinner, Stat, Toggle, cx, useAsync, useToast } from '../components/ui'
+import { Badge, Button, Card, Empty, Field, Input, Modal, PageHeader, Select, Spinner, Stat, Toggle, CopyBox, cx, useAsync, useToast } from '../components/ui'
 import { fmtAgo, fmtBytes, fmtDuration, fmtNum, fmtTime } from '../lib/format'
 import { t } from '../i18n'
 
@@ -248,29 +248,6 @@ function EditProbe({ p, serverUrl, onClose, onSaved }: { p: Probe | null; server
         </div>
       </div>
     </Modal>
-  )
-}
-
-function CopyBox({ text, multiline }: { text: string; multiline?: boolean }) {
-  const [done, setDone] = useState(false)
-  const copy = async () => {
-    try { await navigator.clipboard.writeText(text) } catch {
-      // Clipboard API needs HTTPS; fall back to a selection.
-      const ta = document.createElement('textarea')
-      ta.value = text
-      document.body.appendChild(ta)
-      ta.select()
-      document.execCommand('copy')
-      ta.remove()
-    }
-    setDone(true)
-    setTimeout(() => setDone(false), 1500)
-  }
-  return (
-    <div className="flex items-start gap-2 rounded-xl bg-[var(--panel-2)] p-2 pl-3 ring-1 ring-[var(--border)]">
-      <code className={cx('min-w-0 flex-1 py-1 font-mono text-xs', multiline ? 'whitespace-pre-wrap break-all' : 'truncate')} title={text}>{text}</code>
-      <Button variant="ghost" onClick={copy} title={t('Copy')} icon={done ? <Check className="size-4 text-emerald-500" /> : <Copy className="size-4" />} />
-    </div>
   )
 }
 

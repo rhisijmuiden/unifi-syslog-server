@@ -445,6 +445,10 @@ func (s *Server) putGeneral(w http.ResponseWriter, r *http.Request) {
 		jerr(w, 400, err.Error())
 		return
 	}
+	if c := s.Meta.ColdStorage(); c.Enabled && c.AfterDays >= g.RetentionDays {
+		jerr(w, 400, fmt.Sprintf("logs move to cold storage after %d days; keep them longer than that, or change cold storage first", c.AfterDays))
+		return
+	}
 	if g.Language = i18n.Normalize(g.Language); g.Language == "" {
 		g.Language = "en"
 	}
@@ -559,11 +563,24 @@ func (s *Server) putBackup(w http.ResponseWriter, r *http.Request) {
 	}
 	for _, t := range v.Targets {
 		switch t.Type {
-		case "ftp", "ftps", "ftps-implicit", "scp", "local":
+		case "ftp", "ftps", "ftps-implicit", "scp", "sftp", "local":
+		case "s3":
+			if t.Endpoint == "" || t.Bucket == "" {
+				jerr(w, 400, t.Name+": endpoint and bucket are required")
+				return
+			}
 		default:
 			jerr(w, 400, "unknown type "+t.Type)
 			return
 		}
+	}
+	if v.Encrypt && v.Passphrase != store.Secret && len(v.Passphrase) < 12 {
+		jerr(w, 400, "the encryption passphrase must be at least 12 characters")
+		return
+	}
+	if v.Encrypt && v.Passphrase == store.Secret && s.Meta.Backup().Passphrase == "" {
+		jerr(w, 400, "enter an encryption passphrase")
+		return
 	}
 	if err := s.Meta.SaveBackup(v); err != nil {
 		jerr(w, 500, err.Error())
@@ -655,7 +672,7 @@ func (s *Server) restore(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) backupDownload(w http.ResponseWriter, r *http.Request) {
 	name := filepath.Base(chi.URLParam(r, "name"))
-	if !strings.HasPrefix(name, "unify-syslog-") || !strings.HasSuffix(name, ".tar") {
+	if !backup.IsBackupName(name) {
 		jerr(w, 400, "invalid name")
 		return
 	}

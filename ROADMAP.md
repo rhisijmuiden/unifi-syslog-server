@@ -125,17 +125,17 @@ Goal: a small probe at each site that receives UniFi logs locally, buffers them 
 | Updates through the main server | Probes get their updates from the main server, not from the internet. Update all probes or a selection from the probe overview, with checksum verification and automatic rollback if the new version fails to start |
 | Remote management | Change probe settings (buffer size, ports, log level) from the main server |
 
-## 2.0 Scale and reliability
+## 2.0 Scale and reliability (in test)
 
 Goal: dozens of sites and billions of log lines without data loss.
 
-| Item | Description |
-|---|---|
-| External or clustered ClickHouse | Storage on a separate server or a ClickHouse cluster for large environments |
-| Cold storage | Move old logs to S3-compatible storage (e.g. MinIO, Wasabi) with ClickHouse tiered storage |
-| More backup targets | SFTP and S3 next to FTP, FTPS and SCP; encrypted backups |
-| Monitoring | Prometheus metrics endpoint and a Grafana data source |
-| High availability | Two receivers behind a virtual IP (keepalived) |
+| Item | Description | Status |
+|---|---|---|
+| External or clustered ClickHouse | Storage on a separate server (`deploy/install-clickhouse.sh`) or a ClickHouse cluster with replicated tables, chosen in the installer or switched over under *Storage* with the stored logs copied along | Built, in test |
+| Cold storage | Move old logs to S3-compatible storage (e.g. MinIO, Wasabi) with ClickHouse tiered storage; they stay searchable | Built, in test |
+| More backup targets | SFTP and S3 next to FTP, FTPS and SCP; backups encrypted with a passphrase (age) | Built, in test |
+| Monitoring | Prometheus metrics endpoint with alert rules, Grafana dashboards and a read-only Grafana data source for the logs | Built, in test |
+| High availability | Two receivers behind a virtual IP (keepalived), sharing one ClickHouse; the standby copies all settings and scheduled jobs run once | Built, in test |
 
 ## 2.x Analytics and compliance
 
@@ -152,4 +152,5 @@ Goal: insight and accountability, not just storage.
 
 ## Up next
 
-1. **Scale and reliability** (2.0): external ClickHouse, cold storage and more backup targets for larger environments.
+1. **Scale and reliability** (2.0): built and in test; a production release follows after testing.
+2. **Analytics and compliance** (2.x): anomaly detection, scheduled reports and NIS2 compliance.

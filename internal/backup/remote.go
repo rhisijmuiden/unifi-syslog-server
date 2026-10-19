@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/url"
 	"os"
 	"path"
 	"path/filepath"
@@ -18,6 +19,9 @@ import (
 
 	scp "github.com/bramvdbogaerde/go-scp"
 	"github.com/jlaffaye/ftp"
+	"github.com/minio/minio-go/v7"
+	"github.com/minio/minio-go/v7/pkg/credentials"
+	"github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/rhisijmuiden/unify-syslog-server/internal/store"
@@ -43,6 +47,10 @@ func Connect(ctx context.Context, t store.BackupTarget) (Remote, error) {
 		return dialFTP(ctx, t)
 	case "scp":
 		return dialSCP(ctx, t)
+	case "sftp":
+		return dialSFTP(ctx, t)
+	case "s3":
+		return dialS3(ctx, t)
 	case "local":
 		if t.Path == "" {
 			return nil, errors.New("path is required")
@@ -55,8 +63,10 @@ func Connect(ctx context.Context, t store.BackupTarget) (Remote, error) {
 	return nil, fmt.Errorf("unknown target type %q", t.Type)
 }
 
-func isBackupName(n string) bool {
-	return strings.HasPrefix(n, "unify-syslog-") && strings.HasSuffix(n, ".tar")
+// IsBackupName tells whether a file name is a backup archive, plain
+// (.tar) or encrypted (.tar.age).
+func IsBackupName(n string) bool {
+	return strings.HasPrefix(n, "unify-syslog-") && (strings.HasSuffix(n, ".tar") || strings.HasSuffix(n, ".tar.age")) && !strings.ContainsAny(n, "/\\")
 }
 
 // ---------------------------------------------------------------- FTP / FTPS
@@ -163,7 +173,7 @@ func (r *ftpRemote) List(ctx context.Context) ([]RemoteFile, error) {
 	}
 	var out []RemoteFile
 	for _, e := range entries {
-		if e.Type == ftp.EntryTypeFile && isBackupName(e.Name) {
+		if e.Type == ftp.EntryTypeFile && IsBackupName(e.Name) {
 			out = append(out, RemoteFile{Name: e.Name, Size: int64(e.Size), Modified: e.Time})
 		}
 	}
@@ -181,7 +191,8 @@ type scpRemote struct {
 	dir string
 }
 
-func dialSCP(ctx context.Context, t store.BackupTarget) (Remote, error) {
+// dialSSH opens the SSH connection of an scp or sftp target.
+func dialSSH(ctx context.Context, t store.BackupTarget) (*ssh.Client, error) {
 	var auths []ssh.AuthMethod
 	if strings.TrimSpace(t.PrivateKey) != "" {
 		var signer ssh.Signer
@@ -228,7 +239,14 @@ func dialSCP(ctx context.Context, t store.BackupTarget) (Remote, error) {
 		conn.Close()
 		return nil, err
 	}
-	cl := ssh.NewClient(c, chans, reqs)
+	return ssh.NewClient(c, chans, reqs), nil
+}
+
+func dialSCP(ctx context.Context, t store.BackupTarget) (Remote, error) {
+	cl, err := dialSSH(ctx, t)
+	if err != nil {
+		return nil, err
+	}
 	dir := t.Path
 	if dir == "" {
 		dir = "."
@@ -297,14 +315,14 @@ func (r *scpRemote) Download(ctx context.Context, name, local string) error {
 
 func (r *scpRemote) List(ctx context.Context) ([]RemoteFile, error) {
 	// Portable: name, size and mtime via find (GNU/BusyBox) with ls fallback.
-	out, err := r.run("cd " + shellQuote(r.dir) + " && for f in unify-syslog-*.tar; do [ -f \"$f\" ] && printf '%s\\t%s\\t%s\\n' \"$f\" \"$(wc -c <\"$f\")\" \"$(date -r \"$f\" +%s 2>/dev/null || echo 0)\"; done; true")
+	out, err := r.run("cd " + shellQuote(r.dir) + " && for f in unify-syslog-*.tar unify-syslog-*.tar.age; do [ -f \"$f\" ] && printf '%s\\t%s\\t%s\\n' \"$f\" \"$(wc -c <\"$f\")\" \"$(date -r \"$f\" +%s 2>/dev/null || echo 0)\"; done; true")
 	if err != nil {
 		return nil, err
 	}
 	var files []RemoteFile
 	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
 		p := strings.Split(line, "\t")
-		if len(p) != 3 || !isBackupName(p[0]) {
+		if len(p) != 3 || !IsBackupName(p[0]) {
 			continue
 		}
 		size, _ := strconv.ParseInt(strings.TrimSpace(p[1]), 10, 64)
@@ -321,6 +339,174 @@ func (r *scpRemote) Delete(ctx context.Context, name string) error {
 }
 
 func (r *scpRemote) Close() error { return r.ssh.Close() }
+
+// ---------------------------------------------------------------- SFTP
+
+type sftpRemote struct {
+	ssh *ssh.Client
+	c   *sftp.Client
+	dir string
+}
+
+func dialSFTP(ctx context.Context, t store.BackupTarget) (Remote, error) {
+	cl, err := dialSSH(ctx, t)
+	if err != nil {
+		return nil, err
+	}
+	c, err := sftp.NewClient(cl)
+	if err != nil {
+		cl.Close()
+		return nil, fmt.Errorf("sftp: %w", err)
+	}
+	dir := t.Path
+	if dir == "" {
+		dir = "."
+	}
+	if err := c.MkdirAll(dir); err != nil {
+		c.Close()
+		cl.Close()
+		return nil, fmt.Errorf("mkdir: %w", err)
+	}
+	return &sftpRemote{ssh: cl, c: c, dir: dir}, nil
+}
+
+func (r *sftpRemote) p(name string) string { return path.Join(r.dir, name) }
+
+func (r *sftpRemote) Upload(ctx context.Context, local, name string) error {
+	src, err := os.Open(local)
+	if err != nil {
+		return err
+	}
+	defer src.Close()
+	tmp := r.p(name + ".part")
+	dst, err := r.c.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC)
+	if err != nil {
+		return err
+	}
+	if _, err := dst.ReadFrom(src); err != nil {
+		dst.Close()
+		r.c.Remove(tmp)
+		return err
+	}
+	if err := dst.Close(); err != nil {
+		return err
+	}
+	// PosixRename replaces an existing file where the server supports it.
+	if err := r.c.PosixRename(tmp, r.p(name)); err != nil {
+		r.c.Remove(r.p(name))
+		return r.c.Rename(tmp, r.p(name))
+	}
+	return nil
+}
+
+func (r *sftpRemote) Download(ctx context.Context, name, local string) error {
+	f, err := r.c.Open(r.p(name))
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	return writeFile(local, f)
+}
+
+func (r *sftpRemote) List(ctx context.Context) ([]RemoteFile, error) {
+	entries, err := r.c.ReadDir(r.dir)
+	if err != nil {
+		return nil, err
+	}
+	var out []RemoteFile
+	for _, e := range entries {
+		if e.Mode().IsRegular() && IsBackupName(e.Name()) {
+			out = append(out, RemoteFile{Name: e.Name(), Size: e.Size(), Modified: e.ModTime()})
+		}
+	}
+	sortFiles(out)
+	return out, nil
+}
+
+func (r *sftpRemote) Delete(ctx context.Context, name string) error { return r.c.Remove(r.p(name)) }
+
+func (r *sftpRemote) Close() error {
+	r.c.Close()
+	return r.ssh.Close()
+}
+
+// ---------------------------------------------------------------- S3
+
+type s3Remote struct {
+	c      *minio.Client
+	bucket string
+	prefix string
+}
+
+func dialS3(ctx context.Context, t store.BackupTarget) (Remote, error) {
+	u, err := url.Parse(t.Endpoint)
+	if err != nil || u.Host == "" || (u.Scheme != "https" && u.Scheme != "http") {
+		return nil, errors.New("the endpoint must be a URL such as https://s3.eu-central-1.wasabisys.com")
+	}
+	if t.Bucket == "" {
+		return nil, errors.New("a bucket name is required")
+	}
+	tr, err := minio.DefaultTransport(u.Scheme == "https")
+	if err != nil {
+		return nil, err
+	}
+	if t.SkipVerify && tr.TLSClientConfig != nil {
+		tr.TLSClientConfig.InsecureSkipVerify = true
+	}
+	c, err := minio.New(u.Host, &minio.Options{Creds: credentials.NewStaticV4(t.Username, t.Password, ""), Secure: u.Scheme == "https",
+		Region: t.Region, Transport: tr, BucketLookup: minio.BucketLookupAuto})
+	if err != nil {
+		return nil, err
+	}
+	ok, err := c.BucketExists(ctx, t.Bucket)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return nil, fmt.Errorf("bucket %s does not exist", t.Bucket)
+	}
+	prefix := strings.Trim(t.Path, "/")
+	if prefix != "" {
+		prefix += "/"
+	}
+	return &s3Remote{c: c, bucket: t.Bucket, prefix: prefix}, nil
+}
+
+func (r *s3Remote) Upload(ctx context.Context, local, name string) error {
+	// Multipart upload with 64 MiB parts: archives can be many gigabytes.
+	_, err := r.c.FPutObject(ctx, r.bucket, r.prefix+name, local, minio.PutObjectOptions{ContentType: "application/octet-stream", PartSize: 64 << 20})
+	return err
+}
+
+func (r *s3Remote) Download(ctx context.Context, name, local string) error {
+	obj, err := r.c.GetObject(ctx, r.bucket, r.prefix+name, minio.GetObjectOptions{})
+	if err != nil {
+		return err
+	}
+	defer obj.Close()
+	return writeFile(local, obj)
+}
+
+func (r *s3Remote) List(ctx context.Context) ([]RemoteFile, error) {
+	var out []RemoteFile
+	for o := range r.c.ListObjects(ctx, r.bucket, minio.ListObjectsOptions{Prefix: r.prefix}) {
+		if o.Err != nil {
+			return nil, o.Err
+		}
+		name := strings.TrimPrefix(o.Key, r.prefix)
+		if IsBackupName(name) {
+			out = append(out, RemoteFile{Name: name, Size: o.Size, Modified: o.LastModified})
+		}
+	}
+	sortFiles(out)
+	return out, nil
+}
+
+func (r *s3Remote) Delete(ctx context.Context, name string) error {
+	return r.c.RemoveObject(ctx, r.bucket, r.prefix+name, minio.RemoveObjectOptions{})
+}
+
+func (r *s3Remote) Close() error { return nil }
 
 // ---------------------------------------------------------------- local
 
@@ -351,7 +537,7 @@ func (r *localRemote) List(ctx context.Context) ([]RemoteFile, error) {
 	}
 	var out []RemoteFile
 	for _, e := range entries {
-		if e.IsDir() || !isBackupName(e.Name()) {
+		if e.IsDir() || !IsBackupName(e.Name()) {
 			continue
 		}
 		info, err := e.Info()

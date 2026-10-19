@@ -6,16 +6,20 @@ import (
 )
 
 func TestRetentionTTL(t *testing.T) {
-	if got := RetentionTTL(90, nil); got != "toDateTime(ts) + INTERVAL 90 DAY DELETE" {
+	if got := RetentionTTL(90, nil, ""); got != "toDateTime(ts) + INTERVAL 90 DAY DELETE" {
 		t.Errorf("default only: %s", got)
 	}
-	got := RetentionTTL(90, map[string]int{"wifi": 30, "ips": 365})
+	got := RetentionTTL(90, map[string]int{"wifi": 30, "ips": 365}, "")
 	want := "toDateTime(ts) + INTERVAL 365 DAY DELETE, " +
 		"toDateTime(ts) + INTERVAL 365 DAY DELETE WHERE category = 'ips', " +
 		"toDateTime(ts) + INTERVAL 30 DAY DELETE WHERE category = 'wifi', " +
 		"toDateTime(ts) + INTERVAL 90 DAY DELETE WHERE category NOT IN ('ips', 'wifi')"
 	if got != want {
 		t.Errorf("per category:\n got %s\nwant %s", got, want)
+	}
+	move := ColdTTL(30, "cold")
+	if got := RetentionTTL(90, nil, move); got != "toDateTime(ts) + INTERVAL 30 DAY TO VOLUME 'cold', toDateTime(ts) + INTERVAL 90 DAY DELETE" {
+		t.Errorf("with cold storage: %s", got)
 	}
 }
 

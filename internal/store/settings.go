@@ -69,16 +69,21 @@ type SMTPSettings struct {
 type BackupTarget struct {
 	ID         string `json:"id"`
 	Name       string `json:"name"`
-	Type       string `json:"type"` // ftp | ftps | ftps-implicit | scp | local
+	Type       string `json:"type"` // ftp | ftps | ftps-implicit | scp | sftp | s3 | local
 	Host       string `json:"host"`
 	Port       int    `json:"port"`
 	Username   string `json:"username"`
 	Password   string `json:"password"`
 	PrivateKey string `json:"private_key"`
-	HostKey    string `json:"host_key"` // optional SHA256 fingerprint for scp
-	Path       string `json:"path"`
+	HostKey    string `json:"host_key"` // optional SHA256 fingerprint for scp and sftp
+	Path       string `json:"path"`     // directory, or the key prefix for s3
 	SkipVerify bool   `json:"skip_verify"`
 	Enabled    bool   `json:"enabled"`
+	// S3 compatible storage (AWS, MinIO, Wasabi…): Username is the access
+	// key and Password the secret key.
+	Endpoint string `json:"endpoint"` // https://s3.eu-central-1.wasabisys.com
+	Bucket   string `json:"bucket"`
+	Region   string `json:"region"`
 }
 
 type BackupSettings struct {
@@ -91,6 +96,10 @@ type BackupSettings struct {
 	NotifyTo         string         `json:"notify_to"`
 	NotifyOn         string         `json:"notify_on"` // never | failure | always
 	Targets          []BackupTarget `json:"targets"`
+	// Encrypt protects new backups with Passphrase (age, scrypt + ChaCha20-
+	// Poly1305); restoring them needs the same passphrase.
+	Encrypt    bool   `json:"encrypt"`
+	Passphrase string `json:"passphrase"`
 }
 
 type UpdateSettings struct {
@@ -178,6 +187,7 @@ func (m *Meta) Backup() BackupSettings {
 		b.Targets[i].Password = m.Decrypt(b.Targets[i].Password)
 		b.Targets[i].PrivateKey = m.Decrypt(b.Targets[i].PrivateKey)
 	}
+	b.Passphrase = m.Decrypt(b.Passphrase)
 	if b.Targets == nil {
 		b.Targets = []BackupTarget{}
 	}
@@ -185,10 +195,15 @@ func (m *Meta) Backup() BackupSettings {
 }
 
 func (m *Meta) SaveBackup(b BackupSettings) error {
+	cur := m.Backup()
 	old := map[string]BackupTarget{}
-	for _, t := range m.Backup().Targets {
+	for _, t := range cur.Targets {
 		old[t.ID] = t
 	}
+	if b.Passphrase == Secret {
+		b.Passphrase = cur.Passphrase
+	}
+	b.Passphrase = m.Encrypt(b.Passphrase)
 	for i := range b.Targets {
 		t := &b.Targets[i]
 		if t.ID == "" {
@@ -249,6 +264,9 @@ func MaskBackup(b BackupSettings) BackupSettings {
 		}
 	}
 	b.Targets = t
+	if b.Passphrase != "" {
+		b.Passphrase = Secret
+	}
 	return b
 }
 
@@ -270,7 +288,7 @@ type BackupRecord struct {
 
 func (m *Meta) SaveBackupRecord(r *BackupRecord) error {
 	_, err := m.DB.Exec(`INSERT INTO backups(id,kind,base_id,file,size,rows,watermark,status,message,targets,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)
-		ON CONFLICT(id) DO UPDATE SET size=excluded.size, rows=excluded.rows, watermark=excluded.watermark, status=excluded.status, message=excluded.message, targets=excluded.targets`,
+		ON CONFLICT(id) DO UPDATE SET file=excluded.file, size=excluded.size, rows=excluded.rows, watermark=excluded.watermark, status=excluded.status, message=excluded.message, targets=excluded.targets`,
 		r.ID, r.Kind, r.BaseID, r.File, r.Size, r.Rows, r.Watermark, r.Status, r.Message, r.Targets, r.CreatedAt)
 	return err
 }

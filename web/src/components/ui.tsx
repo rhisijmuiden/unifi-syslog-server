@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode, type ButtonHTMLAttributes, type InputHTMLAttributes } from 'react'
-import { X, Loader2, CheckCircle2, AlertCircle } from 'lucide-react'
+import { X, Loader2, CheckCircle2, AlertCircle, Copy, Check } from 'lucide-react'
 import { t } from '../i18n'
 
 export function cx(...c: (string | false | null | undefined)[]) {
@@ -146,6 +146,29 @@ export function Empty({ icon, title, text, action }: { icon?: ReactNode; title: 
 
 export function Spinner({ className }: { className?: string }) {
   return <Loader2 className={cx('size-5 animate-spin text-indigo-400', className)} />
+}
+
+export function CopyBox({ text, multiline }: { text: string; multiline?: boolean }) {
+  const [done, setDone] = useState(false)
+  const copy = async () => {
+    try { await navigator.clipboard.writeText(text) } catch {
+      // Clipboard API needs HTTPS; fall back to a selection.
+      const ta = document.createElement('textarea')
+      ta.value = text
+      document.body.appendChild(ta)
+      ta.select()
+      document.execCommand('copy')
+      ta.remove()
+    }
+    setDone(true)
+    setTimeout(() => setDone(false), 1500)
+  }
+  return (
+    <div className="flex items-start gap-2 rounded-xl bg-[var(--panel-2)] p-2 pl-3 ring-1 ring-[var(--border)]">
+      <code className={cx('min-w-0 flex-1 py-1 font-mono text-xs', multiline ? 'whitespace-pre-wrap break-all' : 'truncate')} title={text}>{text}</code>
+      <Button variant="ghost" onClick={copy} title={t('Copy')} icon={done ? <Check className="size-4 text-emerald-500" /> : <Copy className="size-4" />} />
+    </div>
+  )
 }
 
 // ---------------------------------------------------------------- toasts
