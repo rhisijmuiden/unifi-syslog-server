@@ -8,6 +8,16 @@
 #   USS_ADMIN_PASSWORD=..  initial admin password (default: generated)
 #   USS_NONINTERACTIVE=1   no prompts
 #   USS_CH_MEMORY_RATIO    ClickHouse share of RAM (default 0.5)
+#
+# Logs on an external ClickHouse server or cluster instead of a local one
+# (for example one set up with deploy/install-clickhouse.sh):
+#   USS_CLICKHOUSE=external
+#   USS_CH_ADDR=10.0.0.20:9000         native protocol (9440 with TLS); more servers comma separated
+#   USS_CH_HTTP_URL=http://10.0.0.20:8123
+#   USS_CH_USER=unify  USS_CH_PASSWORD=...  USS_CH_DATABASE=unify_syslog
+#   USS_CH_SECURE=1                    use TLS (USS_CH_SKIP_VERIFY=1 for a self-signed certificate)
+#   USS_CH_CLUSTER=name                store logs replicated on this cluster
+# The connection can also be changed later under Settings > Storage.
 set -euo pipefail
 
 REPO="rhisijmuiden/unifi-syslog-server"
@@ -16,6 +26,8 @@ CONF_DIR="/etc/unify-syslog"
 DATA_DIR="/var/lib/unify-syslog"
 SVC_USER="unify-syslog"
 VERSION="${USS_VERSION:-latest}"
+CH_MODE="${USS_CLICKHOUSE:-local}"
+MANAGED_DIR="/var/lib/unify-syslog-ch"
 
 c_ok="\e[32m"; c_info="\e[36m"; c_warn="\e[33m"; c_err="\e[31m"; c_off="\e[0m"
 info() { echo -e "${c_info}==>${c_off} $*"; }
@@ -56,12 +68,14 @@ export DEBIAN_FRONTEND=noninteractive
 
 # ClickHouse needs about 2 GB on disk to install (the default Debian LXC disk is only 2 GB).
 FREE_MB=$(df -Pm / | awk 'NR==2 {print $4}')
-if (( FREE_MB < 3072 )); then
+if [[ "$CH_MODE" == external ]]; then
+  (( FREE_MB >= 1024 )) || die "Not enough disk space: ${FREE_MB} MB free on /. At least 1 GB is required."
+elif (( FREE_MB < 3072 )); then
   die "Not enough disk space: ${FREE_MB} MB free on /. At least 3 GB is required, 20 GB or more is recommended. Grow the disk (Proxmox: Resources → Root Disk → Resize) and run again."
 elif (( FREE_MB < 10240 )); then
   warn "Only ${FREE_MB} MB free on /. 20 GB or more is recommended for log storage."
 fi
-if [[ "$ARCH" == amd64 ]] && ! grep -qw sse4_2 /proc/cpuinfo; then
+if [[ "$CH_MODE" == local && "$ARCH" == amd64 ]] && ! grep -qw sse4_2 /proc/cpuinfo; then
   die "The CPU does not support SSE4.2, which ClickHouse requires. In Proxmox, set the VM CPU type to 'host' or 'x86-64-v2-AES'."
 fi
 TOTAL_MB=$(awk '/MemTotal/ {print int($2/1024)}' /proc/meminfo)
@@ -70,7 +84,7 @@ TOTAL_MB=$(awk '/MemTotal/ {print int($2/1024)}' /proc/meminfo)
 # ClickHouse 26.8 and later need AVX2 (Intel Haswell / AMD Zen or newer) and die with
 # "Illegal instruction" on older CPUs such as the Xeon E5 v1/v2. 26.3 LTS still runs there.
 CH_PIN="${USS_CH_VERSION:-}"
-if [[ -z "$CH_PIN" && "$ARCH" == amd64 ]] && ! grep -qw avx2 /proc/cpuinfo; then
+if [[ "$CH_MODE" == local && -z "$CH_PIN" && "$ARCH" == amd64 ]] && ! grep -qw avx2 /proc/cpuinfo; then
   CH_PIN="26.3.*"
   warn "CPU without AVX2 detected: pinning ClickHouse to 26.3 LTS."
 fi
@@ -94,7 +108,12 @@ run apt-get update || die "apt-get update failed"
 run apt-get install -y curl ca-certificates gnupg apt-transport-https tar openssl tzdata libcap2-bin || die "Installing base packages failed"
 ok "Base packages installed"
 
+if ! id "$SVC_USER" >/dev/null 2>&1; then
+  useradd --system --home "$DATA_DIR" --shell /usr/sbin/nologin "$SVC_USER"
+fi
+
 # ---------------------------------------------------------------- ClickHouse
+if [[ "$CH_MODE" == local ]]; then
 ch_works() { dpkg -s clickhouse-server 2>/dev/null | grep -q 'Status: install ok installed' && clickhouse local -q 'SELECT 1' >/dev/null 2>&1; }
 if ! ch_works; then
   info "Installing ClickHouse (official repository${CH_PIN:+, version $CH_PIN})"
@@ -167,6 +186,13 @@ cat > /etc/clickhouse-server/users.d/unify-syslog.xml <<EOF
 EOF
 rm -f /etc/clickhouse-server/users.d/default-password.xml
 chown -R clickhouse:clickhouse /etc/clickhouse-server/config.d /etc/clickhouse-server/users.d 2>/dev/null || true
+# Configuration the server writes itself (cold storage on S3, Settings > Storage):
+# a directory it owns, readable by ClickHouse, linked into config.d.
+install -d -m 2750 -o "$SVC_USER" -g clickhouse "$MANAGED_DIR"
+[[ -f "$MANAGED_DIR/storage.xml" ]] || echo '<clickhouse/>' > "$MANAGED_DIR/storage.xml"
+chown "$SVC_USER":clickhouse "$MANAGED_DIR/storage.xml"
+chmod 0640 "$MANAGED_DIR/storage.xml"
+ln -sfn "$MANAGED_DIR/storage.xml" /etc/clickhouse-server/config.d/zz-unify-syslog-managed.xml
 if [[ "$(systemd-detect-virt -c 2>/dev/null || true)" == "lxc" ]]; then
   # Unprivileged containers cannot grant ClickHouse's extra capabilities; it runs fine without.
   # The package puts file capabilities on the binary (again on every upgrade), and a binary
@@ -189,11 +215,13 @@ for _ in $(seq 1 60); do
 done
 clickhouse-client --user unify --password "$CH_PASS" -q "SELECT 1" >/dev/null 2>&1 || die "ClickHouse does not start; see journalctl -u clickhouse-server"
 ok "ClickHouse is running (local access only)"
+else
+  CH_ADDR="${USS_CH_ADDR:?USS_CH_ADDR is required with USS_CLICKHOUSE=external}"
+  CH_PASS="${USS_CH_PASSWORD:-}"
+  ok "Using the external ClickHouse at ${CH_ADDR}"
+fi
 
 # ---------------------------------------------------------------- application
-if ! id "$SVC_USER" >/dev/null 2>&1; then
-  useradd --system --home "$DATA_DIR" --shell /usr/sbin/nologin "$SVC_USER"
-fi
 install -d -m 0755 -o "$SVC_USER" -g "$SVC_USER" "$APP_DIR"
 install -d -m 0750 -o "$SVC_USER" -g "$SVC_USER" "$DATA_DIR" "$DATA_DIR/backups"
 
@@ -225,6 +253,33 @@ ln -sf "$APP_DIR/unify-syslog" /usr/local/bin/unify-syslog
 ok "Program installed in $APP_DIR ($("$APP_DIR/unify-syslog" version))"
 
 if [[ ! -f "$CONF_DIR/config.yaml" ]]; then
+  if [[ "$CH_MODE" == local ]]; then
+    CH_YAML="  addr: \"127.0.0.1:9000\"
+  http_url: \"http://127.0.0.1:8123\"
+  database: unify_syslog
+  username: unify
+  password: \"${CH_PASS}\""
+  else
+    IFS=',' read -r -a CH_ADDRS <<<"$CH_ADDR"
+    CH_HOST="${CH_ADDRS[0]%:*}"
+    CH_HTTP="${USS_CH_HTTP_URL:-}"
+    if [[ -z "$CH_HTTP" ]]; then
+      if [[ -n "${USS_CH_SECURE:-}" ]]; then CH_HTTP="https://${CH_HOST}:8443"; else CH_HTTP="http://${CH_HOST}:8123"; fi
+    fi
+    CH_YAML="  addr: \"${CH_ADDRS[0]}\""
+    if (( ${#CH_ADDRS[@]} > 1 )); then
+      CH_YAML+=$'\n  addrs:'
+      for a in "${CH_ADDRS[@]:1}"; do CH_YAML+=$'\n    - "'"$a"'"'; done
+    fi
+    CH_YAML+="
+  http_url: \"${CH_HTTP}\"
+  database: ${USS_CH_DATABASE:-unify_syslog}
+  username: \"${USS_CH_USER:-unify}\"
+  password: \"${CH_PASS}\""
+    if [[ -n "${USS_CH_SECURE:-}" ]]; then CH_YAML+=$'\n  secure: true'; fi
+    if [[ -n "${USS_CH_SKIP_VERIFY:-}" ]]; then CH_YAML+=$'\n  skip_verify: true'; fi
+    if [[ -n "${USS_CH_CLUSTER:-}" ]]; then CH_YAML+=$'\n  cluster: "'"${USS_CH_CLUSTER}"'"'; fi
+  fi
   cat > "$CONF_DIR/config.yaml" <<EOF
 # UniFi Syslog Server - bootstrap configuration.
 # All other settings are managed in the web interface.
@@ -235,11 +290,7 @@ syslog:
   tcp: ":514"
   udp_read_buffer: 8388608
 clickhouse:
-  addr: "127.0.0.1:9000"
-  http_url: "http://127.0.0.1:8123"
-  database: unify_syslog
-  username: unify
-  password: "${CH_PASS}"
+${CH_YAML}
 ingest:
   queue_size: 200000
   workers: $(nproc)
@@ -257,12 +308,14 @@ net.core.rmem_default = 8388608
 EOF
 sysctl -q -p /etc/sysctl.d/90-unify-syslog.conf 2>/dev/null || warn "sysctl not applied (normal in an unprivileged LXC)"
 
+UNIT_CH=""
+[[ "$CH_MODE" == local ]] && UNIT_CH=" clickhouse-server.service"
 cat > /etc/systemd/system/unify-syslog.service <<EOF
 [Unit]
 Description=UniFi Syslog Server
 Documentation=https://github.com/${REPO}
-After=network-online.target clickhouse-server.service
-Wants=network-online.target clickhouse-server.service
+After=network-online.target${UNIT_CH}
+Wants=network-online.target${UNIT_CH}
 
 [Service]
 User=${SVC_USER}

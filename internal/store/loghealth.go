@@ -41,7 +41,7 @@ func (l *Logs) Health(ctx context.Context) LogHealth {
 	h.LatencyMS = float64(time.Since(start).Microseconds()) / 1000
 	h.OK = true
 	l.Conn.QueryRow(ctx, "SELECT version(), toUInt64(uptime())").Scan(&h.Version, &h.UptimeSec)
-	l.Conn.QueryRow(ctx, `SELECT toUInt64(sum(n)), toUInt64(max(n)) FROM (SELECT partition, count() AS n FROM system.parts WHERE active AND database = ? AND table = 'logs' GROUP BY partition)`, l.db).
+	l.Conn.QueryRow(ctx, `SELECT toUInt64(sum(n)), toUInt64(max(n)) FROM (SELECT partition, count() AS n FROM `+l.system("parts")+` WHERE active AND database = ? AND table = ? GROUP BY partition)`, l.db, l.localName("logs")).
 		Scan(&h.Parts, &h.MaxPartsInDay)
 	l.Conn.QueryRow(ctx, `SELECT count() FROM system.merges WHERE database = ?`, l.db).Scan(&h.Merges)
 	l.Conn.QueryRow(ctx, `SELECT count() FROM system.mutations WHERE database = ? AND NOT is_done`, l.db).Scan(&h.Mutations)

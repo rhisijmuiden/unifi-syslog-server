@@ -214,6 +214,9 @@ type contentFile struct {
 func (s *Server) forwardContent(w http.ResponseWriter, r *http.Request) {
 	out := []contentFile{}
 	fs.WalkDir(integrations.FS, ".", func(p string, e fs.DirEntry, err error) error {
+		if err == nil && e.IsDir() && (p == "grafana" || p == "prometheus") {
+			return fs.SkipDir
+		}
 		if err == nil && !e.IsDir() {
 			info, _ := e.Info()
 			out = append(out, contentFile{Path: p, Size: info.Size()})

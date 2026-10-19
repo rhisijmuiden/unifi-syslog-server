@@ -28,6 +28,7 @@ import (
 	"github.com/rhisijmuiden/unify-syslog-server/internal/enrich"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/forward"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/geoip"
+	"github.com/rhisijmuiden/unify-syslog-server/internal/ha"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/i18n"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/ingest"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/mail"
@@ -52,8 +53,10 @@ type Server struct {
 	Enrich   *enrich.Enricher
 	Syncer   *enrich.Syncer
 	Forward  *forward.Manager
-	Notify   *notify.Dispatcher
-	Probes   *probehub.Hub
+	// HA is this node's side of a high availability pair.
+	HA     *ha.Node
+	Notify *notify.Dispatcher
+	Probes *probehub.Hub
 	// TLSPin is the public key pin of the server certificate, for probes.
 	TLSPin   string
 	Geo      *geoip.Manager
@@ -70,6 +73,8 @@ type Server struct {
 
 	// Filter is the syslog source allowlist.
 	Filter *syslogd.Filter
+
+	storageJob storageJob
 
 	loginMu   sync.Mutex
 	loginFail map[string][]time.Time
@@ -92,7 +97,7 @@ const (
 
 func (s *Server) Handler() http.Handler {
 	r := chi.NewRouter()
-	r.Use(middleware.RealIP, middleware.Recoverer, securityHeaders)
+	r.Use(keepPeer, middleware.RealIP, middleware.Recoverer, securityHeaders)
 	r.Use(middleware.Compress(5, "application/json", "text/html", "text/css", "application/javascript", "image/svg+xml"))
 
 	r.Route("/api", func(r chi.Router) {
@@ -113,8 +118,16 @@ func (s *Server) Handler() http.Handler {
 		r.Post("/probe/v1/ingest", s.probeIngest)
 		r.Get("/probe/v1/download", s.probeDownload)
 
+		// The other node of a high availability pair, with the shared secret.
 		r.Group(func(r chi.Router) {
-			r.Use(s.requireUser)
+			r.Use(s.haPeerAuth)
+			r.Get("/ha/v1/status", s.haPeerStatus)
+			r.Get("/ha/v1/snapshot", s.haPeerSnapshot)
+			r.Post("/ha/v1/join", s.haPeerJoin)
+		})
+
+		r.Group(func(r chi.Router) {
+			r.Use(s.requireUser, s.standbyGuard)
 			r.Get("/me", s.me)
 			r.Get("/info", s.info)
 			r.Get("/stats", s.stats)
@@ -198,6 +211,15 @@ func (s *Server) Handler() http.Handler {
 
 				r.Get("/system/status", s.systemStatus)
 				r.Get("/settings/retention/usage", s.retentionUsage)
+				r.Get("/settings/storage", s.getStorage)
+				r.Post("/storage/clickhouse/test", s.testClickHouse)
+				r.Put("/settings/storage/clickhouse", s.putClickHouse)
+				r.Put("/settings/storage/cold", s.putColdStorage)
+				r.Get("/settings/ha", s.getHA)
+				r.Put("/settings/ha", s.putHA)
+				r.Get("/settings/monitoring", s.getMonitoring)
+				r.Put("/settings/monitoring", s.putMonitoring)
+				r.Get("/monitoring/content/*", s.monitoringContentFile)
 				r.Get("/settings/general", s.getGeneral)
 				r.Put("/settings/general", s.putGeneral)
 				r.Get("/settings/branding", s.getBranding)
@@ -270,6 +292,10 @@ func (s *Server) Handler() http.Handler {
 		})
 		r.NotFound(func(w http.ResponseWriter, r *http.Request) { jerr(w, 404, "not found") })
 	})
+	// Prometheus and the Grafana ClickHouse data source.
+	r.Get("/metrics", s.metrics)
+	r.HandleFunc("/clickhouse", s.clickhouseProxy)
+	r.HandleFunc("/clickhouse/*", s.clickhouseProxy)
 	r.Get("/*", s.spa)
 	return r
 }

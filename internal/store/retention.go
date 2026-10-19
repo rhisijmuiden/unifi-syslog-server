@@ -20,11 +20,18 @@ var CategoryRe = regexp.MustCompile(`^[a-z0-9_-]{1,32}$`)
 // Rows match exactly one conditional rule (their category or the default),
 // and an unconditional rule at the longest retention lets ClickHouse drop
 // whole parts once everything in them is past every limit.
-func RetentionTTL(days int, perCategory map[string]int) string {
+//
+// move, when set, is a TTL rule that moves older parts to cold storage
+// (see ColdTTL); it goes first so it is kept next to the delete rules.
+func RetentionTTL(days int, perCategory map[string]int, move string) string {
 	expr := func(d int) string { return fmt.Sprintf("toDateTime(ts) + INTERVAL %d DAY DELETE", d) }
+	prefix := ""
+	if move != "" {
+		prefix = move + ", "
+	}
 	cats := slices.Sorted(maps.Keys(perCategory))
 	if len(cats) == 0 {
-		return expr(days)
+		return prefix + expr(days)
 	}
 	longest := days
 	quoted := make([]string, len(cats))
@@ -36,7 +43,7 @@ func RetentionTTL(days int, perCategory map[string]int) string {
 		rules = append(rules, fmt.Sprintf("%s WHERE category = '%s'", expr(d), c))
 	}
 	rules = append(rules, fmt.Sprintf("%s WHERE category NOT IN (%s)", expr(days), strings.Join(quoted, ", ")))
-	return strings.Join(append([]string{expr(longest)}, rules...), ", ")
+	return prefix + strings.Join(append([]string{expr(longest)}, rules...), ", ")
 }
 
 // ValidateRetention checks the default and per category retention.
@@ -66,10 +73,14 @@ func (l *Logs) SetRetention(ctx context.Context, days int, perCategory map[strin
 	if len(perCategory) > 0 {
 		dropParts = 0
 	}
-	if err := l.Conn.Exec(ctx, fmt.Sprintf("ALTER TABLE %s MODIFY SETTING ttl_only_drop_parts = %d", l.t("logs"), dropParts)); err != nil {
+	if err := l.Conn.Exec(ctx, fmt.Sprintf("ALTER TABLE %s%s MODIFY SETTING ttl_only_drop_parts = %d", l.local("logs"), l.onCluster(), dropParts)); err != nil {
 		return err
 	}
-	return l.Conn.Exec(ctx, fmt.Sprintf("ALTER TABLE %s MODIFY TTL %s", l.t("logs"), RetentionTTL(days, perCategory)))
+	l.mu.Lock()
+	l.retention = retention{days: days, perCategory: perCategory}
+	move := l.move
+	l.mu.Unlock()
+	return l.Conn.Exec(ctx, fmt.Sprintf("ALTER TABLE %s%s MODIFY TTL %s", l.local("logs"), l.onCluster(), RetentionTTL(days, perCategory, move)))
 }
 
 // CategoryUsage is how much is stored for one category.

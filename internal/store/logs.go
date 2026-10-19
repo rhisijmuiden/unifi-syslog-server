@@ -2,11 +2,17 @@ package store
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
+	"os"
+	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
@@ -18,29 +24,115 @@ import (
 )
 
 type Logs struct {
-	Conn driver.Conn
-	cfg  config.ClickHouse
-	db   string
+	Conn    driver.Conn
+	cfg     config.ClickHouse
+	db      string
+	cluster string
+	http    *http.Client
+
+	mu sync.Mutex
+	// retention is the last applied retention; move the cold storage TTL
+	// rule. Changing one rewrites the TTL with both.
+	retention retention
+	move      string
 }
 
-func OpenLogs(ctx context.Context, cfg config.ClickHouse, retentionDays int) (*Logs, error) {
-	conn, err := clickhouse.Open(&clickhouse.Options{
-		Addr:            []string{cfg.Addr},
-		Auth:            clickhouse.Auth{Database: "default", Username: cfg.Username, Password: cfg.Password},
-		Compression:     &clickhouse.Compression{Method: clickhouse.CompressionLZ4},
-		DialTimeout:     10 * time.Second,
-		MaxOpenConns:    16,
-		ConnMaxLifetime: time.Hour,
-		Settings:        clickhouse.Settings{"max_execution_time": 120},
-	})
+type retention struct {
+	days        int
+	perCategory map[string]int
+}
+
+var clusterRe = regexp.MustCompile(`^[A-Za-z0-9_.-]{1,64}$`)
+
+// TLSConfig is the client TLS setup for a ClickHouse connection, or nil
+// without TLS.
+func TLSConfig(cfg config.ClickHouse, host string) (*tls.Config, error) {
+	if !cfg.Secure && !strings.HasPrefix(cfg.HTTPURL, "https:") {
+		return nil, nil
+	}
+	t := &tls.Config{MinVersion: tls.VersionTLS12, InsecureSkipVerify: cfg.SkipVerify, ServerName: host}
+	if cfg.CACert != "" {
+		pem, err := os.ReadFile(cfg.CACert)
+		if err != nil {
+			return nil, fmt.Errorf("ca certificate: %w", err)
+		}
+		pool := x509.NewCertPool()
+		if !pool.AppendCertsFromPEM(pem) {
+			return nil, fmt.Errorf("ca certificate: no PEM certificates in %s", cfg.CACert)
+		}
+		t.RootCAs = pool
+	}
+	return t, nil
+}
+
+// Connect opens a connection to ClickHouse without touching the schema.
+func Connect(ctx context.Context, cfg config.ClickHouse) (driver.Conn, error) {
+	if cfg.Cluster != "" && !clusterRe.MatchString(cfg.Cluster) {
+		return nil, fmt.Errorf("invalid cluster name %q", cfg.Cluster)
+	}
+	addrs := cfg.Addresses()
+	if len(addrs) == 0 {
+		return nil, fmt.Errorf("no ClickHouse address configured")
+	}
+	opts := &clickhouse.Options{
+		Addr:             addrs,
+		Auth:             clickhouse.Auth{Database: "default", Username: cfg.Username, Password: cfg.Password},
+		Compression:      &clickhouse.Compression{Method: clickhouse.CompressionLZ4},
+		DialTimeout:      10 * time.Second,
+		MaxOpenConns:     16,
+		ConnMaxLifetime:  time.Hour,
+		ConnOpenStrategy: clickhouse.ConnOpenInOrder,
+		Settings:         clickhouse.Settings{"max_execution_time": 120},
+	}
+	if cfg.Secure {
+		host, _, _ := net.SplitHostPort(addrs[0])
+		t, err := TLSConfig(cfg, host)
+		if err != nil {
+			return nil, err
+		}
+		opts.TLS = t
+	}
+	conn, err := clickhouse.Open(opts)
 	if err != nil {
 		return nil, err
 	}
 	if err := conn.Ping(ctx); err != nil {
+		conn.Close()
 		return nil, fmt.Errorf("clickhouse ping: %w", err)
 	}
-	l := &Logs{Conn: conn, cfg: cfg, db: cfg.Database}
+	return conn, nil
+}
+
+func httpClient(cfg config.ClickHouse) (*http.Client, error) {
+	u, err := url.Parse(cfg.HTTPURL)
+	if err != nil {
+		return nil, fmt.Errorf("http url: %w", err)
+	}
+	t, err := TLSConfig(cfg, u.Hostname())
+	if err != nil {
+		return nil, err
+	}
+	if t == nil {
+		return http.DefaultClient, nil
+	}
+	tr := http.DefaultTransport.(*http.Transport).Clone()
+	tr.TLSClientConfig = t
+	return &http.Client{Transport: tr}, nil
+}
+
+func OpenLogs(ctx context.Context, cfg config.ClickHouse, retentionDays int) (*Logs, error) {
+	conn, err := Connect(ctx, cfg)
+	if err != nil {
+		return nil, err
+	}
+	hc, err := httpClient(cfg)
+	if err != nil {
+		conn.Close()
+		return nil, err
+	}
+	l := &Logs{Conn: conn, cfg: cfg, db: cfg.Database, cluster: cfg.Cluster, http: hc}
 	if err := l.migrate(ctx, retentionDays); err != nil {
+		conn.Close()
 		return nil, err
 	}
 	return l, nil
@@ -48,7 +140,60 @@ func OpenLogs(ctx context.Context, cfg config.ClickHouse, retentionDays int) (*L
 
 func (l *Logs) t(name string) string { return "`" + l.db + "`." + name }
 
+// Cluster is the ClickHouse cluster the logs are stored on ("" for one server).
+func (l *Logs) Cluster() string { return l.cluster }
+
+// HTTPClient is the client for the ClickHouse HTTP interface (with the TLS
+// settings of the connection).
+func (l *Logs) HTTPClient() *http.Client { return l.http }
+
+// Config is the connection the log store was opened with.
+func (l *Logs) Config() config.ClickHouse { return l.cfg }
+
+// onCluster is the ON CLUSTER clause for DDL in cluster mode.
+func (l *Logs) onCluster() string {
+	if l.cluster == "" {
+		return ""
+	}
+	return " ON CLUSTER `" + l.cluster + "`"
+}
+
+// local is the table that holds the data of name: on a cluster the
+// replicated table behind the Distributed one; DDL that changes data
+// settings (TTL, storage policy, truncate) targets it.
+func (l *Logs) local(name string) string {
+	if l.cluster == "" {
+		return l.t(name)
+	}
+	return l.t(name + "_local")
+}
+
+// localName is local without the database, for system tables.
+func (l *Logs) localName(name string) string {
+	if l.cluster == "" {
+		return name
+	}
+	return name + "_local"
+}
+
+// system reads a system table of every node of the cluster.
+func (l *Logs) system(table string) string {
+	if l.cluster == "" {
+		return "system." + table
+	}
+	return "clusterAllReplicas('" + l.cluster + "', system." + table + ")"
+}
+
 func (l *Logs) migrate(ctx context.Context, retention int) error {
+	if l.cluster != "" {
+		// A database created without a cluster has a plain logs table; the
+		// cluster tables would be created next to it and never read.
+		var engine string
+		err := l.Conn.QueryRow(ctx, "SELECT engine FROM system.tables WHERE database = ? AND name = 'logs'", l.db).Scan(&engine)
+		if err == nil && engine != "Distributed" {
+			return fmt.Errorf("database %s already holds logs of a single server (%s); use another database name for the cluster", l.db, engine)
+		}
+	}
 	for _, s := range l.schema(retention) {
 		if err := l.Conn.Exec(ctx, s); err != nil {
 			return fmt.Errorf("migrate: %w", err)
@@ -57,18 +202,7 @@ func (l *Logs) migrate(ctx context.Context, retention int) error {
 	return nil
 }
 
-// schema lists the statements that create or upgrade the log store. They
-// must stay additive (CREATE ... IF NOT EXISTS, ADD COLUMN IF NOT EXISTS)
-// so an older version still reads the data after a rollback; see
-// TestLogSchemaIsAdditive.
-func (l *Logs) schema(retention int) []string {
-	if retention <= 0 {
-		retention = 90
-	}
-	return []string{
-		"CREATE DATABASE IF NOT EXISTS `" + l.db + "`",
-		`CREATE TABLE IF NOT EXISTS ` + l.t("logs") + ` (
-			ts DateTime64(3, 'UTC') CODEC(Delta, ZSTD(1)),
+const logColumns = `ts DateTime64(3, 'UTC') CODEC(Delta, ZSTD(1)),
 			received DateTime64(3, 'UTC') CODEC(Delta, ZSTD(1)),
 			source_ip LowCardinality(String),
 			site LowCardinality(String),
@@ -103,28 +237,60 @@ func (l *Logs) schema(retention int) []string {
 			INDEX idx_dst dst_ip TYPE bloom_filter(0.01) GRANULARITY 4,
 			INDEX idx_cmac client_mac TYPE bloom_filter(0.01) GRANULARITY 4,
 			INDEX idx_cip client_ip TYPE bloom_filter(0.01) GRANULARITY 4,
-			INDEX idx_dport dst_port TYPE set(1000) GRANULARITY 4
-		) ENGINE = MergeTree
-		PARTITION BY toYYYYMMDD(ts)
-		ORDER BY (site, category, ts)
-		TTL toDateTime(ts) + INTERVAL ` + fmt.Sprint(retention) + ` DAY DELETE
-		SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1`,
-		`CREATE TABLE IF NOT EXISTS ` + l.t("logs_hourly") + ` (
-			hour DateTime('UTC'),
+			INDEX idx_dport dst_port TYPE set(1000) GRANULARITY 4`
+
+const hourlyColumns = `hour DateTime('UTC'),
 			site LowCardinality(String),
 			category LowCardinality(String),
 			action LowCardinality(String),
 			severity UInt8,
 			source_ip LowCardinality(String),
-			cnt UInt64
-		) ENGINE = SummingMergeTree(cnt)
+			cnt UInt64`
+
+// schema lists the statements that create or upgrade the log store. They
+// must stay additive (CREATE ... IF NOT EXISTS, ADD COLUMN IF NOT EXISTS)
+// so an older version still reads the data after a rollback; see
+// TestLogSchemaIsAdditive.
+//
+// On a cluster every node holds replicated logs_local and
+// logs_hourly_local tables, and logs and logs_hourly are Distributed
+// tables over them, so every query reads the whole cluster.
+func (l *Logs) schema(retention int) []string {
+	if retention <= 0 {
+		retention = 90
+	}
+	on := l.onCluster()
+	engine, hourlyEngine := "MergeTree", "SummingMergeTree(cnt)"
+	if l.cluster != "" {
+		engine, hourlyEngine = "ReplicatedMergeTree", "ReplicatedSummingMergeTree(cnt)"
+	}
+	out := []string{
+		"CREATE DATABASE IF NOT EXISTS `" + l.db + "`" + on,
+		`CREATE TABLE IF NOT EXISTS ` + l.local("logs") + on + ` (
+			` + logColumns + `
+		) ENGINE = ` + engine + `
+		PARTITION BY toYYYYMMDD(ts)
+		ORDER BY (site, category, ts)
+		TTL toDateTime(ts) + INTERVAL ` + fmt.Sprint(retention) + ` DAY DELETE
+		SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1`,
+		`CREATE TABLE IF NOT EXISTS ` + l.local("logs_hourly") + on + ` (
+			` + hourlyColumns + `
+		) ENGINE = ` + hourlyEngine + `
 		PARTITION BY toYYYYMM(hour)
 		ORDER BY (hour, site, category, action, severity, source_ip)
 		TTL hour + INTERVAL 400 DAY DELETE`,
-		`CREATE MATERIALIZED VIEW IF NOT EXISTS ` + l.t("logs_hourly_mv") + ` TO ` + l.t("logs_hourly") + ` AS
-			SELECT toStartOfHour(ts) AS hour, site, category, action, severity, source_ip, count() AS cnt
-			FROM ` + l.t("logs") + ` GROUP BY hour, site, category, action, severity, source_ip`,
 	}
+	if l.cluster != "" {
+		out = append(out,
+			`CREATE TABLE IF NOT EXISTS `+l.t("logs")+on+` AS `+l.local("logs")+
+				` ENGINE = Distributed('`+l.cluster+`', '`+l.db+`', 'logs_local', rand())`,
+			`CREATE TABLE IF NOT EXISTS `+l.t("logs_hourly")+on+` AS `+l.local("logs_hourly")+
+				` ENGINE = Distributed('`+l.cluster+`', '`+l.db+`', 'logs_hourly_local', rand())`)
+	}
+	return append(out,
+		`CREATE MATERIALIZED VIEW IF NOT EXISTS `+l.t("logs_hourly_mv")+on+` TO `+l.local("logs_hourly")+` AS
+			SELECT toStartOfHour(ts) AS hour, site, category, action, severity, source_ip, count() AS cnt
+			FROM `+l.local("logs")+` GROUP BY hour, site, category, action, severity, source_ip`)
 }
 
 func (l *Logs) Insert(ctx context.Context, evs []*unifi.Event) error {
@@ -464,7 +630,7 @@ type StorageInfo struct {
 func (l *Logs) Storage(ctx context.Context) (*StorageInfo, error) {
 	s := &StorageInfo{}
 	err := l.Conn.QueryRow(ctx, `SELECT sum(rows), sum(bytes_on_disk), sum(data_uncompressed_bytes), uniqExact(partition)
-		FROM system.parts WHERE active AND database = ? AND table = 'logs'`, l.db).Scan(&s.Rows, &s.BytesOnDisk, &s.BytesRaw, &s.Partitions)
+		FROM `+l.system("parts")+` WHERE active AND database = ? AND table = ?`, l.db, l.localName("logs")).Scan(&s.Rows, &s.BytesOnDisk, &s.BytesRaw, &s.Partitions)
 	if err != nil {
 		return nil, err
 	}
@@ -508,7 +674,7 @@ func (l *Logs) httpReq(ctx context.Context, q string, body io.Reader) (*http.Res
 		// Set explicitly so Go hands us the gzip stream untouched.
 		req.Header.Set("Accept-Encoding", "gzip")
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := l.http.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -544,10 +710,10 @@ func (l *Logs) Import(ctx context.Context, r io.Reader) error {
 }
 
 func (l *Logs) Truncate(ctx context.Context) error {
-	if err := l.Conn.Exec(ctx, "TRUNCATE TABLE "+l.t("logs")); err != nil {
+	if err := l.Conn.Exec(ctx, "TRUNCATE TABLE "+l.local("logs")+l.onCluster()); err != nil {
 		return err
 	}
-	return l.Conn.Exec(ctx, "TRUNCATE TABLE "+l.t("logs_hourly"))
+	return l.Conn.Exec(ctx, "TRUNCATE TABLE "+l.local("logs_hourly")+l.onCluster())
 }
 
 func (l *Logs) CountReceivedBetween(ctx context.Context, after, until time.Time) (uint64, error) {

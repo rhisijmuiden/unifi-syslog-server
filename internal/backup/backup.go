@@ -72,7 +72,7 @@ type Manager struct {
 // this far in the past.
 const settle = 3 * time.Minute
 
-var reName = regexp.MustCompile(`^unify-syslog-(\d{8}-\d{6})-(full|incr)-([0-9a-f]+)(?:-base-([0-9a-f]+))?\.tar$`)
+var reName = regexp.MustCompile(`^unify-syslog-(\d{8}-\d{6})-(full|incr)-([0-9a-f]+)(?:-base-([0-9a-f]+))?\.tar(\.age)?$`)
 
 func (m *Manager) Status() Status {
 	m.mu.Lock()
@@ -211,6 +211,17 @@ func (m *Manager) run(ctx context.Context, kind string) (*store.BackupRecord, er
 	archive := filepath.Join(m.Dir, name)
 	if err := writeTar(archive, work, []string{"manifest.json", "meta.db", "secret.key", "logs.native.gz"}); err != nil {
 		return fail(err)
+	}
+	if cfg.Encrypt {
+		m.step("encrypting archive")
+		if err := encryptFile(archive, archive+".age", cfg.Passphrase); err != nil {
+			os.Remove(archive)
+			return fail(fmt.Errorf("encrypt: %w", err))
+		}
+		os.Remove(archive)
+		name += ".age"
+		archive += ".age"
+		rec.File = name
 	}
 	st, _ := os.Stat(archive)
 	rec.Size = st.Size()
@@ -487,6 +498,9 @@ type RestoreOptions struct {
 	Name   string `json:"name"`
 	Config bool   `json:"config"`
 	Logs   bool   `json:"logs"`
+	// Passphrase decrypts encrypted backups; empty uses the one in the
+	// backup settings.
+	Passphrase string `json:"passphrase"`
 }
 
 func (m *Manager) StartRestore(opts RestoreOptions) error {
@@ -558,6 +572,19 @@ func (m *Manager) restore(ctx context.Context, opts RestoreOptions) error {
 		local := filepath.Join(work, e.Name)
 		if err := r.Download(ctx, e.Name, local); err != nil {
 			return fmt.Errorf("download %s: %w", e.Name, err)
+		}
+		if strings.HasSuffix(e.Name, ".age") {
+			m.step(fmt.Sprintf("decrypting %d/%d: %s", i+1, len(chain), e.Name))
+			pass := opts.Passphrase
+			if pass == "" {
+				pass = m.Meta.Backup().Passphrase
+			}
+			plain := strings.TrimSuffix(local, ".age")
+			if err := decryptFile(local, plain, pass); err != nil {
+				return fmt.Errorf("decrypt %s: %w", e.Name, err)
+			}
+			os.Remove(local)
+			local = plain
 		}
 		d := filepath.Join(work, fmt.Sprintf("%03d", i))
 		if err := extractTar(local, d); err != nil {

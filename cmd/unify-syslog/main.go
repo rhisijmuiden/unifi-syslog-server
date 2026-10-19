@@ -35,6 +35,7 @@ import (
 	"github.com/rhisijmuiden/unify-syslog-server/internal/enrich"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/forward"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/geoip"
+	"github.com/rhisijmuiden/unify-syslog-server/internal/ha"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/ingest"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/mail"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/notify"
@@ -140,6 +141,7 @@ func serve(cfgPath string) error {
 		log.Warn("waiting for clickhouse", "err", err)
 		time.Sleep(2 * time.Second)
 	}
+	logs.InitRetention(gen.RetentionDays, gen.CategoryRetention, meta.ColdStorage())
 
 	var loc atomic.Pointer[time.Location]
 	setLoc := func(tz string) {
@@ -184,6 +186,11 @@ func serve(cfgPath string) error {
 		return fmt.Errorf("tls certificate: %w", err)
 	}
 	pin := tlscert.LeafPin(cert)
+	tlsDir := filepath.Join(cfg.DataDir, "tls")
+	if cfg.TLSCert != "" {
+		tlsDir = "" // a configured certificate is not shared between nodes
+	}
+	haNode := &ha.Node{Cfg: cfg, Meta: meta, Log: log, Restart: restart, Pin: pin, TLSDir: tlsDir}
 	hub := &probehub.Hub{Meta: meta, Out: queue, Dir: filepath.Join(cfg.DataDir, "probes"), Log: log, Mailer: mailer, Notify: notifier, Pin: pin}
 	bk := &backup.Manager{Meta: meta, Logs: logs, Mailer: mailer, Notify: notifier, Dir: cfg.BackupDir(), KeyPath: cfg.SecretKeyPath(), Log: log, Restart: restart}
 	al := &alerts.Engine{Meta: meta, Logs: logs, Mailer: mailer, Log: log, Started: time.Now(), Controller: enricher.Device, Forward: fwd, Notify: notifier, Loc: getLoc}
@@ -197,7 +204,7 @@ func serve(cfgPath string) error {
 	mon := &sysstatus.Monitor{Sys: sysStats, Ing: ingStats, Filter: filter, Logs: logs, Notify: notifier, Mailer: mailer, Log: log, DataDir: cfg.DataDir,
 		Queue: func() (int, int) { return len(queue), cap(queue) }, Started: time.Now()}
 	apiSrv := &api.Server{Cfg: cfg, Meta: meta, Logs: logs, Mailer: mailer, Backup: bk, Updater: upd, Entra: &auth.Entra{Meta: meta},
-		Alerts: al, Notify: notifier, Forward: fwd, Probes: hub, TLSPin: pin, Pipeline: pipe, Enrich: enricher, Syncer: syncer, Geo: geo, SysStats: sysStats, Status: mon, IngStats: ingStats, UI: web.Dist(), Log: log, Started: time.Now(), Restart: restart, Filter: filter,
+		Alerts: al, Notify: notifier, Forward: fwd, HA: haNode, Probes: hub, TLSPin: pin, Pipeline: pipe, Enrich: enricher, Syncer: syncer, Geo: geo, SysStats: sysStats, Status: mon, IngStats: ingStats, UI: web.Dist(), Log: log, Started: time.Now(), Restart: restart, Filter: filter,
 		OnSettings: func(g store.GeneralSettings) { setLoc(g.Timezone) }}
 
 	httpSrv := &http.Server{Addr: cfg.HTTPListen, Handler: apiSrv.Handler(), ReadHeaderTimeout: 10 * time.Second}
@@ -206,15 +213,18 @@ func serve(cfgPath string) error {
 	go func() { errc <- srv.Run(ctx) }()
 	pipeDone := make(chan struct{})
 	go func() { pipe.Run(ctx); fwd.InputDone(); close(pipeDone) }()
-	go bk.Scheduler(ctx, getLoc)
-	go al.Run(ctx)
+	// With high availability only the active node runs the scheduled jobs;
+	// without it they always run.
+	go haNode.Run(ctx)
+	go haNode.Gate(ctx, "backups", func(ctx context.Context) { bk.Scheduler(ctx, getLoc) })
+	go haNode.Gate(ctx, "alerts", al.Run)
 	go mon.Run(ctx)
 	go notifier.Run(ctx)
 	fwdDone := make(chan struct{})
 	go func() { fwd.Run(ctx); close(fwdDone) }()
 	go geo.Run(ctx)
-	go hub.Run(ctx)
-	go syncer.Run(ctx)
+	go haNode.Gate(ctx, "probe checks", hub.Run)
+	go haNode.Gate(ctx, "unifi sync", syncer.Run)
 	go func() {
 		t := time.NewTicker(time.Hour)
 		defer t.Stop()
