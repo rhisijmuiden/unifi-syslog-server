@@ -164,7 +164,7 @@ jobs:
             sudo incus file push keepalived-$ct.conf $ct/etc/keepalived/keepalived.conf
             sudo incus exec $ct -- systemctl restart keepalived
           done
-          holder() { for ct in n1 n2; do sudo incus exec $ct -- ip -4 addr show eth0 | grep -q " $VIP/" && echo $ct; done; }
+          holder() { for ct in n1 n2; do sudo incus exec $ct -- ip -4 addr show eth0 | grep -q " $VIP/" && echo $ct; done; return 0; }
           for i in $(seq 1 30); do h=$(holder); [ -n "$h" ] && break; sleep 2; done
           echo "virtual IP on: $h"; [ "$(echo $h | wc -w)" = 1 ]
           echo "FIRST=$h" >> "$GITHUB_ENV"
