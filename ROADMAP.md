@@ -1,6 +1,6 @@
 # Roadmap
 
-Last updated: 19 October 2026
+Last updated: 20 October 2026
 
 This document describes where UniFi Syslog Server is heading. Order and scope are a plan, not a promise; priorities may shift between releases.
 
@@ -125,17 +125,17 @@ Goal: a small probe at each site that receives UniFi logs locally, buffers them 
 | Updates through the main server | Probes get their updates from the main server, not from the internet. Update all probes or a selection from the probe overview, with checksum verification and automatic rollback if the new version fails to start |
 | Remote management | Change probe settings (buffer size, ports, log level) from the main server |
 
-## 2.0 Scale and reliability (in test)
+## 2.0 Scale and reliability (shipped in v0.11.0)
 
 Goal: dozens of sites and billions of log lines without data loss.
 
 | Item | Description | Status |
 |---|---|---|
-| External or clustered ClickHouse | Storage on a separate server (`deploy/install-clickhouse.sh`) or a ClickHouse cluster with replicated tables, chosen in the installer or switched over under *Storage* with the stored logs copied along | Built, in test |
-| Cold storage | Move old logs to S3-compatible storage (e.g. MinIO, Wasabi) with ClickHouse tiered storage; they stay searchable | Built, in test |
-| More backup targets | SFTP and S3 next to FTP, FTPS and SCP; backups encrypted with a passphrase (age) | Built, in test |
-| Monitoring | Prometheus metrics endpoint with alert rules, Grafana dashboards and a read-only Grafana data source for the logs | Built, in test |
-| High availability | Two receivers behind a virtual IP (keepalived), sharing one ClickHouse; the standby copies all settings and scheduled jobs run once | Built, in test |
+| External or clustered ClickHouse | Storage on a separate server (`deploy/install-clickhouse.sh`) or a ClickHouse cluster with replicated tables, chosen in the installer or switched over under *Storage* with the stored logs copied along | Shipped in v0.11.0 |
+| Cold storage | Move old logs to S3-compatible storage (e.g. MinIO, Wasabi) with ClickHouse tiered storage; they stay searchable | Shipped in v0.11.0 |
+| More backup targets | SFTP and S3 next to FTP, FTPS and SCP; backups encrypted with a passphrase (age) | Shipped in v0.11.0 |
+| Monitoring | Prometheus metrics endpoint with alert rules, Grafana dashboards and a read-only Grafana data source for the logs | Shipped in v0.11.0 |
+| High availability | Two receivers behind a virtual IP (keepalived), sharing one ClickHouse; the standby copies all settings and scheduled jobs run once | Shipped in v0.11.0 |
 
 ## 2.x Analytics and compliance
 
@@ -152,5 +152,4 @@ Goal: insight and accountability, not just storage.
 
 ## Up next
 
-1. **Scale and reliability** (2.0): built and in test; a production release follows after testing.
-2. **Analytics and compliance** (2.x): anomaly detection, scheduled reports and NIS2 compliance.
+1. **Analytics and compliance** (2.x): anomaly detection, scheduled reports and NIS2 compliance.
