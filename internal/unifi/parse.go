@@ -20,7 +20,7 @@ var (
 	// hostname, e.g. "U7PG2,f09fc2aabbcc,v6.5.28.14491". Generic servers treat
 	// this as one opaque host and lose the model/MAC/firmware.
 	reDeviceHost = regexp.MustCompile(`^([A-Za-z0-9_\-\.]+),([0-9a-fA-F]{12}),(v?[0-9][^:\s]*):?$`)
-	reTag        = regexp.MustCompile(`^([A-Za-z0-9_\-\.\/\(\)]+?)(?:\[(\d+)\])?:(?:\s|$)`)
+	reTag        = regexp.MustCompile(`^([A-Za-z0-9_\-\.\/\(\)#]+?)(?:\[(\d+)\])?:(?:\s|$)`)
 	reKernTS     = regexp.MustCompile(`^\[\s*\d+\.\d+\]\s*`)
 )
 
@@ -256,8 +256,13 @@ func classify(e *Event) {
 		parseStahtd(e, msg)
 	case app == "wevent" || strings.Contains(msg, "EVENT_STA_"):
 		parseWevent(e, msg)
-	case app == "dnsmasq-dhcp" || strings.HasPrefix(app, "kea-dhcp") || app == "dhcpd" || app == "udhcpd" || strings.HasPrefix(msg, "DHCP"):
+	case app == "dnsmasq-dhcp" || strings.HasPrefix(app, "kea-dhcp") || app == "dhcpd" || app == "udhcpd" || strings.HasPrefix(msg, "DHCP") ||
+		(app == "dnsmasq" && reDnsmasqDHCP.MatchString(msg)):
 		parseDHCP(e, msg)
+	case strings.Contains(app, "dhcpsnpd") || strings.HasPrefix(app, "dhcp_relay"):
+		parseDHCPRelay(e, msg)
+	case app == "coredns" && strings.HasPrefix(msg, "{"):
+		parseCoreDNS(e, msg)
 	case app == "dnsmasq" || app == "coredns" || app == "unbound":
 		parseDNS(e, msg)
 	case app == "suricata" || strings.Contains(msg, "[Classification:"):
@@ -830,6 +835,42 @@ func parseDHCP(e *Event, msg string) {
 	if ip := reIPv4.FindString(msg); ip != "" {
 		e.ClientIP = ip
 	}
+}
+
+// UniFi switches with DHCP snooping log the leases they see being relayed:
+// "dhcp_relay#dhcpsnpd[34]: ACK received: ifname Ethernet46, src_ip 172.16.4.254,
+// src_mac 60:22:32:80:f9:e0, chaddr aa:7f:aa:f3:bc:29, yiaddr 172.16.4.67."
+var reSnoopACK = regexp.MustCompile(`(?i)(\w+) received:\s*ifname\s+([^,]+),.*?chaddr\s+([0-9a-f:]{17}),\s*yiaddr\s+(\d{1,3}(?:\.\d{1,3}){3})`)
+
+func parseDHCPRelay(e *Event, msg string) {
+	e.Category = CatDHCP
+	if m := reSnoopACK.FindStringSubmatch(msg); m != nil {
+		e.EventType = "DHCP" + strings.ToUpper(m[1])
+		e.InIf = m[2]
+		e.ClientMAC = strings.ToLower(m[3])
+		e.ClientIP = m[4]
+		e.set("relay", "snooping")
+		return
+	}
+	e.EventType = "relay"
+}
+
+// CoreDNS on UniFi OS logs ad-block and content-filter hits as JSON:
+// {"type":"dnsAdBlock","category":"ADVERTISEMENT","domain":"ads.example.com","ip":"192.168.1.20","mac":"..."}
+func parseCoreDNS(e *Event, msg string) {
+	e.Category = CatDNS
+	kv := flatJSON(msg)
+	e.EventType = first(kv["type"], "dns")
+	e.Action = "block"
+	e.set("query", kv["domain"])
+	e.set("filter_category", kv["category"])
+	e.ClientIP = first(kv["ip"], kv["src_ip"])
+	e.ClientMAC = strings.ToLower(kv["mac"])
+	e.SrcIP = kv["src_ip"]
+	e.DstIP = kv["dst_ip"]
+	e.SrcPort = atou16(kv["src_port"])
+	e.DstPort = atou16(kv["dst_port"])
+	e.Proto = strings.ToLower(kv["protocol"])
 }
 
 func parseDNS(e *Event, msg string) {

@@ -4,7 +4,7 @@ import {
   LayoutDashboard, ScrollText, Tags, Router as RouterIcon, MapPin, BellRing, Users, KeyRound, Mail, DatabaseBackup,
   Settings, History, Info, LogOut, Moon, Sun, Menu, X, Languages, Palette,
   ShieldX, Wifi, Network, Lock, Siren, Smartphone, Server, Globe, UserRound, ShieldCheck, ListChecks, Send, RadioTower, Megaphone,
-  Bookmark, Activity, Users2, HardDrive, Gauge, ServerCog, Moon as MoonIcon,
+  Bookmark, Activity, Users2, HardDrive, Gauge, ServerCog, Moon as MoonIcon, BookOpen,
 } from 'lucide-react'
 import { api, brandingUrl, can, searchLink, searchMatches, type Branding, type SavedSearch, type User } from './api'
 import { roleLabel } from './components/Access'
@@ -41,6 +41,7 @@ import SystemStatus from './pages/Status'
 import Storage from './pages/Storage'
 import Monitoring from './pages/Monitoring'
 import HighAvailability from './pages/HighAvailability'
+import HowTo from './pages/HowTo'
 
 interface AuthCtx {
   user: User
@@ -176,6 +177,9 @@ const nav: { section: string; items: NavItem[] }[] = [
     { to: '/branding', label: 'Branding', icon: <Palette />, admin: true },
     { to: '/audit', label: 'Audit log', icon: <History />, admin: true },
   ] },
+  { section: 'Help', items: [
+    { to: '/howto', label: 'How-to guides', icon: <BookOpen /> },
+  ] },
   { section: 'Account', items: [
     { to: '/account', label: 'My account', icon: <UserRound /> },
   ] },
@@ -297,6 +301,8 @@ function Shell() {
             <Route path="/clients" element={<Clients />} />
             <Route path="/dashboards/:kind" element={<Dashboards />} />
             <Route path="/account" element={<Account />} />
+            <Route path="/howto" element={<HowTo />} />
+            <Route path="/howto/:id" element={<HowTo />} />
             {isAdmin && <>
               <Route path="/status" element={<SystemStatus />} />
               <Route path="/storage" element={<Storage />} />

@@ -144,3 +144,29 @@ func BenchmarkParseFirewall(b *testing.B) {
 		Parse(raw, "10.0.0.1", recv, time.UTC)
 	}
 }
+
+func TestDnsmasqDHCPWithTransactionID(t *testing.T) {
+	// dnsmasq with log-dhcp prefixes a transaction id; some builds tag it "dnsmasq".
+	e := p(t, `<30>Oct 17 19:55:06 UCG-Ultra dnsmasq[2345]: 3891312347 DHCPREQUEST(br0) 192.168.1.20 aa:bb:cc:dd:ee:ff`)
+	if e.Category != CatDHCP || e.EventType != "DHCPREQUEST" || e.ClientIP != "192.168.1.20" || e.ClientMAC != "aa:bb:cc:dd:ee:ff" || e.InIf != "br0" {
+		t.Fatalf("%+v", e)
+	}
+	e = p(t, `<30>Oct 17 19:55:06 UCG-Ultra dnsmasq[2345]: query[A] example.com from 192.168.1.20`)
+	if e.Category != CatDNS || e.EventType != "query" {
+		t.Fatalf("dns: %+v", e)
+	}
+}
+
+func TestSwitchDHCPSnooping(t *testing.T) {
+	e := p(t, `<30>Oct 17 19:55:06 USW-Pro-Max-24 dhcp_relay#dhcpsnpd[34]: ACK received: ifname Ethernet46, src_ip 172.16.4.254, src_mac 60:22:32:80:f9:e0, chaddr aa:7f:aa:f3:bc:29, yiaddr 172.16.4.67.`)
+	if e.App != "dhcp_relay#dhcpsnpd" || e.Category != CatDHCP || e.EventType != "DHCPACK" || e.ClientIP != "172.16.4.67" || e.ClientMAC != "aa:7f:aa:f3:bc:29" || e.InIf != "Ethernet46" {
+		t.Fatalf("%+v", e)
+	}
+}
+
+func TestCoreDNSAdBlock(t *testing.T) {
+	e := p(t, `<30>Oct 17 19:55:06 UCG-Ultra coredns[123]: {"timestamp":"2026-10-17T19:55:06Z","type":"dnsAdBlock","category":"ADVERTISEMENT","domain":"ads.example.com","ip":"192.168.1.20","mac":"AA:BB:CC:DD:EE:FF","src_ip":"192.168.1.20","src_port":5353,"dst_ip":"192.168.1.1","dst_port":53,"protocol":"udp"}`)
+	if e.Category != CatDNS || e.EventType != "dnsAdBlock" || e.Action != "block" || e.Fields["query"] != "ads.example.com" || e.ClientMAC != "aa:bb:cc:dd:ee:ff" || e.DstPort != 53 {
+		t.Fatalf("%+v", e)
+	}
+}
