@@ -1433,5 +1433,19 @@
   "Cold storage is turned off when switching; set it up again for the new server.": "Cold storage gaat uit bij het overschakelen; stel het opnieuw in voor de nieuwe server.",
   "A read-only API token of an administrator": "Een alleen-lezen API-token van een beheerder",
   "Switch over": "Overschakelen",
-  "Access settings": "Toegang"
+  "Access settings": "Toegang",
+  "Find log messages, devices, clients, settings and everything else in one place": "Vind logberichten, apparaten, clients, instellingen en al het andere op één plek",
+  "Log messages": "Logberichten",
+  "No log messages match in this time range.": "Geen logberichten gevonden in deze periode.",
+  "Nothing found for \"{q}\"": "Niets gevonden voor \"{q}\"",
+  "Open in Logs": "Openen in Logs",
+  "Pages & settings": "Pagina's & instellingen",
+  "Search everything": "Alles doorzoeken",
+  "Search for a device, MAC or IP address, client, alert, setting or log text…": "Zoek een apparaat, MAC- of IP-adres, client, melding, instelling of logtekst…",
+  "Show all {n} messages": "Alle {n} berichten tonen",
+  "Showing {n} of {total}": "{n} van {total}",
+  "Tip: press Ctrl+K or / anywhere to open the search, use the arrow keys and Enter to open a result.": "Tip: druk overal op Ctrl+K of / om te zoeken, en gebruik de pijltjestoetsen en Enter om een resultaat te openen.",
+  "Try fewer or other words, or a longer time range for log messages.": "Probeer minder of andere woorden, of een langere periode voor logberichten.",
+  "Type a name, MAC address, IP address or any text. Log messages are searched with the same filter language as the Logs page, for example category:firewall action:block.": "Typ een naam, MAC-adres, IP-adres of willekeurige tekst. Logberichten worden doorzocht met dezelfde zoektaal als op de pagina Logs, bijvoorbeeld category:firewall action:block.",
+  "not enrolled": "niet aangemeld"
 }

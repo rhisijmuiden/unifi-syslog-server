@@ -1,10 +1,10 @@
 import { createContext, Fragment, useContext, useEffect, useState, type ReactNode } from 'react'
-import { BrowserRouter, Link, NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { BrowserRouter, Link, NavLink, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, ScrollText, Tags, Router as RouterIcon, MapPin, BellRing, Users, KeyRound, Mail, DatabaseBackup,
   Settings, History, Info, LogOut, Moon, Sun, Menu, X, Languages, Palette,
   ShieldX, Wifi, Network, Lock, Siren, Smartphone, Server, Globe, UserRound, ShieldCheck, ListChecks, Send, RadioTower, Megaphone,
-  Bookmark, Activity, Users2, HardDrive, Gauge, ServerCog, Moon as MoonIcon,
+  Bookmark, Activity, Users2, HardDrive, Gauge, ServerCog, Moon as MoonIcon, Search as SearchIcon,
 } from 'lucide-react'
 import { api, brandingUrl, can, searchLink, searchMatches, type Branding, type SavedSearch, type User } from './api'
 import { roleLabel } from './components/Access'
@@ -41,6 +41,7 @@ import SystemStatus from './pages/Status'
 import Storage from './pages/Storage'
 import Monitoring from './pages/Monitoring'
 import HighAvailability from './pages/HighAvailability'
+import SearchPage from './pages/Search'
 
 interface AuthCtx {
   user: User
@@ -135,16 +136,16 @@ export default function App() {
   )
 }
 
-interface NavItem { to: string; label: string; icon: ReactNode; admin?: boolean }
-const nav: { section: string; items: NavItem[] }[] = [
+export interface NavItem { to: string; label: string; icon: ReactNode; admin?: boolean; keywords?: string }
+export const nav: { section: string; items: NavItem[] }[] = [
   { section: 'Monitoring', items: [
-    { to: '/', label: 'Overview', icon: <LayoutDashboard /> },
-    { to: '/logs', label: 'Logs', icon: <ScrollText /> },
-    { to: '/searches', label: 'Saved searches', icon: <Bookmark /> },
-    { to: '/categories', label: 'Categories', icon: <Tags /> },
-    { to: '/devices', label: 'Devices', icon: <RouterIcon /> },
-    { to: '/clients', label: 'Clients', icon: <Smartphone /> },
-    { to: '/sites', label: 'Sites', icon: <MapPin /> },
+    { to: '/', label: 'Overview', keywords: 'dashboard home statistics', icon: <LayoutDashboard /> },
+    { to: '/logs', label: 'Logs', keywords: 'messages syslog events query', icon: <ScrollText /> },
+    { to: '/searches', label: 'Saved searches', keywords: 'bookmarks filters', icon: <Bookmark /> },
+    { to: '/categories', label: 'Categories', keywords: 'filters groups', icon: <Tags /> },
+    { to: '/devices', label: 'Devices', keywords: 'access points switches gateways firmware inventory', icon: <RouterIcon /> },
+    { to: '/clients', label: 'Clients', keywords: 'mac hostnames dhcp names', icon: <Smartphone /> },
+    { to: '/sites', label: 'Sites', keywords: 'locations ranges cidr', icon: <MapPin /> },
   ] },
   { section: 'Dashboards', items: [
     { to: '/dashboards/firewall', label: 'Firewall', icon: <ShieldX /> },
@@ -154,30 +155,30 @@ const nav: { section: string; items: NavItem[] }[] = [
     { to: '/dashboards/ips', label: 'Threats (IPS)', icon: <Siren /> },
   ] },
   { section: 'Configuration', items: [
-    { to: '/alerts', label: 'Alerts', icon: <BellRing />, admin: true },
-    { to: '/notifications', label: 'Notification channels', icon: <Megaphone />, admin: true },
-    { to: '/probes', label: 'Remote probes', icon: <RadioTower />, admin: true },
-    { to: '/forwarding', label: 'Forwarding', icon: <Send />, admin: true },
-    { to: '/controllers', label: 'UniFi controllers', icon: <Server />, admin: true },
-    { to: '/geoip', label: 'GeoIP', icon: <Globe />, admin: true },
-    { to: '/allowlist', label: 'Source allowlist', icon: <ListChecks />, admin: true },
+    { to: '/alerts', label: 'Alerts', keywords: 'rules thresholds triggers', icon: <BellRing />, admin: true },
+    { to: '/notifications', label: 'Notification channels', keywords: 'teams slack telegram sms webhook pushover ntfy', icon: <Megaphone />, admin: true },
+    { to: '/probes', label: 'Remote probes', keywords: 'collectors agents raspberry', icon: <RadioTower />, admin: true },
+    { to: '/forwarding', label: 'Forwarding', keywords: 'sentinel elastic splunk logstash siem', icon: <Send />, admin: true },
+    { to: '/controllers', label: 'UniFi controllers', keywords: 'network api key sync', icon: <Server />, admin: true },
+    { to: '/geoip', label: 'GeoIP', keywords: 'maxmind countries asn', icon: <Globe />, admin: true },
+    { to: '/allowlist', label: 'Source allowlist', keywords: 'senders ip filter', icon: <ListChecks />, admin: true },
   ] },
   { section: 'Administration', items: [
-    { to: '/status', label: 'System status', icon: <Activity />, admin: true },
-    { to: '/storage', label: 'Storage', icon: <HardDrive />, admin: true },
-    { to: '/monitoring', label: 'Metrics & Grafana', icon: <Gauge />, admin: true },
-    { to: '/ha', label: 'High availability', icon: <ServerCog />, admin: true },
-    { to: '/users', label: 'Users', icon: <Users />, admin: true },
-    { to: '/sso', label: 'Microsoft Entra SSO', icon: <KeyRound />, admin: true },
-    { to: '/security', label: 'Security', icon: <ShieldCheck />, admin: true },
-    { to: '/mail', label: 'Mail server', icon: <Mail />, admin: true },
-    { to: '/backup', label: 'Backup & restore', icon: <DatabaseBackup />, admin: true },
-    { to: '/settings', label: 'Settings', icon: <Settings />, admin: true },
-    { to: '/branding', label: 'Branding', icon: <Palette />, admin: true },
-    { to: '/audit', label: 'Audit log', icon: <History />, admin: true },
+    { to: '/status', label: 'System status', keywords: 'health clickhouse disk queue', icon: <Activity />, admin: true },
+    { to: '/storage', label: 'Storage', keywords: 'retention clickhouse cluster s3 cold disk', icon: <HardDrive />, admin: true },
+    { to: '/monitoring', label: 'Metrics & Grafana', keywords: 'prometheus metrics', icon: <Gauge />, admin: true },
+    { to: '/ha', label: 'High availability', keywords: 'keepalived failover cluster standby virtual ip', icon: <ServerCog />, admin: true },
+    { to: '/users', label: 'Users', keywords: 'accounts roles permissions', icon: <Users />, admin: true },
+    { to: '/sso', label: 'Microsoft Entra SSO', keywords: 'azure ad login single sign-on oidc', icon: <KeyRound />, admin: true },
+    { to: '/security', label: 'Security', keywords: 'two-factor totp mfa password policy', icon: <ShieldCheck />, admin: true },
+    { to: '/mail', label: 'Mail server', keywords: 'smtp email e-mail', icon: <Mail />, admin: true },
+    { to: '/backup', label: 'Backup & restore', keywords: 'ftp ftps sftp scp s3 restore incremental full', icon: <DatabaseBackup />, admin: true },
+    { to: '/settings', label: 'Settings', keywords: 'timezone language retention general', icon: <Settings />, admin: true },
+    { to: '/branding', label: 'Branding', keywords: 'logo colors theme house style', icon: <Palette />, admin: true },
+    { to: '/audit', label: 'Audit log', keywords: 'history changes', icon: <History />, admin: true },
   ] },
   { section: 'Account', items: [
-    { to: '/account', label: 'My account', icon: <UserRound /> },
+    { to: '/account', label: 'My account', keywords: 'password language api tokens two-factor', icon: <UserRound /> },
   ] },
 ]
 
@@ -193,6 +194,21 @@ function Shell() {
   const [mobile, setMobile] = useState(false)
   const loc = useLocation()
   useEffect(() => setMobile(false), [loc.pathname])
+  // Ctrl+K (or Cmd+K) and "/" open the search page from anywhere.
+  const go = useNavigate()
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => {
+      const typing = e.target instanceof HTMLElement && (e.target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName))
+      if ((e.key === 'k' && (e.ctrlKey || e.metaKey)) || (e.key === '/' && !typing && !e.ctrlKey && !e.metaKey && !e.altKey)) {
+        e.preventDefault()
+        if (window.location.pathname === '/search') window.dispatchEvent(new Event('uss:search-focus'))
+        else go('/search')
+      }
+    }
+    window.addEventListener('keydown', h)
+    return () => window.removeEventListener('keydown', h)
+  }, [go])
+  const mac = /Mac|iPhone|iPad/.test(navigator.platform)
   const isAdmin = can.admin(user)
   const [pinned, setPinned] = useState<SavedSearch[]>([])
   useEffect(() => {
@@ -209,6 +225,13 @@ function Shell() {
   const sidebar = (
     <aside className="flex h-full w-64 flex-col border-r border-app bg-[var(--panel)]">
       <BrandHeader branding={branding} instance={instance} className="px-5 py-5" />
+      <div className="px-3 pb-4">
+        <NavLink to="/search" className={({ isActive }) => cx('flex items-center gap-3 rounded-xl px-3 py-2 text-sm ring-1 transition [&_svg]:size-4',
+          isActive ? 'bg-gradient-to-r from-indigo-500/15 to-cyan-500/10 text-indigo-400 font-medium ring-indigo-500/30' : 'bg-[var(--panel-2)] text-muted ring-[var(--border)] hover:text-[var(--text)] hover:ring-indigo-400/50')}>
+          <SearchIcon /><span className="flex-1">{t('Search everything')}</span>
+          <kbd className="rounded-md bg-[var(--panel)] px-1.5 py-0.5 font-sans text-[10px] text-muted ring-1 ring-[var(--border)]">{mac ? '⌘K' : 'Ctrl K'}</kbd>
+        </NavLink>
+      </div>
       <nav className="flex-1 space-y-5 overflow-y-auto scroll-thin px-3 pb-4">
         {nav.map((g) => {
           const items = g.items.filter((i) => !i.admin || isAdmin)
@@ -290,6 +313,7 @@ function Shell() {
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/logs" element={<Logs />} />
+            <Route path="/search" element={<SearchPage />} />
             <Route path="/searches" element={<SavedSearches />} />
             <Route path="/categories" element={<Categories />} />
             <Route path="/devices" element={<Devices />} />

@@ -1433,5 +1433,19 @@
   "Cold storage is turned off when switching; set it up again for the new server.": "Le stockage à froid est désactivé lors de la bascule ; reconfigurez-le pour le nouveau serveur.",
   "A read-only API token of an administrator": "Un jeton API en lecture seule d'un administrateur",
   "Switch over": "Basculer",
-  "Access settings": "Accès"
+  "Access settings": "Accès",
+  "Find log messages, devices, clients, settings and everything else in one place": "Trouvez messages de journal, appareils, clients, paramètres et tout le reste au même endroit",
+  "Log messages": "Messages de journal",
+  "No log messages match in this time range.": "Aucun message de journal ne correspond sur cette période.",
+  "Nothing found for \"{q}\"": "Aucun résultat pour « {q} »",
+  "Open in Logs": "Ouvrir dans les journaux",
+  "Pages & settings": "Pages et paramètres",
+  "Search everything": "Tout rechercher",
+  "Search for a device, MAC or IP address, client, alert, setting or log text…": "Recherchez un appareil, une adresse MAC ou IP, un client, une alerte, un paramètre ou un texte de journal…",
+  "Show all {n} messages": "Afficher les {n} messages",
+  "Showing {n} of {total}": "{n} sur {total}",
+  "Tip: press Ctrl+K or / anywhere to open the search, use the arrow keys and Enter to open a result.": "Astuce : appuyez sur Ctrl+K ou / n'importe où pour ouvrir la recherche, puis utilisez les flèches et Entrée pour ouvrir un résultat.",
+  "Try fewer or other words, or a longer time range for log messages.": "Essayez moins de mots ou d'autres mots, ou une période plus longue pour les messages de journal.",
+  "Type a name, MAC address, IP address or any text. Log messages are searched with the same filter language as the Logs page, for example category:firewall action:block.": "Saisissez un nom, une adresse MAC, une adresse IP ou n'importe quel texte. Les messages de journal sont recherchés avec le même langage de filtre que la page Journaux, par exemple category:firewall action:block.",
+  "not enrolled": "non inscrite"
 }
