@@ -1433,5 +1433,19 @@
   "Cold storage is turned off when switching; set it up again for the new server.": "Cold Storage wird beim Umschalten ausgeschaltet; richten Sie es für den neuen Server erneut ein.",
   "A read-only API token of an administrator": "Ein schreibgeschütztes API-Token eines Administrators",
   "Switch over": "Umschalten",
-  "Access settings": "Zugriff"
+  "Access settings": "Zugriff",
+  "Find log messages, devices, clients, settings and everything else in one place": "Logmeldungen, Geräte, Clients, Einstellungen und alles andere an einem Ort finden",
+  "Log messages": "Logmeldungen",
+  "No log messages match in this time range.": "Keine passenden Logmeldungen in diesem Zeitraum.",
+  "Nothing found for \"{q}\"": "Nichts gefunden für „{q}“",
+  "Open in Logs": "In Logs öffnen",
+  "Pages & settings": "Seiten & Einstellungen",
+  "Search everything": "Alles durchsuchen",
+  "Search for a device, MAC or IP address, client, alert, setting or log text…": "Gerät, MAC- oder IP-Adresse, Client, Alarm, Einstellung oder Logtext suchen…",
+  "Show all {n} messages": "Alle {n} Meldungen anzeigen",
+  "Showing {n} of {total}": "{n} von {total}",
+  "Tip: press Ctrl+K or / anywhere to open the search, use the arrow keys and Enter to open a result.": "Tipp: Drücke überall Strg+K oder /, um die Suche zu öffnen, und öffne Ergebnisse mit den Pfeiltasten und Enter.",
+  "Try fewer or other words, or a longer time range for log messages.": "Versuche weniger oder andere Wörter oder einen längeren Zeitraum für Logmeldungen.",
+  "Type a name, MAC address, IP address or any text. Log messages are searched with the same filter language as the Logs page, for example category:firewall action:block.": "Gib einen Namen, eine MAC-Adresse, IP-Adresse oder beliebigen Text ein. Logmeldungen werden mit derselben Filtersprache wie auf der Seite Logs durchsucht, zum Beispiel category:firewall action:block.",
+  "not enrolled": "nicht registriert"
 }

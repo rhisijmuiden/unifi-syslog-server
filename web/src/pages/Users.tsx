@@ -3,7 +3,7 @@ import { Users as UsersIcon, Plus, Pencil, Trash2, ShieldCheck, ShieldOff } from
 import { api, type User } from '../api'
 import { useAuth } from '../App'
 import { RoleBadge, SitePicker, roleOptions, sitesSummary } from '../components/Access'
-import { Badge, Button, Card, Field, Input, Modal, PageHeader, Select, Spinner, Toggle, useAsync, useToast } from '../components/ui'
+import { Badge, Button, Card, Field, Input, Modal, PageHeader, Select, Spinner, Toggle, useAsync, useToast, useEditParam } from '../components/ui'
 import { fmtAgo } from '../lib/format'
 import { languages, t } from '../i18n'
 
@@ -14,6 +14,7 @@ export default function UsersPage() {
   const toast = useToast()
   const users = useAsync(() => api.get<User[]>('/users'))
   const [edit, setEdit] = useState<Edit>()
+  useEditParam(users.data, (u) => setEdit({ ...u, password: '' }))
   const save = async () => {
     try {
       if (edit!.id) await api.put('/users/' + edit!.id, edit)
