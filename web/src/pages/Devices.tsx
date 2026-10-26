@@ -90,7 +90,7 @@ export default function Devices() {
       <div className="grid grid-cols-1 gap-6 2xl:grid-cols-4">
         <Card pad={false} className="2xl:col-span-3">
           {loading && !data ? <div className="grid place-items-center py-20"><Spinner /></div>
-            : !list.length ? <Empty icon={<RouterIcon className="size-8" />} title={all.length ? t('No devices found') : t('No devices yet')} text={all.length ? t('Adjust the filters.') : t('In the UniFi Network app, go to Settings → System → Logging and configure a remote syslog server with the IP of this server, port 514.')} />
+            : !list.length ? <Empty icon={<RouterIcon className="size-8" />} title={all.length ? t('No devices found') : t('No devices yet')} text={all.length ? t('Adjust the filters.') : t('In the UniFi Network app, go to Settings → CyberSecure → Traffic Logging and set SIEM Server to the IP of this server, port 514.')} />
             : (
               <div className="overflow-x-auto scroll-thin">
                 <table className="w-full text-sm">

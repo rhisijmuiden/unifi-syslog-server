@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { Settings as SettingsIcon, Save, Timer } from 'lucide-react'
+import { Settings as SettingsIcon, Save, Timer, BookOpen } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { api } from '../api'
 import { useAuth } from '../App'
 import { Badge, Button, Card, Field, Input, PageHeader, Select, Spinner, useAsync, useToast } from '../components/ui'
@@ -44,11 +45,12 @@ export default function SettingsPage() {
         <RetentionCard g={g} setG={setG} usage={usage.data} />
         <Card title={t('Connect UniFi')} subtitle={t('How to send logs to this server')}>
           <ol className="list-decimal space-y-2 pl-4 text-sm text-muted">
-            <li>{rich(t('Open the UniFi Network app → {path} (depending on version: {alt}).'), { path: 'Settings → CyberSecure / System → Traffic & Firewall logging', alt: 'Settings → System → Logging' })}</li>
+            <li>{rich(t('Open the UniFi Network app → {path} (depending on version: {alt}).'), { path: 'Settings → CyberSecure → Traffic Logging', alt: 'Settings → System → Integrations' })}</li>
             <li>{rich(t('Choose {siem} or {remote} and enter the IP address of this server, port {port}.'), { siem: 'SIEM Server', remote: 'Remote Syslog', port: <span className="font-mono">514</span> })}</li>
-            <li>{t('Set the log level to Info or Debug and enable firewall logging on the rules you want.')}</li>
+            <li>{t('Tick Debug Logs for DHCP, and switch on Syslog Logging on the firewall rules you want to see.')}</li>
             <li>{rich(t('For sites behind NAT: map the WAN IP to the site under {sites}.'), { sites: t('Sites') })}</li>
           </ol>
+          <Link to="/howto" className="mt-4 inline-flex items-center gap-2 text-sm text-indigo-400 hover:underline"><BookOpen className="size-4" />{t('Step-by-step guides for every type of log')}</Link>
         </Card>
       </div>
     </>

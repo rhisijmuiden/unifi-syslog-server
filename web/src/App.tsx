@@ -4,7 +4,7 @@ import {
   LayoutDashboard, ScrollText, Tags, Router as RouterIcon, MapPin, BellRing, Users, KeyRound, Mail, DatabaseBackup,
   Settings, History, Info, LogOut, Moon, Sun, Menu, X, Languages, Palette,
   ShieldX, Wifi, Network, Lock, Siren, Smartphone, Server, Globe, UserRound, ShieldCheck, ListChecks, Send, RadioTower, Megaphone,
-  Bookmark, Activity, Users2, HardDrive, Gauge, ServerCog, Moon as MoonIcon, Search as SearchIcon,
+  Bookmark, Activity, Users2, HardDrive, Gauge, ServerCog, Moon as MoonIcon, Search as SearchIcon, BookOpen,
 } from 'lucide-react'
 import { api, brandingUrl, can, searchLink, searchMatches, type Branding, type SavedSearch, type User } from './api'
 import { roleLabel } from './components/Access'
@@ -42,6 +42,7 @@ import Storage from './pages/Storage'
 import Monitoring from './pages/Monitoring'
 import HighAvailability from './pages/HighAvailability'
 import SearchPage from './pages/Search'
+import HowTo from './pages/HowTo'
 
 interface AuthCtx {
   user: User
@@ -176,6 +177,9 @@ export const nav: { section: string; items: NavItem[] }[] = [
     { to: '/settings', label: 'Settings', keywords: 'timezone language retention general', icon: <Settings />, admin: true },
     { to: '/branding', label: 'Branding', keywords: 'logo colors theme house style', icon: <Palette />, admin: true },
     { to: '/audit', label: 'Audit log', keywords: 'history changes', icon: <History />, admin: true },
+  ] },
+  { section: 'Help', items: [
+    { to: '/howto', label: 'How-to guides', icon: <BookOpen />, keywords: 'help guide documentation setup syslog unifi siem debug logs firewall dhcp' },
   ] },
   { section: 'Account', items: [
     { to: '/account', label: 'My account', keywords: 'password language api tokens two-factor', icon: <UserRound /> },
@@ -321,6 +325,8 @@ function Shell() {
             <Route path="/clients" element={<Clients />} />
             <Route path="/dashboards/:kind" element={<Dashboards />} />
             <Route path="/account" element={<Account />} />
+            <Route path="/howto" element={<HowTo />} />
+            <Route path="/howto/:id" element={<HowTo />} />
             {isAdmin && <>
               <Route path="/status" element={<SystemStatus />} />
               <Route path="/storage" element={<Storage />} />

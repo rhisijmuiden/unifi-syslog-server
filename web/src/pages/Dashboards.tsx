@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
-import { ShieldX, Wifi, Network, Lock, Siren } from 'lucide-react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
+import { ShieldX, Wifi, Network, Lock, Siren, BookOpen } from 'lucide-react'
 import { api, type Bucket, type TopItem } from '../api'
 import { Card, PageHeader, Spinner, Stat, useAsync } from '../components/ui'
 import { BarList, Timeline } from '../components/charts'
@@ -208,6 +208,7 @@ function DashboardView({ kind }: { kind: string }) {
           <SiteFilter value={st.site} onChange={(site) => set({ site })} />
           <RangePicker value={st} onChange={(r) => set({ preset: r.preset, from: r.from ?? '', to: r.to ?? '' })} />
           <RefreshButton onClick={reload} loading={loading} />
+          <Link to={'/howto/' + kind} title={t('How to get this data from UniFi')} className="panel grid size-9 place-items-center rounded-xl text-muted transition hover:text-indigo-400 hover:ring-1 hover:ring-indigo-400/50"><BookOpen className="size-4" /></Link>
         </>} />
       {!data ? <div className="grid place-items-center py-24"><Spinner className="size-8" /></div> : (
         <div className="space-y-6">
