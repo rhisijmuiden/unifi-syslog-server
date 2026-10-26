@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Plus, Pencil, RefreshCw, Server, CheckCircle2, AlertCircle, PlugZap, Trash2 } from 'lucide-react'
 import { api } from '../api'
-import { Badge, Button, Card, Empty, Field, Input, Modal, PageHeader, Spinner, Toggle, useAsync, useToast } from '../components/ui'
+import { Badge, Button, Card, Empty, Field, Input, Modal, PageHeader, Spinner, Toggle, useAsync, useToast, useEditParam } from '../components/ui'
 import { fmtAgo, fmtNum } from '../lib/format'
 import { t } from '../i18n'
 
@@ -17,6 +17,7 @@ export default function Controllers() {
   const toast = useToast()
   const { data, loading, reload } = useAsync(() => api.get<Controller[]>('/controllers'))
   const [edit, setEdit] = useState<Controller | null>(null)
+  useEditParam(data, setEdit)
   const [syncing, setSyncing] = useState(0)
   const sync = async (c: Controller) => {
     setSyncing(c.id)

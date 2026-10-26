@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode, type ButtonHTMLAttributes, type InputHTMLAttributes } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { X, Loader2, CheckCircle2, AlertCircle, Copy, Check } from 'lucide-react'
 import { t } from '../i18n'
 
@@ -216,4 +217,17 @@ export function useAsync<T>(fn: () => Promise<T>, deps: unknown[] = []) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [...deps, tick])
   return { data, error, loading, reload: () => setTick((t) => t + 1), setData }
+}
+
+/** Opens the item named by "?edit=<id>" once the list has loaded (links from the search page). */
+export function useEditParam<T extends { id?: number }>(list: T[] | undefined, open: (x: T) => void) {
+  const [params, setParams] = useSearchParams()
+  const id = Number(params.get('edit'))
+  useEffect(() => {
+    if (!id || !list) return
+    const x = list.find((i) => i.id === id)
+    if (x) open(x)
+    setParams((p) => { p.delete('edit'); return p }, { replace: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, list])
 }

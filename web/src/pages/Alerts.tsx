@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { BellRing, Plus, Pencil, Trash2, FlaskConical, CalendarClock, CheckCircle2, CircleSlash } from 'lucide-react'
 import { api } from '../api'
-import { Badge, Button, Card, Empty, Field, Input, Modal, PageHeader, Select, Spinner, Toggle, cx, useAsync, useToast } from '../components/ui'
+import { Badge, Button, Card, Empty, Field, Input, Modal, PageHeader, Select, Spinner, Toggle, cx, useAsync, useToast, useEditParam } from '../components/ui'
 import { fmtNum, fmtTime } from '../lib/format'
 import { t } from '../i18n'
 import { kindInfo, severityColor, severityOptions, type Channel, type Severity } from './Notifications'
@@ -90,6 +90,7 @@ export default function Alerts() {
   }, [])
 
   const open = (r?: Rule) => { setTest(undefined); setEdit(r ? { ...blank, ...r, schedule: { ...blank.schedule, ...r.schedule } } : { ...blank }) }
+  useEditParam(rules.data, (r) => open(r))
   const save = async () => {
     try {
       if (edit!.id) await api.put('/alerts/' + edit!.id, edit)

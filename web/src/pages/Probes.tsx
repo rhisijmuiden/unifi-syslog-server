@@ -4,7 +4,7 @@ import {
   ArrowUpCircle, HardDrive, Cpu, MemoryStick, Router as RouterIcon, Gauge, Database, Server, Terminal, Cpu as Chip,
 } from 'lucide-react'
 import { api } from '../api'
-import { Badge, Button, Card, Empty, Field, Input, Modal, PageHeader, Select, Spinner, Stat, Toggle, CopyBox, cx, useAsync, useToast } from '../components/ui'
+import { Badge, Button, Card, Empty, Field, Input, Modal, PageHeader, Select, Spinner, Stat, Toggle, CopyBox, cx, useAsync, useToast, useEditParam } from '../components/ui'
 import { fmtAgo, fmtBytes, fmtDuration, fmtNum, fmtTime } from '../lib/format'
 import { t } from '../i18n'
 
@@ -34,6 +34,7 @@ export default function Probes() {
   const { data, loading, reload } = useAsync(() => api.get<List>('/probes'))
   const toast = useToast()
   const [edit, setEdit] = useState<Probe | 'new' | null>(null)
+  useEditParam(data?.probes, setEdit)
   const [enroll, setEnroll] = useState<Enrollment | null>(null)
   const [settings, setSettings] = useState(false)
   const [selected, setSelected] = useState<number[]>([])

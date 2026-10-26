@@ -152,6 +152,8 @@ func (s *Server) Handler() http.Handler {
 			r.Get("/firmware", s.firmware)
 			r.Get("/geoip/status", s.geoIPState)
 			r.Get("/probes/summary", s.probeSummary)
+			r.Get("/global-search", s.globalSearch)
+			r.Get("/global-search/logs", s.globalSearchLogs)
 
 			// Saved searches: everyone saves their own; sharing needs the
 			// analyst role, which the handler checks.

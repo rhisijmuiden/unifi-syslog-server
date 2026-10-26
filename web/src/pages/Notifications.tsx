@@ -4,7 +4,7 @@ import {
   Smartphone, BellRing, Webhook, Moon, Layers, Clock,
 } from 'lucide-react'
 import { api } from '../api'
-import { Badge, Button, Card, Empty, Field, Input, Modal, PageHeader, Select, Spinner, Toggle, cx, useAsync, useToast } from '../components/ui'
+import { Badge, Button, Card, Empty, Field, Input, Modal, PageHeader, Select, Spinner, Toggle, cx, useAsync, useToast, useEditParam } from '../components/ui'
 import { fmtAgo } from '../lib/format'
 import { languages, t } from '../i18n'
 
@@ -79,6 +79,7 @@ function StateIcon({ c }: { c: Channel }) {
 export default function Notifications() {
   const { data, loading, reload } = useAsync(() => api.get<Channel[]>('/notify'))
   const [edit, setEdit] = useState<Channel | null>(null)
+  useEditParam(data, setEdit)
   const [pick, setPick] = useState(false)
   const list = data ?? []
 

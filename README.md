@@ -21,6 +21,7 @@ A central syslog server built specifically for UniFi. All UniFi sites send their
 - **Overview dashboard**: messages per category, blocked traffic and threats per country, blocked sources and ports, IPS signatures, Wi-Fi clients, SSIDs, DHCP clients, devices, sites and the status of the remote probes. Click through to the logs.
 - **Ready-made dashboards**: Firewall, Wi-Fi (roaming and connection problems), DHCP, VPN (WireGuard, Teleport and site-to-site) and Threats (IPS), each filterable per site and period.
 - **Search**: a dedicated [query language](#query-language) with fields, CIDR, ranges and wildcards, a histogram, live tail, and export to CSV and JSON.
+- **Search everything**: one search box, at the top of the menu or with Ctrl+K, finds log messages, devices, clients, sites, categories, saved searches, pages and settings, and for administrators also alerts, notification channels, probes, forwarding, controllers and users. See [below](#search-everything).
 - **Saved searches**: save a search with its time range, keep it private or share it with everyone, and pin it as a shortcut in the menu. See [below](#saved-searches).
 - **Categories**: your own categories (a saved search with a color) to filter logs, with counters on the Categories page.
 
@@ -77,6 +78,17 @@ Alert rules live under **Configuration → Alerts**. Each rule is a search plus 
 | | |
 |---|---|
 | ![Alert rules](docs/screenshots/alerts-rules.png)<br>**Alert rules** with their condition, schedule and channels. | ![Editing an alert rule](docs/screenshots/alerts-edit.png)<br>**A rule** that counts destination ports per source IP, with the result of *Test now*. |
+
+## Search everything
+
+**Search everything** at the top of the menu (or Ctrl+K / Cmd+K, or `/`, from any page) opens one search box for the whole application:
+
+- **Everything at once**: log messages, devices (name, hostname, model, MAC, IP, firmware, notes), clients, sites, categories, saved searches and menu pages, in English and in your own language. Administrators also find alert rules, notification channels, remote probes, forwarding destinations, UniFi controllers and users. Every word you type must match; results are grouped by type and filtered with the chips above them.
+- **Log messages** use the [query language](#query-language), so `category:firewall action:block` works as well as plain text. Pick the time range on the card and *Open in Logs* for the full list.
+- **Open a result** with a click, or with the arrow keys and Enter. An alert, channel, probe, destination, controller or user opens straight in its edit window.
+- Everyone only finds what they may see: restricted users only the devices, clients and sites they have access to, and only their own or shared saved searches. Secrets are never searched.
+
+![Search everything](docs/screenshots/search.png)
 
 ## Saved searches
 

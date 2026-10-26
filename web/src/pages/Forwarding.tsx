@@ -4,7 +4,7 @@ import {
   Workflow, Radio, Webhook, BarChart3, FileCode2, Upload,
 } from 'lucide-react'
 import { api } from '../api'
-import { Badge, Button, Card, Empty, Field, Input, Modal, PageHeader, Select, Spinner, Stat, Toggle, cx, useAsync, useToast } from '../components/ui'
+import { Badge, Button, Card, Empty, Field, Input, Modal, PageHeader, Select, Spinner, Stat, Toggle, cx, useAsync, useToast, useEditParam } from '../components/ui'
 import { Sparkline } from '../components/charts'
 import { catLabel, categoryMeta, fmtAgo, fmtBytes, fmtNum, severities, severityLabel } from '../lib/format'
 import { t } from '../i18n'
@@ -79,6 +79,7 @@ export default function Forwarding() {
   const saved = useAsync(() => api.get<SavedSearch[]>('/categories'))
   const content = useAsync(() => api.get<ContentFile[]>('/forward/content'))
   const [edit, setEdit] = useState<Destination | null>(null)
+  useEditParam(data, setEdit)
   const [pick, setPick] = useState(false)
   const list = data ?? []
   const active = list.filter((d) => d.enabled)

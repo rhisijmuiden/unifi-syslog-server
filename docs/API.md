@@ -69,7 +69,13 @@ curl -s -H "Authorization: Bearer $TOKEN" -o blocked.csv \
 | `GET /api/info` | Version, uptime and storage |
 | `GET /api/health` | `{"status":"ok"}` when ClickHouse is reachable (no token needed) |
 
-## Saved searches
+## Search everything
+
+| Method and path | Does |
+|---|---|
+| `GET /api/global-search?q=` | Devices, clients, sites, categories and saved searches matching every word of `q`, for administrators also alert rules, notification channels, probes, forwarding destinations, controllers and users. Grouped per `type`, each with its `total` and up to 8 `items` (`title`, `subtitle`, `badge`, UI `link`) |
+| `GET /api/global-search/logs?q=&from=&to=&sites=` | The number of log messages that match and the newest 5. `q` in the query language is used as is, anything else as a phrase; the result has the `query` it ran |
+
 
 | Method and path | Does |
 |---|---|
