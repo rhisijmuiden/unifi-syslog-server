@@ -24,6 +24,7 @@ A central syslog server built specifically for UniFi. All UniFi sites send their
 - **Search everything**: one search box, at the top of the menu or with Ctrl+K, finds log messages, devices, clients, sites, categories, saved searches, pages and settings, and for administrators also alerts, notification channels, probes, forwarding, controllers and users. See [below](#search-everything).
 - **Saved searches**: save a search with its time range, keep it private or share it with everyone, and pin it as a shortcut in the menu. See [below](#saved-searches).
 - **Categories**: your own categories (a saved search with a color) to filter logs, with counters on the Categories page.
+- **AI assistants (MCP)**: Claude, Copilot and other AI assistants answer questions about your network from the logs through the built-in [MCP server](#ai-assistants-mcp), read-only and limited to the sites of your API token.
 
 **Sites and devices**
 
@@ -89,6 +90,18 @@ Alert rules live under **Configuration → Alerts**. Each rule is a search plus 
 - Everyone only finds what they may see: restricted users only the devices, clients and sites they have access to, and only their own or shared saved searches. Secrets are never searched.
 
 ![Search everything](docs/screenshots/search.png)
+
+## AI assistants (MCP)
+
+The built-in [Model Context Protocol](https://modelcontextprotocol.io) server at `/mcp` lets Claude Desktop, Claude Code, VS Code (Copilot), Cursor and other AI assistants search your logs. Ask "which IP addresses were blocked most yesterday, and from which countries?" or "did any access point go silent this week?" and the assistant runs the searches, counts and top lists itself.
+
+- **16 read-only tools**: search, count over time, top values, search everything, overview, sites, devices, clients, firmware, categories, saved searches, probes, the query language and server info, plus alert rules and system status for administrators.
+- **Your token, your rights**: every request needs an API token and gets the role and sites of its user. Tools never change anything, and every search is in the audit log with the token name.
+- **Easy to connect**: the page **AI assistants (MCP)** creates a read-only token and gives ready-to-paste configuration per client. Claude Desktop uses the small `unify-syslog-mcp` bridge (Windows, macOS and Linux, in every release), which trusts the self-signed certificate through its key pin.
+
+See [docs/MCP.md](docs/MCP.md) for every tool and client.
+
+![AI assistants (MCP)](docs/screenshots/ai-assistants.png)
 
 ## Saved searches
 
@@ -449,6 +462,7 @@ unify-syslog user passwd admin          # reset a password
 unify-syslog update [--check]           # update to the latest release on the configured channel
 unify-syslog update rollback [version]  # go back to a kept previous version
 unify-syslog simulate --target 127.0.0.1:514 --rate 500 --sites 3   # test traffic
+USS_MCP_TOKEN=uss_… unify-syslog mcp --url https://syslog:8080 --pin …  # stdio MCP bridge (see docs/MCP.md)
 unify-syslog version
 ```
 

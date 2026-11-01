@@ -166,6 +166,14 @@ These need an administrator. On a standby node, changes other than storage, high
 
 Admins can also use the configuration endpoints the interface uses (users, settings, backups and so on) with a read-and-write token. These are not a stable interface and may change between versions.
 
+## AI assistants (MCP)
+
+| Method and path | Does |
+|---|---|
+| `POST /mcp` | The [MCP](MCP.md) endpoint (Streamable HTTP) for AI assistants, with the same token |
+| `GET /api/mcp` | Whether MCP is on, the endpoint, the certificate pin and the tools the user gets |
+| `PUT /api/settings/mcp` | Turn the MCP endpoint on or off: `{"enabled":true}` (administrators) |
+
 ## Errors
 
 Errors are JSON: `{"error":"…"}` with HTTP status `400` (invalid request), `401` (missing, invalid or expired token), `403` (not allowed for this role or a read-only token) or `404`.

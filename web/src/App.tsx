@@ -4,7 +4,7 @@ import {
   LayoutDashboard, ScrollText, Tags, Router as RouterIcon, MapPin, BellRing, Users, KeyRound, Mail, DatabaseBackup,
   Settings, History, Info, LogOut, Moon, Sun, Menu, X, Languages, Palette,
   ShieldX, Wifi, Network, Lock, Siren, Smartphone, Server, Globe, UserRound, ShieldCheck, ListChecks, Send, RadioTower, Megaphone,
-  Bookmark, Activity, Users2, HardDrive, Gauge, ServerCog, Moon as MoonIcon, Search as SearchIcon, BookOpen,
+  Bookmark, Activity, Users2, HardDrive, Gauge, ServerCog, Moon as MoonIcon, Search as SearchIcon, BookOpen, Bot,
 } from 'lucide-react'
 import { api, brandingUrl, can, searchLink, searchMatches, type Branding, type SavedSearch, type User } from './api'
 import { roleLabel } from './components/Access'
@@ -43,6 +43,7 @@ import Monitoring from './pages/Monitoring'
 import HighAvailability from './pages/HighAvailability'
 import SearchPage from './pages/Search'
 import HowTo from './pages/HowTo'
+import AIAssistants from './pages/AIAssistants'
 
 interface AuthCtx {
   user: User
@@ -183,6 +184,7 @@ export const nav: { section: string; items: NavItem[] }[] = [
   ] },
   { section: 'Account', items: [
     { to: '/account', label: 'My account', keywords: 'password language api tokens two-factor', icon: <UserRound /> },
+    { to: '/ai', label: 'AI assistants (MCP)', keywords: 'mcp claude chatgpt copilot cursor llm model context protocol ai', icon: <Bot /> },
   ] },
 ]
 
@@ -325,6 +327,7 @@ function Shell() {
             <Route path="/clients" element={<Clients />} />
             <Route path="/dashboards/:kind" element={<Dashboards />} />
             <Route path="/account" element={<Account />} />
+            <Route path="/ai" element={<AIAssistants />} />
             <Route path="/howto" element={<HowTo />} />
             <Route path="/howto/:id" element={<HowTo />} />
             {isAdmin && <>

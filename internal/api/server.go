@@ -76,6 +76,9 @@ type Server struct {
 
 	storageJob storageJob
 
+	// apiRouter is the router Handler built; MCP tools call it.
+	apiRouter http.Handler
+
 	loginMu   sync.Mutex
 	loginFail map[string][]time.Time
 
@@ -154,6 +157,7 @@ func (s *Server) Handler() http.Handler {
 			r.Get("/probes/summary", s.probeSummary)
 			r.Get("/global-search", s.globalSearch)
 			r.Get("/global-search/logs", s.globalSearchLogs)
+			r.Get("/mcp", s.mcpInfo)
 
 			// Saved searches: everyone saves their own; sharing needs the
 			// analyst role, which the handler checks.
@@ -219,6 +223,7 @@ func (s *Server) Handler() http.Handler {
 				r.Put("/settings/storage/cold", s.putColdStorage)
 				r.Get("/settings/ha", s.getHA)
 				r.Put("/settings/ha", s.putHA)
+				r.Put("/settings/mcp", s.putMCP)
 				r.Get("/settings/monitoring", s.getMonitoring)
 				r.Put("/settings/monitoring", s.putMonitoring)
 				r.Get("/monitoring/content/*", s.monitoringContentFile)
@@ -296,9 +301,11 @@ func (s *Server) Handler() http.Handler {
 	})
 	// Prometheus and the Grafana ClickHouse data source.
 	r.Get("/metrics", s.metrics)
+	r.Handle("/mcp", s.mcpHandler())
 	r.HandleFunc("/clickhouse", s.clickhouseProxy)
 	r.HandleFunc("/clickhouse/*", s.clickhouseProxy)
 	r.Get("/*", s.spa)
+	s.apiRouter = r
 	return r
 }
 
