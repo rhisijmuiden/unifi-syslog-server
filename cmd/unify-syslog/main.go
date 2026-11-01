@@ -38,6 +38,7 @@ import (
 	"github.com/rhisijmuiden/unify-syslog-server/internal/ha"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/ingest"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/mail"
+	"github.com/rhisijmuiden/unify-syslog-server/internal/mcpbridge"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/notify"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/probehub"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/simulate"
@@ -79,6 +80,12 @@ func main() {
 		err = updateCmd(cfgPath, args)
 	case "simulate":
 		err = simulateCmd(args)
+	case "mcp":
+		// stdio bridge to a server's MCP endpoint, for Claude Desktop and
+		// other stdio-only MCP clients.
+		if err = mcpbridge.Main("unify-syslog mcp", args); errors.Is(err, flag.ErrHelp) {
+			err = nil
+		}
 	case "version", "--version", "-v":
 		fmt.Printf("unify-syslog %s (commit %s, built %s)\n", version.Version, version.Commit, version.BuildDate)
 	default:

@@ -4,7 +4,7 @@ DATE    ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 PKG     := github.com/rhisijmuiden/unify-syslog-server/internal/version
 LDFLAGS := -s -w -X $(PKG).Version=$(VERSION) -X $(PKG).Commit=$(COMMIT) -X $(PKG).BuildDate=$(DATE)
 
-.PHONY: all web build probe test dist rpi-image clean
+.PHONY: all web build probe mcp test dist rpi-image clean
 
 all: build
 
@@ -16,6 +16,9 @@ build: web
 
 probe:
 	CGO_ENABLED=0 go build -trimpath -ldflags "$(LDFLAGS)" -o bin/unify-syslog-probe ./cmd/unify-syslog-probe
+
+mcp:
+	CGO_ENABLED=0 go build -trimpath -ldflags "$(LDFLAGS)" -o bin/unify-syslog-mcp ./cmd/unify-syslog-mcp
 
 test:
 	go test ./...
@@ -32,7 +35,12 @@ dist: web
 		CGO_ENABLED=0 GOOS=linux GOARCH=$$arch GOARM=6 go build -trimpath -ldflags "$(LDFLAGS)" -o dist/unify-syslog-probe ./cmd/unify-syslog-probe && \
 		tar --owner=0 --group=0 --numeric-owner -C dist -czf dist/unify-syslog-probe_linux_$$arch.tar.gz unify-syslog-probe && rm dist/unify-syslog-probe; \
 	done
-	cd dist && sha256sum *.tar.gz > checksums.txt
+	# The MCP bridge runs on the computers of people using an AI assistant.
+	for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64; do \
+		os=$${target%/*}; arch=$${target#*/}; ext=""; [ $$os = windows ] && ext=.exe; \
+		CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch go build -trimpath -ldflags "$(LDFLAGS)" -o dist/unify-syslog-mcp_$${os}_$${arch}$$ext ./cmd/unify-syslog-mcp || exit 1; \
+	done
+	cd dist && sha256sum *.tar.gz unify-syslog-mcp_* > checksums.txt
 
 # Raspberry Pi image (needs root for loop devices); run after dist.
 rpi-image:

@@ -1,6 +1,6 @@
 # Roadmap
 
-Last updated: 20 October 2026
+Last updated: 1 November 2026
 
 This document describes where UniFi Syslog Server is heading. Order and scope are a plan, not a promise; priorities may shift between releases.
 
@@ -146,7 +146,7 @@ Goal: insight and accountability, not just storage.
 | Anomaly detection | Flag unusual patterns automatically (sudden spikes, new countries, new devices) |
 | Scheduled reports | Weekly or monthly report per site by e-mail (PDF) |
 | NIS2 compliance | Fixed retention periods, immutable storage and export for audits |
-| Natural-language search | Optional: ask questions like "which clients had Wi-Fi problems at site X yesterday" |
+| Natural-language search | Ask questions like "which clients had Wi-Fi problems at site X yesterday". First step in progress: a built-in MCP server so Claude and other AI assistants search the logs with your API token ([docs/MCP.md](docs/MCP.md)) |
 
 ---
 

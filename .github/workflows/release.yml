@@ -71,5 +71,6 @@ jobs:
           files: |
             dist/*.tar.gz
             dist/*.img.xz
+            dist/unify-syslog-mcp_*
             dist/checksums.txt
           generate_release_notes: true
