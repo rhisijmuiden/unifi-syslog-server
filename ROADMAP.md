@@ -146,7 +146,7 @@ Goal: insight and accountability, not just storage.
 | Anomaly detection | Flag unusual patterns automatically (sudden spikes, new countries, new devices) |
 | Scheduled reports | Weekly or monthly report per site by e-mail (PDF) |
 | NIS2 compliance | Fixed retention periods, immutable storage and export for audits |
-| Natural-language search | Ask questions like "which clients had Wi-Fi problems at site X yesterday". First step in progress: a built-in MCP server so Claude and other AI assistants search the logs with your API token ([docs/MCP.md](docs/MCP.md)) |
+| Natural-language search | Ask questions like "which clients had Wi-Fi problems at site X yesterday". First step shipped in v0.13.0: a built-in MCP server so Claude and other AI assistants search the logs with your API token ([docs/MCP.md](docs/MCP.md)) |
 
 ---
 
