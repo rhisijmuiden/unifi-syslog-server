@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 import type { ReactNode } from 'react'
 import { ArrowRight, Router as RouterIcon, Wifi, Server, Cctv, ShieldCheck, Settings2 } from 'lucide-react'
 import { t } from '../i18n'

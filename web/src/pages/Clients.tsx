@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 import { useMemo, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Smartphone, Search, Wifi, Cable, Lock } from 'lucide-react'

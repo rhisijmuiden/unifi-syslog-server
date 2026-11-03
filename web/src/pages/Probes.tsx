@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 import { useEffect, useState, type ReactNode } from 'react'
 import {
   RadioTower, Plus, Pencil, Trash2, KeyRound, RefreshCw, Settings2, CheckCircle2, AlertCircle, CircleDashed,

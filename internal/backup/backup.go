@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // Package backup creates full and incremental backups (configuration
 // database plus ClickHouse log data), ships them to remote targets (FTP,
 // FTPS, SCP, local directory) and restores them.

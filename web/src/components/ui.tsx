@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode, type ButtonHTMLAttributes, type InputHTMLAttributes } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { X, Loader2, CheckCircle2, AlertCircle, Copy, Check } from 'lucide-react'

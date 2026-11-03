@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // Package ingest parses incoming syslog messages and writes them to
 // ClickHouse in large batches.
 package ingest

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // Package syslogd receives syslog over UDP and TCP (RFC 6587 octet counting
 // and newline framing).
 package syslogd

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // Package mcpbridge connects an MCP client that only speaks stdio (such
 // as Claude Desktop) to the server's Streamable HTTP endpoint at /mcp. It
 // reads JSON-RPC messages, one per line, from stdin, posts each to the

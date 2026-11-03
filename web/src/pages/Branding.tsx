@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 import { useRef, useState } from 'react'
 import { Palette, Save, Upload, Trash2, ImageOff } from 'lucide-react'
 import { api, brandingUrl, type Branding, type BrandingAssetName } from '../api'

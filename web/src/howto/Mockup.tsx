@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 import type { ReactNode } from 'react'
 import { ChevronRight, LayoutDashboard, Network, Settings, Shield, Smartphone, Wifi, Router as RouterIcon, Camera, DoorOpen } from 'lucide-react'
 import { cx } from '../components/ui'

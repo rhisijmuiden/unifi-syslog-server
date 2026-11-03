@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 import { locale } from '../i18n'
 
 // ISO 3166-1 numeric (as used by the world-atlas map) to alpha-2 (as

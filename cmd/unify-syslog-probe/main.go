@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // Command unify-syslog-probe is the remote probe of UniFi Syslog Server: it
 // receives syslog at a site, buffers it on disk and forwards it over HTTPS
 // to the main server.

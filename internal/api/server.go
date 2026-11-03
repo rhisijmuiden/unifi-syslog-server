@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // Package api is the HTTP server: JSON API plus the embedded admin UI.
 package api
 
@@ -38,6 +40,7 @@ import (
 	"github.com/rhisijmuiden/unify-syslog-server/internal/syslogd"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/sysstatus"
 	"github.com/rhisijmuiden/unify-syslog-server/internal/update"
+	"github.com/rhisijmuiden/unify-syslog-server/internal/version"
 )
 
 type Server struct {
@@ -559,6 +562,8 @@ func (s *Server) authStatus(w http.ResponseWriter, r *http.Request) {
 		"instance": s.Meta.General().InstanceName,
 		"language": s.Meta.General().Language,
 		"branding": s.Meta.Branding(),
+		// AGPL section 13: every user, also before signing in, can find the source.
+		"source": map[string]string{"url": "https://github.com/" + version.Repo, "license": version.License},
 	}
 	if c, err := r.Cookie(cookieName); err == nil {
 		if u, err := s.Meta.SessionUser(c.Value); err == nil {

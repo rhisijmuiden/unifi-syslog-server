@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 import { useEffect, useState } from 'react'
 import { DatabaseBackup, Save, Play, Plus, Pencil, Trash2, PlugZap, RotateCcw, Download, Server, FolderOpen, Cloud, KeyRound } from 'lucide-react'
 import { api } from '../api'

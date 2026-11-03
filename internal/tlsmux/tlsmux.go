@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // Package tlsmux serves plain HTTP and HTTPS on one port: the first byte of
 // a connection tells them apart (0x16 starts a TLS handshake). The web
 // interface keeps working on http://host:8080 while probes and browsers can

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 import { Fragment, useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { ScrollText, Search, Radio, Pause, Download, Bookmark, HelpCircle, X, Plus, Minus, Tags } from 'lucide-react'
 import { api, can, type Bucket, type LogRow } from '../api'

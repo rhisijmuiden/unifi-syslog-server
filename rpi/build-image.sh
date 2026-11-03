@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Builds the Raspberry Pi image of the UniFi Syslog probe: Raspberry Pi OS
 # Lite (64-bit, based on Debian 13) with the probe installed and enabled.
 #

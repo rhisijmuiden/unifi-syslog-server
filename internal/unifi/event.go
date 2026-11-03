@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // Package unifi turns raw syslog datagrams from UniFi gateways, access points
 // and switches into structured events.
 package unifi

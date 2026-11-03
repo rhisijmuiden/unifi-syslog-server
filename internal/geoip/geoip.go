@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // Package geoip looks up the country and autonomous system of public IP
 // addresses in MaxMind DB files (DB-IP Lite or MaxMind GeoLite2) and keeps
 // those files up to date.

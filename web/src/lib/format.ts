@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 import { locale, t } from '../i18n'
 
 export const fmtNum = (n: number | undefined) => new Intl.NumberFormat(locale()).format(n ?? 0)

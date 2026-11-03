@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # UniFi Syslog probe installer for Debian 13 (trixie): VM, bare metal, LXC or
 # Raspberry Pi OS. Run as root at the remote site:
 #

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // Package config loads the static bootstrap configuration from YAML.
 // Everything that can be changed from the web UI lives in the settings
 // table of the metadata database instead.

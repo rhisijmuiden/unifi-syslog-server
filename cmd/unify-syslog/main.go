@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // Command unify-syslog is a central syslog server optimised for Ubiquiti UniFi.
 //
 //	unify-syslog [serve]                          run the server
@@ -88,6 +90,7 @@ func main() {
 		}
 	case "version", "--version", "-v":
 		fmt.Printf("unify-syslog %s (commit %s, built %s)\n", version.Version, version.Commit, version.BuildDate)
+		fmt.Printf("License %s, source code: %s\n", version.License, version.SourceURL())
 	default:
 		err = fmt.Errorf("unknown command %q", cmd)
 	}

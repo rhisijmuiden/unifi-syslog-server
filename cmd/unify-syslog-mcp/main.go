@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // Command unify-syslog-mcp connects MCP clients that use stdio, such as
 // Claude Desktop, to the MCP endpoint of UniFi Syslog Server. It runs on
 // the computer of the person using the AI assistant (Windows, macOS or

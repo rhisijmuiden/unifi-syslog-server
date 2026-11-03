@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // Package query compiles the search language used in the UI into a
 // parameterised ClickHouse WHERE clause.
 //

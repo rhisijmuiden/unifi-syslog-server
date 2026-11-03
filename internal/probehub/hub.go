@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // Package probehub is the main server's side of remote probes: enrollment,
 // heartbeats, receiving buffered syslog batches and handing out updates.
 // Probes run the same version as the main server; their release tarballs

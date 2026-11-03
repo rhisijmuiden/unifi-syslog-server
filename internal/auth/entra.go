@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // Package auth implements Microsoft Entra ID (Azure AD) single sign-on via
 // OpenID Connect with PKCE.
 package auth

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { ChevronRight, Info, TriangleAlert, Search, LayoutDashboard } from 'lucide-react'

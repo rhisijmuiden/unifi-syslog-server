@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 import { useState } from 'react'
 import { Plus, Pencil, RefreshCw, Server, CheckCircle2, AlertCircle, PlugZap, Trash2 } from 'lucide-react'
 import { api } from '../api'

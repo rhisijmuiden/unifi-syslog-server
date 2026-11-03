@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 package store
 
 // MCPSettings control the Model Context Protocol endpoint (/mcp) that AI

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // Package forward sends selected UniFi events to Microsoft Sentinel,
 // Elasticsearch/OpenSearch, Logstash, syslog receivers, Splunk and JSON
 // webhooks. Every destination has its own filter, on-disk queue and

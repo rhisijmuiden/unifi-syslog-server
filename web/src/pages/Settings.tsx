@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 import { useEffect, useState, type ReactNode } from 'react'
 import { Settings as SettingsIcon, Save, Timer, BookOpen } from 'lucide-react'
 import { Link } from 'react-router-dom'

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 import { t } from './i18n'
 
 export class ApiError extends Error {

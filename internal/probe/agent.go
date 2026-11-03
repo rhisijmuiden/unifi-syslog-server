@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // Package probe is the remote probe: it receives syslog at a site, buffers
 // every message on disk and forwards them in order over HTTPS to the main
 // server. It keeps buffering while the main server is unreachable or the
