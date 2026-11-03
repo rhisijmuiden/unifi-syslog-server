@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 import { useState, type ReactNode } from 'react'
 import {
   Megaphone, Plus, Pencil, Trash2, PlugZap, CheckCircle2, AlertCircle, PauseCircle, CircleDashed, MessagesSquare, Hash, Send,

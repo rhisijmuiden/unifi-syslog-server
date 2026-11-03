@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // Package tlscert provides the main server's TLS certificate (a configured
 // one, else a self-signed one generated on first start) and the public key
 // pin probes use to trust it.

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 import { createContext, Fragment, useContext, useEffect, useState, type ReactNode } from 'react'
 import { BrowserRouter, Link, NavLink, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import {
@@ -64,6 +66,7 @@ interface Status {
   language: string
   branding: Branding
   sso: { enabled: boolean; label: string }
+  source?: { url: string; license: string }
   standby?: { peer_url: string }
 }
 
@@ -123,7 +126,7 @@ export default function App() {
     <ToastProvider>
       <BrowserRouter>
         {!status?.user ? (
-          <Login instance={instance} branding={branding} sso={status?.sso} initialError={state.error} onLogin={(u) => { window.history.replaceState(null, '', '/'); setUser(u) }} />
+          <Login instance={instance} branding={branding} sso={status?.sso} source={status?.source} initialError={state.error} onLogin={(u) => { window.history.replaceState(null, '', '/'); setUser(u) }} />
         ) : (
           <Ctx.Provider value={{
             user: status.user, instance, branding, serverLanguage: status.language, setUser, reloadStatus: load, standby: status.standby,

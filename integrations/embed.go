@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // Package integrations bundles ready-made content for the log tools the
 // forwarding destinations deliver to: a Sentinel DCR template, KQL queries,
 // a workbook and analytics rules; an Elasticsearch index template, Kibana

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Standalone ClickHouse server for UniFi Syslog Server, on Debian 13 (VM,
 # bare metal or LXC). Use it to keep logs on a separate machine, or as the
 # shared log store of a high availability pair.

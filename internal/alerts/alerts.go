@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // Package alerts evaluates user-defined alert rules (a search query plus a
 // condition within a time window: a threshold, too few events, distinct
 // values or a spike, optionally per field value and on a schedule) and

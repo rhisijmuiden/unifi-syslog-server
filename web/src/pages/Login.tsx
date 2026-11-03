@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 import { useState } from 'react'
 import { LogIn, ShieldCheck, ArrowRight } from 'lucide-react'
 import { api, type Branding, type User } from '../api'
@@ -9,7 +11,7 @@ import { Button, Field, Input } from '../components/ui'
 interface Enrollment { secret: string; uri: string; qr: string }
 type LoginResult = User | { totp_required?: boolean; totp_setup?: boolean; ticket: string; enrollment?: Enrollment }
 
-export default function Login({ instance, branding, sso, onLogin, initialError }: { instance: string; branding: Branding; sso?: { enabled: boolean; label: string }; onLogin: (u: User) => void; initialError?: string }) {
+export default function Login({ instance, branding, sso, source, onLogin, initialError }: { instance: string; branding: Branding; sso?: { enabled: boolean; label: string }; source?: { url: string; license: string }; onLogin: (u: User) => void; initialError?: string }) {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState(initialError)
@@ -104,6 +106,11 @@ export default function Login({ instance, branding, sso, onLogin, initialError }
         </form>
         </>}
       </div>
+      {source && (
+        <a href={source.url} target="_blank" rel="noreferrer" className="absolute bottom-4 left-1/2 -translate-x-1/2 whitespace-nowrap text-xs text-muted hover:text-[var(--text)]">
+          {t('Free software under the GNU AGPL-3.0 · Source code')}
+        </a>
+      )}
     </div>
   )
 }

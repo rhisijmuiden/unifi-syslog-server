@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 import { useState } from 'react'
 import { Users as UsersIcon, Plus, Pencil, Trash2, ShieldCheck, ShieldOff } from 'lucide-react'
 import { api, type User } from '../api'

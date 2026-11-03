@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // Package mail sends notifications through a user-configured SMTP server.
 // Supports implicit TLS (465), STARTTLS (mandatory or opportunistic), TLS
 // 1.2/1.3 minimums, PLAIN/LOGIN/CRAM-MD5/SCRAM-SHA-1/SCRAM-SHA-256 and

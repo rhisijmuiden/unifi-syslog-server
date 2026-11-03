@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 package forward
 
 import "github.com/rhisijmuiden/unify-syslog-server/internal/diskqueue"

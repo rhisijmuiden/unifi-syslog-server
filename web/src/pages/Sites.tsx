@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { MapPin, Plus, Trash2, Save, Router as RouterIcon, ShieldAlert, Ban, AlertTriangle } from 'lucide-react'

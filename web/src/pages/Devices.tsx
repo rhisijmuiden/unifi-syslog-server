@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Router as RouterIcon, Search, Wifi, Network, Shield, Server, Pencil, Trash2, Settings2, BellOff, ArrowUpCircle, Layers } from 'lucide-react'

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // Package notify delivers notifications to chat and messaging channels:
 // Microsoft Teams, Slack, Telegram, SMS (MessageBird / Bird), Pushover and
 // generic webhooks. Notifications are rendered in the channel's language,

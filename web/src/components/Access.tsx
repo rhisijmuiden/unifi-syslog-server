@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 import { useEffect, useState } from 'react'
 import { Check, Copy, Download } from 'lucide-react'
 import { api, type Role } from '../api'

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 import { useEffect, useState } from 'react'
 import { ShieldCheck, Save } from 'lucide-react'
 import { api } from '../api'

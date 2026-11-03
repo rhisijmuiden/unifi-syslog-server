@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // Package enrich adds names and locations to parsed events: client and
 // device names from UniFi controllers (or learnt from DHCP), and the
 // country and network (AS) of public IP addresses.

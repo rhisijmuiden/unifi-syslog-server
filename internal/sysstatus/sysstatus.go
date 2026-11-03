@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // Package sysstatus watches the health of the server itself: messages per
 // second, dropped packets, disk space and the ClickHouse log store. It keeps
 // an hour of samples for the System status page and notifies when a problem

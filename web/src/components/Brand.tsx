@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 import { Radio } from 'lucide-react'
 import { brandingUrl, type Branding } from '../api'
 import { cx } from './ui'

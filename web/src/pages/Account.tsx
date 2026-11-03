@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 import { useState } from 'react'
 import { UserRound, KeyRound, ShieldCheck, ShieldOff, Plus, Trash2, Copy, Code2, RefreshCw } from 'lucide-react'
 import { api, can } from '../api'

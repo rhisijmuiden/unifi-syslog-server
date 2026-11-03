@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // Lists interface strings that a translation file is missing.
 // Usage: node scripts/i18n-check.mjs [--write]
 // Only literal t('...') keys are found; strings translated through a

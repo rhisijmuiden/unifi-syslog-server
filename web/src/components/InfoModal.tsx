@@ -1,5 +1,7 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 import { useEffect, useState } from 'react'
-import { RefreshCw, Download, CheckCircle2, Sparkles, ExternalLink, FlaskConical, ShieldCheck, History, RotateCcw, AlertTriangle, ArrowDownCircle } from 'lucide-react'
+import { RefreshCw, Download, CheckCircle2, Sparkles, ExternalLink, FlaskConical, ShieldCheck, History, RotateCcw, AlertTriangle, ArrowDownCircle, Scale } from 'lucide-react'
 import { api } from '../api'
 import { useAuth } from '../App'
 import { Badge, Button, Modal, Spinner, cx, useToast } from './ui'
@@ -7,7 +9,7 @@ import { fmtBytes, fmtDuration, fmtNum, fmtTime } from '../lib/format'
 import { t } from '../i18n'
 
 interface InfoData {
-  version: string; commit: string; build_date: string; repo: string; go: string; os: string; hostname: string; uptime_sec: number
+  version: string; commit: string; build_date: string; repo: string; license: string; source_url: string; go: string; os: string; hostname: string; uptime_sec: number
   storage: { rows: number; bytes_on_disk: number; bytes_uncompressed: number; oldest: string; clickhouse_version: string }
   ingest: Record<string, number | string>
   syslog: { udp: string; tcp: string }
@@ -207,7 +209,13 @@ export default function InfoModal({ open, onClose }: { open: boolean; onClose: (
             {row(t('Storage (compressed)'), t('{used} of {total}', { used: fmtBytes(info.storage.bytes_on_disk), total: fmtBytes(info.storage.bytes_uncompressed) }))}
             {info.storage.rows > 0 && row(t('Oldest log'), fmtTime(info.storage.oldest))}
             {row('ClickHouse', info.storage.clickhouse_version)}
-            {row(t('Source code'), <a className="text-indigo-400 hover:underline" href={`https://github.com/${info.repo}`} target="_blank" rel="noreferrer">github.com/{info.repo}</a>)}
+            {row(t('Source code'), <a className="text-indigo-400 hover:underline" href={info.source_url} target="_blank" rel="noreferrer">github.com/{info.repo}</a>)}
+            {row(t('License'), <a className="text-indigo-400 hover:underline" href={`https://github.com/${info.repo}/blob/main/LICENSE`} target="_blank" rel="noreferrer">GNU AGPL-3.0</a>)}
+          </div>
+
+          <div className="flex gap-2 rounded-xl px-4 py-3 text-xs text-muted ring-1 ring-[var(--border)]">
+            <Scale className="mt-0.5 size-4 shrink-0" />
+            <span>{t('UniFi Syslog Server is free software, released under the GNU Affero General Public License, version 3 or later ({license}). You may use, study, change and share it. If you run a modified version for others, you must offer them its source code too.', { license: info.license })}</span>
           </div>
         </div>
       )}

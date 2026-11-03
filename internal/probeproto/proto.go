@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // Package probeproto is the wire protocol between remote probes and the
 // main server. Probes always open the connection (HTTPS to the main
 // server's web port), so no inbound port is needed at a site.

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 import { useEffect, useState } from 'react'
 import { HardDrive, Database, PlugZap, Save, Pencil, Snowflake, Server, Network, Lock, RotateCcw, AlertTriangle } from 'lucide-react'
 import { api } from '../api'

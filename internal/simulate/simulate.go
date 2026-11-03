@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // Package simulate generates realistic UniFi syslog traffic for testing an
 // installation (`unify-syslog simulate`).
 package simulate

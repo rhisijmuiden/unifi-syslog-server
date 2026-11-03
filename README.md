@@ -1,10 +1,12 @@
 # UniFi Syslog Server
 
+[![License: AGPL-3.0-or-later](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue.svg)](LICENSE)
+
 A central syslog server built specifically for UniFi. All UniFi sites send their syslog to one server, which recognizes firewall, IPS, Wi-Fi, DHCP, DNS, VPN, switch, Protect, Access and management messages, enriches them with names, GeoIP and site information, and makes them searchable in ready-made dashboards. Selected events can be forwarded to **Microsoft Sentinel**, **Elastic**, **Splunk**, **Graylog** and other tools.
 
 ![Overview dashboard](docs/screenshots/dashboard.png)
 
-**Contents**: [Features](#features) · [Notification channels](#notification-channels) · [Forwarding to Sentinel, Elastic and other tools](#forwarding-to-sentinel-elastic-and-other-tools) · [Remote probes](#remote-probes) · [Feature tour](#feature-tour) · [Installation](#installation) · [Configuring UniFi](#configuring-unifi) · [Users, roles and security](#users-roles-and-security) · [Query language](#query-language) · [Branding](#branding) · [Languages](#languages) · [Backup and restore](#backup-and-restore) · [Updates](#updates-release-channels-and-rollback) · [Command line](#command-line) · [Building from source](#building-from-source) · [Architecture](#architecture)
+**Contents**: [Features](#features) · [Notification channels](#notification-channels) · [Forwarding to Sentinel, Elastic and other tools](#forwarding-to-sentinel-elastic-and-other-tools) · [Remote probes](#remote-probes) · [Feature tour](#feature-tour) · [Installation](#installation) · [Configuring UniFi](#configuring-unifi) · [Users, roles and security](#users-roles-and-security) · [Query language](#query-language) · [Branding](#branding) · [Languages](#languages) · [Backup and restore](#backup-and-restore) · [Updates](#updates-release-channels-and-rollback) · [Command line](#command-line) · [Building from source](#building-from-source) · [Architecture](#architecture) · [License](#license)
 
 ## Features
 
@@ -504,3 +506,17 @@ remote probes ─HTTPS 8080─▶ probe API ──────┘
                     SQLite: users, settings,   on-disk queue ─▶ Sentinel, Elastic,
                     sites, destinations                         Logstash, syslog, Splunk, webhook
 ```
+
+## License
+
+UniFi Syslog Server is free software: you can redistribute it and/or modify it under the terms of the [GNU Affero General Public License](LICENSE) as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version (`AGPL-3.0-or-later`).
+
+It is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the [LICENSE](LICENSE) file for details.
+
+What this means in practice:
+
+- You may use, study, change and share the software, also commercially.
+- If you distribute it, modified or not, you must pass on the source code under the same license.
+- If you run a **modified** version as a network service, you must offer its users the source code of that version (section 13 of the AGPL). The web interface already links to the source: on the sign-in page and under **Info & updates**, which links to the exact release tag. If you fork the project, set `version.Repo` (or build with `-ldflags "-X …/internal/version.Repo=you/your-fork"`) so these links point to your code.
+
+Source files carry an `SPDX-License-Identifier: AGPL-3.0-or-later` header. The Proxmox helper scripts in `ct/` and `install/` build on the [community-scripts](https://github.com/community-scripts/ProxmoxVE) engine and stay under the MIT license stated in their headers, so they can be shared with that project. Third-party components keep their own licenses: ClickHouse (Apache-2.0) runs as a separate service, the Go and npm dependencies are listed in `go.mod` and `web/package.json`, and GeoIP data from DB-IP is licensed under CC BY 4.0.

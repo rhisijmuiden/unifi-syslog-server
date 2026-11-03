@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 /// <reference types="vite/client" />
 // Interface translations. Keys are the English source strings, so English
 // needs no entries and an untranslated key simply shows in English. Every

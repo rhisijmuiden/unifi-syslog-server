@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 import { useState, type ReactNode } from 'react'
 import { Bot, KeyRound, Plus, Download, Terminal, Code2, Monitor, Plug, Sparkles, Wrench, ShieldCheck, Lock } from 'lucide-react'
 import { Link } from 'react-router-dom'

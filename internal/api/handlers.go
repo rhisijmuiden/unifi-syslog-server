@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 package api
 
 import (
@@ -922,6 +924,8 @@ func (s *Server) info(w http.ResponseWriter, r *http.Request) {
 		"commit":     version.Commit,
 		"build_date": version.BuildDate,
 		"repo":       version.Repo,
+		"license":    version.License,
+		"source_url": version.SourceURL(),
 		"go":         runtime.Version(),
 		"os":         runtime.GOOS + "/" + runtime.GOARCH,
 		"hostname":   host,

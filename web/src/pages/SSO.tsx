@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 import { useEffect, useState, type ReactNode } from 'react'
 import { KeyRound, Save, Copy, Plus, Trash2 } from 'lucide-react'
 import { api } from '../api'

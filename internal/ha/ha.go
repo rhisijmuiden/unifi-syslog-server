@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // Package ha runs two servers as an active/standby pair. keepalived moves a
 // virtual IP between them; both store logs in the same external ClickHouse.
 // The node holding the virtual IP is active: it runs the scheduled jobs

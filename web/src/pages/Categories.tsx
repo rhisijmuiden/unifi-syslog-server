@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Tags, Plus, Pencil, Trash2, ArrowRight } from 'lucide-react'

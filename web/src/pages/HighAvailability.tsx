@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 import { useEffect, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { ServerCog, Server, Link2, Plus, RefreshCw, LogOut, Save, Crown, Moon, AlertTriangle, CheckCircle2, Clock } from 'lucide-react'

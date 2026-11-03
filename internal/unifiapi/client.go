@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // Package unifiapi reads clients and devices from a UniFi Network
 // application through its official integration API (Network 9.0 and
 // later), authenticated with an API key.

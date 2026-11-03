@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 import type { ReactNode } from 'react'
 import { Rocket, ShieldX, Siren, Network, Wifi, Globe, Lock, UserCog, Cctv, LifeBuoy } from 'lucide-react'
 import { t } from '../i18n'

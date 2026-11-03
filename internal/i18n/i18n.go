@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // Package i18n translates server-generated text such as e-mails. Like the web
 // interface, keys are the English source strings (here fmt format strings),
 // so English needs no entries. Every locales/<code>.json file is embedded and

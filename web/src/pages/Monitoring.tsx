@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 import { useEffect, useState } from 'react'
 import { Gauge, Save, Download, BarChart3, Flame } from 'lucide-react'
 import { Link } from 'react-router-dom'

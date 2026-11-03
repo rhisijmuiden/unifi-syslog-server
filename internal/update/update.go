@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // Package update checks GitHub Releases for a newer version and replaces
 // the running binary in place. systemd (Restart=always) brings the new
 // version up after the process exits.

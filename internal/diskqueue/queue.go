@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // Package diskqueue is an on-disk FIFO queue of newline-delimited records.
 // Forwarding destinations and remote probes use it so that nothing queued
 // is lost when the receiver is down or the process restarts.
