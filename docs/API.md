@@ -64,6 +64,7 @@ curl -s -H "Authorization: Bearer $TOKEN" -o blocked.csv \
 | `GET /api/categories` | Categories (saved searches) |
 | `GET /api/categories/stats` | Message count per category for `from`/`to`/`sites` |
 | `GET /api/dashboard` | The overview dashboard data |
+| `GET /api/attack-map` | Firewall locations of the live attack map (`site`, `label`, `country`, `lat`, `lon`); `PUT /api/settings/attack-map` (admins) replaces them |
 | `GET /api/fields` | Field names of the query language |
 | `GET /api/stats` | Receiver and ingest counters |
 | `GET /api/info` | Version, uptime and storage |

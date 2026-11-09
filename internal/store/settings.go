@@ -315,3 +315,29 @@ func (m *Meta) BackupRecords(limit int) ([]BackupRecord, error) {
 func (m *Meta) DeleteBackupRecord(id string) {
 	m.DB.Exec(`DELETE FROM backups WHERE id=?`, id)
 }
+
+// AttackMapSettings places the firewalls on the live attack map.
+type AttackMapSettings struct {
+	Firewalls []AttackMapFirewall `json:"firewalls"`
+}
+
+// AttackMapFirewall is one shield on the map. Site "" catches traffic of
+// sites without their own firewall. Lat and Lon 0,0 mean the middle of
+// the country.
+type AttackMapFirewall struct {
+	Site    string  `json:"site"`
+	Label   string  `json:"label"`
+	Country string  `json:"country"` // ISO 3166 alpha-2
+	Lat     float64 `json:"lat"`
+	Lon     float64 `json:"lon"`
+}
+
+// AttackMap returns the attack map settings; never nil firewalls.
+func (m *Meta) AttackMap() AttackMapSettings {
+	var c AttackMapSettings
+	m.GetSetting("attack_map", &c)
+	if c.Firewalls == nil {
+		c.Firewalls = []AttackMapFirewall{}
+	}
+	return c
+}

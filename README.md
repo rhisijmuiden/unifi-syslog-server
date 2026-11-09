@@ -16,6 +16,7 @@ A central syslog server built specifically for UniFi. All UniFi sites send their
 - **UniFi parser**: device name `model,mac,version`, iptables rule tags (`WAN_IN-D-3001`, `DESCR="..."`), CEF from UniFi Network SIEM, hostapd/stahtd, dnsmasq/kea DHCP and switch DHCP snooping, DNS and CoreDNS ad-block hits, Suricata IPS, WireGuard/OpenVPN/IPsec, SSH logins, switch ports and `EVT_*` controller codes. UniFi Protect (cameras, smart detections, doorbells), UniFi Access (doors, granted and denied access) and UniFi OS system events (CEF) get their own categories.
 - **UniFi Network API**: connect one or more consoles with an API key. Client and device names are attached to log lines, so you see "Alex's iPhone" and "AP Attic" instead of MAC addresses. Without a controller, names are learnt from DHCP logs. All known names are listed under **Clients**.
 - **GeoIP**: country and AS number (provider) of external IP addresses from DB-IP Lite (no account) or MaxMind GeoLite2, updated automatically, with a world map on the dashboards.
+- **Live attack map**: blocked inbound traffic and IPS threats fly as arrows from the source country to your firewall, with live counters, top countries, targeted services and a live feed. Built to run [fullscreen on a wall display](#live-attack-map).
 - **Storage**: ClickHouse (columnar storage, compression, billions of rows), daily partitions and a configurable retention period, also [per category](#retention-per-category) (for example Wi-Fi 30 days and IPS a year). Metadata in SQLite. ClickHouse can run on the same machine, on a [separate server or a cluster](#scale-and-reliability), with older logs on cheap S3 storage.
 
 **Look and search**
@@ -81,6 +82,21 @@ Alert rules live under **Configuration → Alerts**. Each rule is a search plus 
 | | |
 |---|---|
 | ![Alert rules](docs/screenshots/alerts-rules.png)<br>**Alert rules** with their condition, schedule and channels. | ![Editing an alert rule](docs/screenshots/alerts-edit.png)<br>**A rule** that counts destination ports per source IP, with the result of *Test now*. |
+
+## Live attack map
+
+**Monitoring → Live attack map** shows blocked traffic as it happens. Every firewall block (red) and every threat stopped by the IPS (purple) flies as an arrow from the attacker's country to your firewall and bounces off its shield, which lights up while it is under fire. Countries turn redder the more attacks come from them.
+
+- **Counters** for blocked per minute, blocked in the last 15 minutes, unique sources and countries, plus a per-minute chart, the top source countries, the most targeted services (SSH, RDP, Telnet, SMB…) and a live feed. Click a feed line to see the logs of that IP.
+- **Fullscreen** (button or the <kbd>F</kbd> key) hides the menu and adds a large clock and bigger numbers, for a TV in the office or the SOC. <kbd>Space</kbd> pauses.
+- **Firewall locations** (admins, the settings button on the page): one shield per site, placed in the middle of a country or at exact coordinates. Sites without their own firewall use the one for *all other sites*.
+- **Demo data**: switch to generated traffic to try it out or to show it before syslog for blocked traffic is enabled. The arrows need GeoIP and logging of blocked traffic on the firewall rules (see the how-to guides).
+
+![Live attack map in fullscreen](docs/screenshots/attack-map.png)
+
+| | |
+|---|---|
+| ![Live attack map inside the app](docs/screenshots/attack-map-app.png)<br>**Inside the app**, with two firewalls: HQ Amsterdam and a branch in Madrid. | ![Firewall locations](docs/screenshots/attack-map-firewalls.png)<br>**Firewall locations**: a shield per site, by country or coordinates. |
 
 ## Search everything
 
