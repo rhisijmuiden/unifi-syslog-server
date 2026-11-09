@@ -1660,5 +1660,14 @@
   "Top source countries": "Principaux pays d'origine",
   "Unique sources": "Sources uniques",
   "Your firewall": "Ton pare-feu",
-  "{n} blocked": "{n} bloqués"
+  "{n} blocked": "{n} bloqués",
+  "Add firewall": "Ajouter un pare-feu",
+  "All other sites": "Tous les autres sites",
+  "Attacks fly to the firewall of the site that logged them. Sites without their own firewall use the one for all other sites. Leave the coordinates empty to use the middle of the country.": "Les attaques volent vers le pare-feu du site qui les a journalisées. Les sites sans pare-feu propre utilisent celui de tous les autres sites. Laisse les coordonnées vides pour utiliser le centre du pays.",
+  "Country": "Pays",
+  "Firewall locations": "Emplacements des pare-feu",
+  "Latitude": "Latitude",
+  "Longitude": "Longitude",
+  "Set where your firewalls are": "Indique où se trouvent tes pare-feu",
+  "Coordinates must be numbers, e.g. 52.37 and 4.90.": "Les coordonnées doivent être des nombres, p. ex. 52.37 et 4.90."
 }

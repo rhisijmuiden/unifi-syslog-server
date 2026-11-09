@@ -1660,5 +1660,14 @@
   "Top source countries": "Top-Herkunftsländer",
   "Unique sources": "Eindeutige Quellen",
   "Your firewall": "Deine Firewall",
-  "{n} blocked": "{n} blockiert"
+  "{n} blocked": "{n} blockiert",
+  "Add firewall": "Firewall hinzufügen",
+  "All other sites": "Alle anderen Standorte",
+  "Attacks fly to the firewall of the site that logged them. Sites without their own firewall use the one for all other sites. Leave the coordinates empty to use the middle of the country.": "Angriffe fliegen zur Firewall des Standorts, der sie protokolliert hat. Standorte ohne eigene Firewall verwenden die für alle anderen Standorte. Lass die Koordinaten leer, um die Landesmitte zu verwenden.",
+  "Country": "Land",
+  "Firewall locations": "Firewall-Standorte",
+  "Latitude": "Breitengrad",
+  "Longitude": "Längengrad",
+  "Set where your firewalls are": "Lege fest, wo deine Firewalls stehen",
+  "Coordinates must be numbers, e.g. 52.37 and 4.90.": "Koordinaten müssen Zahlen sein, z. B. 52.37 und 4.90."
 }

@@ -10,12 +10,13 @@ import { geoArea, geoCentroid, geoGraticule10, geoNaturalEarth1, geoPath } from 
 import { feature } from 'topojson-client'
 import type { Feature, FeatureCollection, Geometry, MultiPolygon, Polygon } from 'geojson'
 import type { Topology } from 'topojson-specification'
-import { Maximize2, Minimize2, Pause, Play, Radar, ShieldCheck, Sparkles, Radio } from 'lucide-react'
-import { api, type LogRow } from '../api'
+import { Maximize2, Minimize2, Pause, Play, Plus, Radar, Radio, Settings2, ShieldCheck, Sparkles, Trash2 } from 'lucide-react'
+import { api, can, type LogRow } from '../api'
+import { useAuth } from '../App'
 import { t } from '../i18n'
 import { countryName, flag, numericToAlpha2 } from '../lib/countries'
 import { fmtNum } from '../lib/format'
-import { cx, Spinner } from '../components/ui'
+import { Button, cx, Field, Input, Modal, Select, Spinner, useToast } from '../components/ui'
 
 // ---------------------------------------------------------------- geometry
 
@@ -69,6 +70,17 @@ interface Attack {
   proto: string
   kind: Kind
   rule: string
+  site: string
+}
+
+/** A firewall (shield) on the map; site "" takes every site without its own. */
+export interface Firewall { site: string; label: string; country: string; lat: number; lon: number }
+
+// Without settings the shield goes to the country of the browser locale.
+function defaultFirewall(): Firewall {
+  let cc = 'NL'
+  try { cc = new Intl.Locale(navigator.language).maximize().region ?? cc } catch { /* keep NL */ }
+  return { site: '', label: '', country: cc, lat: 0, lon: 0 }
 }
 
 const KIND_COLOR: Record<Kind, string> = { firewall: '#fb7185', ips: '#c084fc' }
@@ -90,6 +102,7 @@ function fromRow(r: LogRow): Attack | null {
     cc, ip: r.src_ip, port: r.dst_port, proto: (r.proto || '').toUpperCase(),
     kind: r.category === 'ips' ? 'ips' : 'firewall',
     rule: r.rule,
+    site: r.site,
   }
 }
 
@@ -115,7 +128,7 @@ function pick<T>(list: [T, number][]): T {
   return list[0][0]
 }
 let demoSeq = 0
-function demoAttack(src?: { cc: string; ip: string }): Attack {
+function demoAttack(sites: string[], src?: { cc: string; ip: string; site: string }): Attack {
   const s = DEMO_SOURCES.map(([cc, w, p]) => [[cc, p], w] as [[string, string[]], number])
   const [cc, prefixes] = src ? [src.cc, []] : pick(s)
   const ip = src?.ip ?? `${prefixes[Math.floor(Math.random() * prefixes.length)]}.${Math.floor(Math.random() * 255)}.${1 + Math.floor(Math.random() * 253)}`
@@ -125,6 +138,7 @@ function demoAttack(src?: { cc: string; ip: string }): Attack {
     port: src ? 1 + Math.floor(Math.random() * 10000) : pick(DEMO_PORTS),
     proto: Math.random() < 0.88 ? 'TCP' : 'UDP',
     kind: ips ? 'ips' : 'firewall',
+    site: src?.site ?? sites[Math.floor(Math.random() * sites.length)] ?? '',
     rule: ips ? DEMO_SIGS[Math.floor(Math.random() * DEMO_SIGS.length)] : DEMO_RULES[Math.floor(Math.random() * DEMO_RULES.length)],
   }
 }
@@ -146,10 +160,15 @@ export default function AttackMap() {
   const [error, setError] = useState<string>()
   const [lastLive, setLastLive] = useState(Date.now())
   const [clock, setClock] = useState(new Date())
-  const home = useMemo(() => {
-    const p = new URLSearchParams(window.location.search)
-    return { cc: (p.get('home') ?? 'NL').toUpperCase(), label: p.get('label') ?? 'Amsterdam' }
+  const { user } = useAuth()
+  const [firewalls, setFirewalls] = useState<Firewall[] | null>(null)
+  const [editing, setEditing] = useState(false)
+  useEffect(() => {
+    api.get<{ firewalls: Firewall[] }>('/attack-map').then((c) => setFirewalls(c.firewalls)).catch(() => setFirewalls([]))
   }, [])
+  const homes = useMemo(() => (firewalls?.length ? firewalls : [defaultFirewall()]), [firewalls])
+  const sitesRef = useRef<string[]>([])
+  sitesRef.current = homes.map((h) => h.site)
 
   // Events of the last 15 minutes for the side panels; arrows are queued
   // separately so a burst of 500 rows does not launch 500 arrows at once.
@@ -197,14 +216,14 @@ export default function AttackMap() {
     const loop = () => {
       if (!alive) return
       if (Math.random() < 0.035) {
-        const src = demoAttack()
-        for (let i = 0; i < 6 + Math.floor(Math.random() * 10); i++) setTimeout(() => alive && push([{ ...demoAttack(src), kind: 'firewall', rule: 'WAN_IN-default-D' }]), i * 90)
-      } else push([demoAttack()])
+        const src = demoAttack(sitesRef.current)
+        for (let i = 0; i < 6 + Math.floor(Math.random() * 10); i++) setTimeout(() => alive && push([{ ...demoAttack(sitesRef.current, src), kind: 'firewall', rule: 'WAN_IN-default-D' }]), i * 90)
+      } else push([demoAttack(sitesRef.current)])
       timer = window.setTimeout(loop, 40 + Math.random() * 160)
     }
     // Seed the panels so they are not empty on the first frame.
     const now = Date.now()
-    push(Array.from({ length: 900 }, () => ({ ...demoAttack(), ts: now - Math.random() * WINDOW_MS })).sort((a, b) => a.ts - b.ts))
+    push(Array.from({ length: 900 }, () => ({ ...demoAttack(sitesRef.current), ts: now - Math.random() * WINDOW_MS })).sort((a, b) => a.ts - b.ts))
     queue.current = []
     loop()
     return () => { alive = false; clearTimeout(timer) }
@@ -280,6 +299,11 @@ export default function AttackMap() {
         <button onClick={() => setPaused(!paused)} title={t('Pause (space)')} className="grid size-9 place-items-center rounded-xl bg-white/5 text-slate-200 ring-1 ring-white/10 hover:bg-white/10">
           {paused ? <Play className="size-4" /> : <Pause className="size-4" />}
         </button>
+        {can.admin(user) && !full && (
+          <button onClick={() => setEditing(true)} title={t('Firewall locations')} className="grid size-9 place-items-center rounded-xl bg-white/5 text-slate-200 ring-1 ring-white/10 hover:bg-white/10">
+            <Settings2 className="size-4" />
+          </button>
+        )}
         <button onClick={toggleFull} title={t('Fullscreen (F)')} className="flex h-9 items-center gap-2 rounded-xl bg-white/5 px-3 text-xs font-medium text-slate-200 ring-1 ring-white/10 hover:bg-white/10">
           {full ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}{full ? t('Exit fullscreen') : t('Fullscreen')}
         </button>
@@ -288,8 +312,8 @@ export default function AttackMap() {
       <div className="relative flex min-h-0 flex-1">
         {/* Map */}
         <div className="relative min-w-0 flex-1">
-          {!countries ? <div className="grid h-full place-items-center"><Spinner className="size-8" /></div>
-            : <MapStage countries={countries} home={home} queue={queue} counts={stats.byCC} paused={paused} />}
+          {!countries || !firewalls ? <div className="grid h-full place-items-center"><Spinner className="size-8" /></div>
+            : <MapStage countries={countries} homes={homes} queue={queue} counts={stats.byCC} paused={paused} />}
 
           {/* Counters */}
           <div className={cx('pointer-events-none absolute left-5 top-4 grid gap-2', full ? 'grid-cols-4' : 'grid-cols-2 xl:grid-cols-4')}>
@@ -312,6 +336,11 @@ export default function AttackMap() {
               <div className="mt-1 text-xs text-slate-400">{t('Enable syslog for blocked traffic on the built-in firewall rules, or have a look with demo data.')}</div>
               <button onClick={() => setMode('demo')} className="mt-2 rounded-lg bg-gradient-to-r from-indigo-500 to-cyan-500 px-3 py-1.5 text-xs font-medium text-white">{t('Show demo data')}</button>
             </div>
+          )}
+          {firewalls && !firewalls.length && can.admin(user) && !full && !quiet && (
+            <button onClick={() => setEditing(true)} className="absolute bottom-4 right-4 flex items-center gap-2 rounded-xl bg-slate-900/80 px-3 py-2 text-xs text-cyan-200 ring-1 ring-cyan-400/30 backdrop-blur hover:bg-slate-900">
+              <ShieldCheck className="size-4" />{t('Set where your firewalls are')}
+            </button>
           )}
           {error && <div className="absolute right-4 top-4 rounded-lg bg-rose-500/15 px-3 py-1.5 text-xs text-rose-200 ring-1 ring-rose-500/30">{error}</div>}
         </div>
@@ -350,7 +379,54 @@ export default function AttackMap() {
           </Section>
         </aside>
       </div>
+      {editing && countries && <FirewallEditor countries={countries} value={firewalls ?? []} onClose={() => setEditing(false)} onSaved={(f) => { setFirewalls(f); setEditing(false) }} />}
     </div>
+  )
+}
+
+function FirewallEditor({ countries, value, onClose, onSaved }: { countries: Country[]; value: Firewall[]; onClose: () => void; onSaved: (f: Firewall[]) => void }) {
+  const toast = useToast()
+  type Row = Firewall & { latS: string; lonS: string }
+  const row = (f: Firewall): Row => ({ ...f, latS: f.lat || f.lon ? String(f.lat) : '', lonS: f.lat || f.lon ? String(f.lon) : '' })
+  const [list, setList] = useState<Row[]>(() => (value.length ? value : [defaultFirewall()]).map(row))
+  const [sites, setSites] = useState<string[]>([])
+  const [busy, setBusy] = useState(false)
+  useEffect(() => { api.get<string[]>('/sites').then(setSites).catch(() => {}) }, [])
+  const ccOptions = useMemo(() => [...new Set(countries.map(alpha2).filter(Boolean))]
+    .map((cc) => ({ value: cc, label: `${flag(cc)} ${countryName(cc)}` })).sort((a, b) => a.label.slice(5).localeCompare(b.label.slice(5))), [countries])
+  const set = (i: number, p: Partial<Row>) => setList((l) => l.map((f, j) => (j === i ? { ...f, ...p } : f)))
+  const num = (v: string) => (v.trim() === '' ? 0 : Number(v.trim().replace(',', '.')))
+  const save = async () => {
+    setBusy(true)
+    try {
+      const firewalls = list.map(({ latS, lonS, ...f }) => ({ ...f, lat: num(latS), lon: num(lonS) }))
+      if (firewalls.some((f) => Number.isNaN(f.lat) || Number.isNaN(f.lon))) throw new Error(t('Coordinates must be numbers, e.g. 52.37 and 4.90.'))
+      const res = await api.put<{ firewalls: Firewall[] }>('/settings/attack-map', { firewalls })
+      toast('ok', t('Settings saved'))
+      onSaved(res.firewalls)
+    } catch (e) { toast('err', (e as Error).message) } finally { setBusy(false) }
+  }
+  return (
+    <Modal open onClose={onClose} wide title={t('Firewall locations')}
+      footer={<><Button onClick={onClose}>{t('Cancel')}</Button><Button variant="primary" loading={busy} onClick={save}>{t('Save')}</Button></>}>
+      <p className="mb-4 text-sm text-muted">{t('Attacks fly to the firewall of the site that logged them. Sites without their own firewall use the one for all other sites. Leave the coordinates empty to use the middle of the country.')}</p>
+      <div className="space-y-3">
+        {list.map((f, i) => (
+          <div key={i} className="grid grid-cols-2 gap-3 rounded-2xl p-3 panel-2 md:grid-cols-[1.2fr_1fr_1.2fr_.7fr_.7fr_auto]">
+            <Field label={t('Site')}>
+              <Select value={f.site} onChange={(v) => set(i, { site: v })}
+                options={[{ value: '', label: t('All other sites') }, ...[...new Set([...sites, f.site].filter(Boolean))].map((s) => ({ value: s, label: s }))]} />
+            </Field>
+            <Field label={t('Label')}><Input value={f.label} placeholder="Amsterdam" onChange={(e) => set(i, { label: e.target.value })} /></Field>
+            <Field label={t('Country')}><Select value={f.country} onChange={(v) => set(i, { country: v })} options={ccOptions} /></Field>
+            <Field label={t('Latitude')}><Input inputMode="decimal" value={f.latS} placeholder="52.37" onChange={(e) => set(i, { latS: e.target.value })} /></Field>
+            <Field label={t('Longitude')}><Input inputMode="decimal" value={f.lonS} placeholder="4.90" onChange={(e) => set(i, { lonS: e.target.value })} /></Field>
+            <div className="flex items-end"><Button variant="ghost" onClick={() => setList((l) => l.filter((_, j) => j !== i))} icon={<Trash2 className="size-4" />} aria-label={t('Remove')} /></div>
+          </div>
+        ))}
+      </div>
+      <Button className="mt-3" onClick={() => setList((l) => [...l, row({ ...defaultFirewall(), site: sites.find((s) => !l.some((f) => f.site === s)) ?? '' })])} icon={<Plus className="size-4" />}>{t('Add firewall')}</Button>
+    </Modal>
   )
 }
 
@@ -394,12 +470,12 @@ function Spark({ bins }: { bins: number[] }) {
 
 // ---------------------------------------------------------------- map + animation
 
-interface Flight { a: Attack; p0: [number, number]; c: [number, number]; p1: [number, number]; start: number; dur: number }
+interface Flight { a: Attack; home: number; p0: [number, number]; c: [number, number]; p1: [number, number]; start: number; dur: number }
 interface Impact { x: number; y: number; start: number; color: string }
 interface Ping { x: number; y: number; start: number; color: string }
 
-function MapStage({ countries, home, queue, counts, paused }: {
-  countries: Country[]; home: { cc: string; label: string }; queue: React.MutableRefObject<Attack[]>; counts: Map<string, number>; paused: boolean
+function MapStage({ countries, homes, queue, counts, paused }: {
+  countries: Country[]; homes: Firewall[]; queue: React.MutableRefObject<Attack[]>; counts: Map<string, number>; paused: boolean
 }) {
   const wrap = useRef<HTMLDivElement>(null)
   const canvas = useRef<HTMLCanvasElement>(null)
@@ -409,7 +485,14 @@ function MapStage({ countries, home, queue, counts, paused }: {
   const projection = useMemo(() => geoNaturalEarth1().fitExtent([[10, 30], [W - 10, H - 10]], { type: 'FeatureCollection', features: countries }), [countries])
   const path = useMemo(() => geoPath(projection), [projection])
   const centroids = useMemo(() => new Map(countries.map((c) => [alpha2(c), mainCentroid(c)])), [countries])
-  const homeXY = useMemo(() => projection(centroids.get(home.cc) ?? [4.9, 52.37]) as [number, number], [projection, centroids, home.cc])
+  const homeXY = useMemo(() => homes.map((h) => {
+    const ll: [number, number] = h.lat || h.lon ? [h.lon, h.lat] : centroids.get(h.country) ?? [4.9, 52.37]
+    return (projection(ll) ?? [W / 2, H / 2]) as [number, number]
+  }), [projection, centroids, homes])
+  const homeIndex = useMemo(() => {
+    const m = new Map(homes.map((h, i) => [h.site, i]))
+    return (site: string) => m.get(site) ?? m.get('') ?? 0
+  }, [homes])
   const max = Math.max(1, ...counts.values())
 
   // Fit the W×H stage into the container (letterboxed) and size the canvas.
@@ -439,7 +522,7 @@ function MapStage({ countries, home, queue, counts, paused }: {
     const impacts: Impact[] = []
     const pings: Ping[] = []
     let lastLaunch = 0
-    let heat = 0
+    const heat = homeXY.map(() => 0)
     let raf = 0
     const R = 16 // shield radius in stage units
 
@@ -449,10 +532,11 @@ function MapStage({ countries, home, queue, counts, paused }: {
       const [jx, jy] = jitter(a.ip)
       const src = projection([ll[0] + jx, ll[1] + jy])
       if (!src) return
-      const [hx, hy] = homeXY
+      const hi = homeIndex(a.site)
+      const [hx, hy] = homeXY[hi]
       const dx = hx - src[0], dy = hy - src[1]
       const d = Math.hypot(dx, dy)
-      if (d < R * 1.5) { impacts.push({ x: hx, y: hy, start: now, color: KIND_COLOR[a.kind] }); heat = Math.min(1, heat + 0.25); return }
+      if (d < R * 1.5) { impacts.push({ x: hx, y: hy, start: now, color: KIND_COLOR[a.kind] }); heat[hi] = Math.min(1, heat[hi] + 0.25); return }
       // Control point lifted perpendicular to the line, always "upwards".
       let nx = -dy / d, ny = dx / d
       if (ny > 0) { nx = -nx; ny = -ny }
@@ -461,7 +545,7 @@ function MapStage({ countries, home, queue, counts, paused }: {
       // Stop on the shield edge instead of the centre.
       const ux = hx - c[0], uy = hy - c[1], ul = Math.hypot(ux, uy)
       const p1: [number, number] = [hx - (ux / ul) * R, hy - (uy / ul) * R]
-      flights.push({ a, p0: src, c, p1, start: now, dur: 1500 + d * 3 })
+      flights.push({ a, home: hi, p0: src, c, p1, start: now, dur: 1500 + d * 3 })
       pings.push({ x: src[0], y: src[1], start: now, color: KIND_COLOR[a.kind] })
     }
 
@@ -506,7 +590,7 @@ function MapStage({ countries, home, queue, counts, paused }: {
         if (raw >= 1) {
           flights.splice(i, 1)
           impacts.push({ x: f.p1[0], y: f.p1[1], start: now, color: col })
-          heat = Math.min(1, heat + 0.18)
+          heat[f.home] = Math.min(1, heat[f.home] + 0.18)
           continue
         }
         const t = ease(raw)
@@ -549,21 +633,22 @@ function MapStage({ countries, home, queue, counts, paused }: {
       }
 
       // Shield around the firewall: steady rings, brighter while under fire.
-      heat *= 0.965
-      const [hx, hy] = homeXY
       const pulse = (now % 2400) / 2400
-      ctx.beginPath(); ctx.arc(hx, hy, R + pulse * 22, 0, Math.PI * 2)
-      ctx.strokeStyle = rgba(SHIELD, 0.35 * (1 - pulse)); ctx.lineWidth = 1; ctx.stroke()
-      const g = ctx.createRadialGradient(hx, hy, 0, hx, hy, R + 6)
-      g.addColorStop(0, rgba(SHIELD, 0.05 + heat * 0.15)); g.addColorStop(0.75, rgba(SHIELD, 0.12 + heat * 0.35)); g.addColorStop(1, rgba(SHIELD, 0))
-      ctx.beginPath(); ctx.arc(hx, hy, R + 6, 0, Math.PI * 2); ctx.fillStyle = g; ctx.fill()
-      ctx.beginPath(); ctx.arc(hx, hy, R, 0, Math.PI * 2)
-      ctx.strokeStyle = rgba(SHIELD, 0.55 + heat * 0.45); ctx.lineWidth = 1.2 + heat * 1.5
-      ctx.shadowColor = SHIELD; ctx.shadowBlur = (6 + heat * 18) * s; ctx.stroke(); ctx.shadowBlur = 0
+      homeXY.forEach(([hx, hy], i) => {
+        const h = (heat[i] *= 0.965)
+        ctx.beginPath(); ctx.arc(hx, hy, R + pulse * 22, 0, Math.PI * 2)
+        ctx.strokeStyle = rgba(SHIELD, 0.35 * (1 - pulse)); ctx.lineWidth = 1; ctx.stroke()
+        const g = ctx.createRadialGradient(hx, hy, 0, hx, hy, R + 6)
+        g.addColorStop(0, rgba(SHIELD, 0.05 + h * 0.15)); g.addColorStop(0.75, rgba(SHIELD, 0.12 + h * 0.35)); g.addColorStop(1, rgba(SHIELD, 0))
+        ctx.beginPath(); ctx.arc(hx, hy, R + 6, 0, Math.PI * 2); ctx.fillStyle = g; ctx.fill()
+        ctx.beginPath(); ctx.arc(hx, hy, R, 0, Math.PI * 2)
+        ctx.strokeStyle = rgba(SHIELD, 0.55 + h * 0.45); ctx.lineWidth = 1.2 + h * 1.5
+        ctx.shadowColor = SHIELD; ctx.shadowBlur = (6 + h * 18) * s; ctx.stroke(); ctx.shadowBlur = 0
+      })
     }
     raf = requestAnimationFrame(frame)
     return () => cancelAnimationFrame(raf)
-  }, [box, projection, centroids, homeXY, queue])
+  }, [box, projection, centroids, homeXY, homeIndex, queue])
 
   const heatOpacity = (n: number) => (n ? 0.03 + 0.32 * Math.pow(Math.log(n + 1) / Math.log(max + 1), 2) : 0)
   const graticule = useMemo(() => path(geoGraticule10()) ?? '', [path])
@@ -596,13 +681,15 @@ function MapStage({ countries, home, queue, counts, paused }: {
           })}
         </svg>
         <canvas ref={canvas} className="pointer-events-none absolute inset-0 h-full w-full" />
-        {/* Firewall marker */}
-        <div className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2" style={{ left: `${(homeXY[0] / W) * 100}%`, top: `${(homeXY[1] / H) * 100}%` }}>
-          <div className="grid size-6 place-items-center rounded-full bg-slate-950/90 text-cyan-300 ring-1 ring-cyan-400/60"><ShieldCheck className="size-3.5" /></div>
-          <div className="absolute left-1/2 top-[calc(100%+20px)] -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-950/80 px-2 py-0.5 text-[10px] font-medium text-cyan-200 ring-1 ring-cyan-400/30">
-            {flag(home.cc)} {home.label}
+        {/* Firewall markers */}
+        {homes.map((h, i) => (
+          <div key={i} className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2" style={{ left: `${(homeXY[i][0] / W) * 100}%`, top: `${(homeXY[i][1] / H) * 100}%` }}>
+            <div className="grid size-6 place-items-center rounded-full bg-slate-950/90 text-cyan-300 ring-1 ring-cyan-400/60"><ShieldCheck className="size-3.5" /></div>
+            <div className="absolute left-[calc(100%+18px)] top-1/2 -translate-y-1/2 whitespace-nowrap rounded-md bg-slate-950/80 px-2 py-0.5 text-[10px] font-medium text-cyan-200 ring-1 ring-cyan-400/30">
+              {flag(h.country)} {h.label || h.site || countryName(h.country)}
+            </div>
           </div>
-        </div>
+        ))}
       </div>
       {hover?.cc && (
         <div className="pointer-events-none absolute z-10 rounded-xl bg-slate-900/95 px-3 py-2 text-xs shadow-xl ring-1 ring-white/10" style={{ left: hover.x + 14, top: hover.y + 14 }}>

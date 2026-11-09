@@ -1660,5 +1660,14 @@
   "Top source countries": "Top herkomstlanden",
   "Unique sources": "Unieke bronnen",
   "Your firewall": "Jouw firewall",
-  "{n} blocked": "{n} geblokkeerd"
+  "{n} blocked": "{n} geblokkeerd",
+  "Add firewall": "Firewall toevoegen",
+  "All other sites": "Alle andere locaties",
+  "Attacks fly to the firewall of the site that logged them. Sites without their own firewall use the one for all other sites. Leave the coordinates empty to use the middle of the country.": "Aanvallen vliegen naar de firewall van de locatie die ze gelogd heeft. Locaties zonder eigen firewall gebruiken die voor alle andere locaties. Laat de coördinaten leeg om het midden van het land te gebruiken.",
+  "Country": "Land",
+  "Firewall locations": "Firewalllocaties",
+  "Latitude": "Breedtegraad",
+  "Longitude": "Lengtegraad",
+  "Set where your firewalls are": "Stel in waar je firewalls staan",
+  "Coordinates must be numbers, e.g. 52.37 and 4.90.": "Coördinaten moeten getallen zijn, bijv. 52.37 en 4.90."
 }
