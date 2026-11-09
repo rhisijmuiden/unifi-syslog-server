@@ -6,7 +6,7 @@ import {
   LayoutDashboard, ScrollText, Tags, Router as RouterIcon, MapPin, BellRing, Users, KeyRound, Mail, DatabaseBackup,
   Settings, History, Info, LogOut, Moon, Sun, Menu, X, Languages, Palette,
   ShieldX, Wifi, Network, Lock, Siren, Smartphone, Server, Globe, UserRound, ShieldCheck, ListChecks, Send, RadioTower, Megaphone,
-  Bookmark, Activity, Users2, HardDrive, Gauge, ServerCog, Moon as MoonIcon, Search as SearchIcon, BookOpen, Bot,
+  Bookmark, Activity, Users2, HardDrive, Gauge, ServerCog, Moon as MoonIcon, Search as SearchIcon, BookOpen, Bot, Radar,
 } from 'lucide-react'
 import { api, brandingUrl, can, searchLink, searchMatches, type Branding, type SavedSearch, type User } from './api'
 import { roleLabel } from './components/Access'
@@ -46,6 +46,7 @@ import HighAvailability from './pages/HighAvailability'
 import SearchPage from './pages/Search'
 import HowTo from './pages/HowTo'
 import AIAssistants from './pages/AIAssistants'
+import AttackMap from './pages/AttackMap'
 
 interface AuthCtx {
   user: User
@@ -145,6 +146,7 @@ export interface NavItem { to: string; label: string; icon: ReactNode; admin?: b
 export const nav: { section: string; items: NavItem[] }[] = [
   { section: 'Monitoring', items: [
     { to: '/', label: 'Overview', keywords: 'dashboard home statistics', icon: <LayoutDashboard /> },
+    { to: '/attack-map', label: 'Live attack map', keywords: 'threat map world attacks blocked firewall live wall display kiosk fullscreen soc', icon: <Radar /> },
     { to: '/logs', label: 'Logs', keywords: 'messages syslog events query', icon: <ScrollText /> },
     { to: '/searches', label: 'Saved searches', keywords: 'bookmarks filters', icon: <Bookmark /> },
     { to: '/categories', label: 'Categories', keywords: 'filters groups', icon: <Tags /> },
@@ -321,6 +323,7 @@ function Shell() {
         <div className="mx-auto max-w-[1600px] p-4 sm:p-6 lg:p-8">
           <Routes>
             <Route path="/" element={<Dashboard />} />
+            <Route path="/attack-map" element={<AttackMap />} />
             <Route path="/logs" element={<Logs />} />
             <Route path="/search" element={<SearchPage />} />
             <Route path="/searches" element={<SavedSearches />} />
