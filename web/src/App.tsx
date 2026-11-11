@@ -123,6 +123,9 @@ export default function App() {
 
   if (state.loading) return <div className="grid h-full place-items-center"><Spinner className="size-8" /></div>
   const setUser = (user?: User) => setState((s) => ({ ...s, status: s.status && { ...s.status, user } }))
+  // Public attack map links work without signing in.
+  const pub = window.location.pathname.match(/^\/public\/attack-map\/([^/]+)\/?$/)
+  if (pub) return <ToastProvider><BrowserRouter><AttackMap share={decodeURIComponent(pub[1])} /></BrowserRouter></ToastProvider>
   return (
     <ToastProvider>
       <BrowserRouter>

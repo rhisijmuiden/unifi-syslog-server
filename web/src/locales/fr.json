@@ -1669,5 +1669,16 @@
   "Latitude": "Latitude",
   "Longitude": "Longitude",
   "Set where your firewalls are": "Indique où se trouvent tes pare-feu",
-  "Coordinates must be numbers, e.g. 52.37 and 4.90.": "Les coordonnées doivent être des nombres, p. ex. 52.37 et 4.90."
+  "Coordinates must be numbers, e.g. 52.37 and 4.90.": "Les coordonnées doivent être des nombres, p. ex. 52.37 et 4.90.",
+  "Create link": "Créer un lien",
+  "No public links yet.": "Aucun lien public pour l'instant.",
+  "Public links": "Liens publics",
+  "Reception TV": "Télé de l'accueil",
+  "Reset zoom": "Réinitialiser le zoom",
+  "Revoke \"{name}\"? The link stops working immediately.": "Révoquer « {name} » ? Le lien cesse immédiatement de fonctionner.",
+  "Sites (none selected = all sites)": "Sites (aucune sélection = tous les sites)",
+  "Zoom in": "Zoom avant",
+  "Zoom out": "Zoom arrière",
+  "created by {user} on {date}": "créé par {user} le {date}",
+  "Publish the attack map on its own page, for example on a TV or a lobby screen, without signing in. Anyone with the link sees the map, so revoke a link you no longer use. Public pages do not show site names, internal addresses or firewall rule names.": "Publie la carte des attaques sur sa propre page, par exemple sur une télé ou un écran d'accueil, sans connexion. Toute personne ayant le lien voit la carte : révoque donc les liens que tu n'utilises plus. Les pages publiques n'affichent ni noms de sites, ni adresses internes, ni noms de règles de pare-feu."
 }

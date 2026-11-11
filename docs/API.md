@@ -65,6 +65,8 @@ curl -s -H "Authorization: Bearer $TOKEN" -o blocked.csv \
 | `GET /api/categories/stats` | Message count per category for `from`/`to`/`sites` |
 | `GET /api/dashboard` | The overview dashboard data |
 | `GET /api/attack-map` | Firewall locations of the live attack map (`site`, `label`, `country`, `lat`, `lon`); `PUT /api/settings/attack-map` (admins) replaces them |
+| `GET /api/settings/attack-map/shares` | Public attack map links (admins); `POST` with `name` and `sites` creates one, `DELETE /api/settings/attack-map/shares/{id}` revokes it |
+| `GET /api/public/attack-map/{token}` and `…/{token}/live?after=` | The public map of a link, without a session: firewall locations and blocked traffic without site names, internal addresses or firewall rule names |
 | `GET /api/fields` | Field names of the query language |
 | `GET /api/stats` | Receiver and ingest counters |
 | `GET /api/info` | Version, uptime and storage |
