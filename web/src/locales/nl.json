@@ -1669,5 +1669,16 @@
   "Latitude": "Breedtegraad",
   "Longitude": "Lengtegraad",
   "Set where your firewalls are": "Stel in waar je firewalls staan",
-  "Coordinates must be numbers, e.g. 52.37 and 4.90.": "Coördinaten moeten getallen zijn, bijv. 52.37 en 4.90."
+  "Coordinates must be numbers, e.g. 52.37 and 4.90.": "Coördinaten moeten getallen zijn, bijv. 52.37 en 4.90.",
+  "Create link": "Link maken",
+  "No public links yet.": "Nog geen publieke links.",
+  "Public links": "Publieke links",
+  "Reception TV": "Tv bij de receptie",
+  "Reset zoom": "Zoom herstellen",
+  "Revoke \"{name}\"? The link stops working immediately.": "\"{name}\" intrekken? De link werkt dan meteen niet meer.",
+  "Sites (none selected = all sites)": "Locaties (niets gekozen = alle locaties)",
+  "Zoom in": "Inzoomen",
+  "Zoom out": "Uitzoomen",
+  "created by {user} on {date}": "gemaakt door {user} op {date}",
+  "Publish the attack map on its own page, for example on a TV or a lobby screen, without signing in. Anyone with the link sees the map, so revoke a link you no longer use. Public pages do not show site names, internal addresses or firewall rule names.": "Publiceer de aanvallenkaart op een eigen pagina, bijvoorbeeld op een tv of een scherm in de hal, zonder in te loggen. Iedereen met de link ziet de kaart, dus trek een link in die je niet meer gebruikt. Publieke pagina's tonen geen locatienamen, interne adressen of namen van firewallregels."
 }

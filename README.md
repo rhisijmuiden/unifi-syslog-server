@@ -88,7 +88,9 @@ Alert rules live under **Configuration → Alerts**. Each rule is a search plus 
 **Monitoring → Live attack map** shows blocked traffic as it happens. Every firewall block (red) and every threat stopped by the IPS (purple) flies as an arrow from the attacker's country to your firewall and bounces off its shield, which lights up while it is under fire. Countries turn redder the more attacks come from them.
 
 - **Counters** for blocked per minute, blocked in the last 15 minutes, unique sources and countries, plus a per-minute chart, the top source countries, the most targeted services (SSH, RDP, Telnet, SMB…) and a live feed. Click a feed line to see the logs of that IP.
-- **Fullscreen** (button or the <kbd>F</kbd> key) hides the menu and adds a large clock and bigger numbers, for a TV in the office or the SOC. <kbd>Space</kbd> pauses.
+- **Fullscreen** (button or the <kbd>F</kbd> key) hides the menu and adds a large 24-hour clock and bigger numbers, for a TV in the office or the SOC. <kbd>Space</kbd> pauses.
+- **Zoom** with the mouse wheel, a pinch, a double-click or the + and − buttons, and drag to pan, for example to watch one region or your own country.
+- **Public links** (admins, the link button on the page): publish the map on its own page with a unique, secret URL, for a TV or a lobby screen, without signing in. Each link can be limited to some sites and revoked at any time. Public pages show no site names, internal addresses or firewall rule names.
 - **Firewall locations** (admins, the settings button on the page): one shield per site, placed in the middle of a country or at exact coordinates. Sites without their own firewall use the one for *all other sites*.
 - **Demo data**: switch to generated traffic to try it out or to show it before syslog for blocked traffic is enabled. The arrows need GeoIP and logging of blocked traffic on the firewall rules (see the how-to guides).
 
@@ -97,6 +99,7 @@ Alert rules live under **Configuration → Alerts**. Each rule is a search plus 
 | | |
 |---|---|
 | ![Live attack map inside the app](docs/screenshots/attack-map-app.png)<br>**Inside the app**, with two firewalls: HQ Amsterdam and a branch in Madrid. | ![Firewall locations](docs/screenshots/attack-map-firewalls.png)<br>**Firewall locations**: a shield per site, by country or coordinates. |
+| ![Zoomed in on Europe](docs/screenshots/attack-map-zoom.png)<br>**Zoomed in** on Europe; drag to pan, the reset button returns to the world. | ![Public links](docs/screenshots/attack-map-links.png)<br>**Public links**: one secret URL per screen, optionally for some sites only, revocable at any time. |
 
 ## Search everything
 

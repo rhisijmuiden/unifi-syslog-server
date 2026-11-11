@@ -341,3 +341,29 @@ func (m *Meta) AttackMap() AttackMapSettings {
 	}
 	return c
 }
+
+// AttackMapShare is a public, read-only link to the live attack map. Anyone
+// with the token sees the map, so it is shown only to admins and can be
+// revoked by deleting it.
+type AttackMapShare struct {
+	ID        string   `json:"id"`
+	Name      string   `json:"name"`
+	Token     string   `json:"token"`
+	Sites     []string `json:"sites"` // empty = every site
+	Created   int64    `json:"created"`
+	CreatedBy string   `json:"created_by"`
+}
+
+// AttackMapShares returns the public attack map links; never nil.
+func (m *Meta) AttackMapShares() []AttackMapShare {
+	var l []AttackMapShare
+	m.GetSetting("attack_map_shares", &l)
+	if l == nil {
+		l = []AttackMapShare{}
+	}
+	return l
+}
+
+func (m *Meta) SetAttackMapShares(l []AttackMapShare) error {
+	return m.SetSetting("attack_map_shares", l)
+}

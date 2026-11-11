@@ -89,6 +89,8 @@ type Server struct {
 	tickets map[string]*loginTicket // password checked, second factor pending
 	enrolls map[int64]enrollment    // authenticator setups awaiting a first code
 	viewed  map[string]time.Time    // audit de-duplication of views
+
+	shareMu sync.Mutex // public attack map links
 }
 
 const cookieName = "uss_session"
@@ -115,6 +117,10 @@ func (s *Server) Handler() http.Handler {
 		r.Get("/auth/entra/login", s.entraLogin)
 		r.Get("/auth/entra/callback", s.entraCallback)
 		r.Get("/branding/{asset}", s.brandingAsset)
+
+		// Public attack map links carry their own secret token.
+		r.Get("/public/attack-map/{token}", s.publicAttackMap)
+		r.Get("/public/attack-map/{token}/live", s.publicAttackMapLive)
 
 		r.Post("/auth/login/totp", s.loginTOTP)
 
@@ -214,6 +220,9 @@ func (s *Server) Handler() http.Handler {
 				r.Put("/settings/geoip", s.putGeoIP)
 				r.Post("/geoip/update", s.updateGeoIP)
 				r.Put("/settings/attack-map", s.putAttackMap)
+				r.Get("/settings/attack-map/shares", s.listAttackMapShares)
+				r.Post("/settings/attack-map/shares", s.createAttackMapShare)
+				r.Delete("/settings/attack-map/shares/{id}", s.deleteAttackMapShare)
 				r.Get("/settings/inventory", s.getInventory)
 				r.Put("/settings/inventory", s.putInventory)
 				r.Get("/site-ranges", s.listRanges)

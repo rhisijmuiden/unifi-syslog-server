@@ -1669,5 +1669,16 @@
   "Latitude": "Breitengrad",
   "Longitude": "Längengrad",
   "Set where your firewalls are": "Lege fest, wo deine Firewalls stehen",
-  "Coordinates must be numbers, e.g. 52.37 and 4.90.": "Koordinaten müssen Zahlen sein, z. B. 52.37 und 4.90."
+  "Coordinates must be numbers, e.g. 52.37 and 4.90.": "Koordinaten müssen Zahlen sein, z. B. 52.37 und 4.90.",
+  "Create link": "Link erstellen",
+  "No public links yet.": "Noch keine öffentlichen Links.",
+  "Public links": "Öffentliche Links",
+  "Reception TV": "Fernseher am Empfang",
+  "Reset zoom": "Zoom zurücksetzen",
+  "Revoke \"{name}\"? The link stops working immediately.": "\"{name}\" widerrufen? Der Link funktioniert dann sofort nicht mehr.",
+  "Sites (none selected = all sites)": "Standorte (keine Auswahl = alle Standorte)",
+  "Zoom in": "Vergrößern",
+  "Zoom out": "Verkleinern",
+  "created by {user} on {date}": "erstellt von {user} am {date}",
+  "Publish the attack map on its own page, for example on a TV or a lobby screen, without signing in. Anyone with the link sees the map, so revoke a link you no longer use. Public pages do not show site names, internal addresses or firewall rule names.": "Veröffentliche die Angriffskarte auf einer eigenen Seite, zum Beispiel auf einem Fernseher oder einem Bildschirm im Foyer, ohne Anmeldung. Jeder mit dem Link sieht die Karte, widerrufe also Links, die du nicht mehr brauchst. Öffentliche Seiten zeigen keine Standortnamen, internen Adressen oder Namen von Firewall-Regeln."
 }

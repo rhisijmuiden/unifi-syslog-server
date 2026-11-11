@@ -10,7 +10,7 @@ import { geoArea, geoCentroid, geoGraticule10, geoNaturalEarth1, geoPath } from 
 import { feature } from 'topojson-client'
 import type { Feature, FeatureCollection, Geometry, MultiPolygon, Polygon } from 'geojson'
 import type { Topology } from 'topojson-specification'
-import { Maximize2, Minimize2, Pause, Play, Plus, Radar, Radio, Settings2, ShieldCheck, Sparkles, Trash2 } from 'lucide-react'
+import { Check, Copy, Link2, Maximize2, Minimize2, Minus, Pause, Play, Plus, Radar, Radio, RotateCcw, Settings2, ShieldCheck, Sparkles, Trash2 } from 'lucide-react'
 import { api, can, type LogRow } from '../api'
 import { useAuth } from '../App'
 import { t } from '../i18n'
@@ -149,23 +149,34 @@ type Mode = 'live' | 'demo'
 const WINDOW_MS = 15 * 60_000
 const LIVE_QUERY = 'category:firewall action:block OR category:ips'
 
-export default function AttackMap() {
+// 24-hour time, also in English, as on a SOC wall clock.
+const time24 = (d: Date | number) => new Date(d).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' })
+
+interface PublicRow { ts: string; cc: string; ip: string; port: number; proto: string; kind: Kind; rule?: string; site: string }
+
+/** The live attack map. With share set, it is the public page of that link: no session, live data only. */
+export default function AttackMap({ share }: { share?: string } = {}) {
   const rootRef = useRef<HTMLDivElement>(null)
   const [countries, setCountries] = useState<Country[] | null>(null)
   useEffect(() => { loadCountries().then(setCountries) }, [])
 
-  const [mode, setMode] = useState<Mode>(() => (new URLSearchParams(window.location.search).get('demo') ? 'demo' : 'live'))
+  const [mode, setMode] = useState<Mode>(() => (!share && new URLSearchParams(window.location.search).get('demo') ? 'demo' : 'live'))
   const [paused, setPaused] = useState(false)
   const [full, setFull] = useState(false)
   const [error, setError] = useState<string>()
   const [lastLive, setLastLive] = useState(Date.now())
   const [clock, setClock] = useState(new Date())
-  const { user } = useAuth()
+  const auth = useAuth() as ReturnType<typeof useAuth> | null // null on a public link
+  const isAdmin = !share && !!auth && can.admin(auth.user)
   const [firewalls, setFirewalls] = useState<Firewall[] | null>(null)
+  const [shareName, setShareName] = useState('')
   const [editing, setEditing] = useState(false)
+  const [sharing, setSharing] = useState(false)
   useEffect(() => {
-    api.get<{ firewalls: Firewall[] }>('/attack-map').then((c) => setFirewalls(c.firewalls)).catch(() => setFirewalls([]))
-  }, [])
+    api.get<{ firewalls: Firewall[]; name?: string }>(share ? `/public/attack-map/${encodeURIComponent(share)}` : '/attack-map')
+      .then((c) => { setFirewalls(c.firewalls); setShareName(c.name ?? '') })
+      .catch((e) => { setFirewalls([]); if (share) setError((e as Error).message) })
+  }, [share])
   const homes = useMemo(() => (firewalls?.length ? firewalls : [defaultFirewall()]), [firewalls])
   const sitesRef = useRef<string[]>([])
   sitesRef.current = homes.map((h) => h.site)
@@ -194,11 +205,19 @@ export default function AttackMap() {
     let cursor = Date.now() - 60_000
     const tick = async () => {
       try {
-        const q = new URLSearchParams({ after: String(cursor), query: LIVE_QUERY })
-        const res = await api.get<{ rows: LogRow[]; cursor: number }>('/live?' + q)
-        if (!alive) return
-        cursor = res.cursor
-        const list = res.rows.map(fromRow).filter((x): x is Attack => !!x)
+        let list: Attack[]
+        if (share) {
+          const res = await api.get<{ rows: PublicRow[]; cursor: number }>(`/public/attack-map/${encodeURIComponent(share)}/live?after=${cursor}`)
+          if (!alive) return
+          cursor = res.cursor
+          list = res.rows.map((r) => ({ id: `${r.ts}-${r.ip}-${r.port}-${Math.random()}`, ts: Date.parse(r.ts) || Date.now(), cc: r.cc.toUpperCase(), ip: r.ip, port: r.port, proto: r.proto.toUpperCase(), kind: r.kind, rule: r.rule ?? '', site: r.site }))
+        } else {
+          const q = new URLSearchParams({ after: String(cursor), query: LIVE_QUERY })
+          const res = await api.get<{ rows: LogRow[]; cursor: number }>('/live?' + q)
+          if (!alive) return
+          cursor = res.cursor
+          list = res.rows.map(fromRow).filter((x): x is Attack => !!x)
+        }
         if (list.length) { push(list); setLastLive(Date.now()) }
         setError(undefined)
       } catch (e) { setError((e as Error).message) }
@@ -206,7 +225,7 @@ export default function AttackMap() {
     tick()
     const id = setInterval(tick, 2000)
     return () => { alive = false; clearInterval(id) }
-  }, [mode, paused])
+  }, [mode, paused, share])
 
   // Demo generator: steady background noise plus the occasional port scan.
   useEffect(() => {
@@ -271,10 +290,10 @@ export default function AttackMap() {
     return { perMin, total: list.length, sources: ips.size, countries: byCC.size, ipsHits, byCC, topCC: top(byCC, 7), topPorts: top(byPort, 6), bins, feed: list.slice(0, 40) }
   }, [snap]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const quiet = mode === 'live' && !paused && Date.now() - lastLive > 20_000 && !events.current.length
+  const quiet = !share && mode === 'live' && !paused && Date.now() - lastLive > 20_000 && !events.current.length
 
   return (
-    <div ref={rootRef} className={cx('attack-map relative flex flex-col overflow-hidden text-slate-200', full ? 'fixed inset-0 z-50 h-screen w-screen' : 'h-[calc(100vh-7.5rem)] min-h-[560px] rounded-3xl ring-1 ring-[var(--border)]')}>
+    <div ref={rootRef} className={cx('attack-map relative flex flex-col overflow-hidden text-slate-200', full || share ? 'fixed inset-0 z-50 h-screen w-screen' : 'h-[calc(100vh-7.5rem)] min-h-[560px] rounded-3xl ring-1 ring-[var(--border)]')}>
       {/* Header */}
       <div className="relative z-10 flex flex-wrap items-center gap-3 border-b border-white/5 px-5 py-3">
         <div className="grid size-9 place-items-center rounded-xl bg-gradient-to-br from-indigo-500/25 to-cyan-500/25 text-cyan-300 ring-1 ring-cyan-400/30"><Radar className="size-5" /></div>
@@ -286,24 +305,27 @@ export default function AttackMap() {
               {paused ? t('Paused') : mode === 'demo' ? t('Demo') : t('Live')}
             </span>
           </div>
-          <div className="text-xs text-slate-400">{t('Blocked inbound traffic, last 15 minutes')}</div>
+          <div className="text-xs text-slate-400">{shareName ? `${shareName} · ` : ''}{t('Blocked inbound traffic, last 15 minutes')}</div>
         </div>
-        {full && <div className="hidden text-right font-mono text-2xl tabular-nums text-white/90 md:block">{clock.toLocaleTimeString()}</div>}
-        <div className="flex items-center rounded-xl bg-white/5 p-1 ring-1 ring-white/10">
+        {(full || share) && <div className="hidden text-right font-mono text-2xl tabular-nums text-white/90 md:block">{time24(clock)}</div>}
+        {!share && <div className="flex items-center rounded-xl bg-white/5 p-1 ring-1 ring-white/10">
           {(['live', 'demo'] as Mode[]).map((m) => (
             <button key={m} onClick={() => setMode(m)} className={cx('flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition', mode === m ? 'bg-gradient-to-r from-indigo-500 to-cyan-500 text-white shadow' : 'text-slate-300 hover:text-white')}>
               {m === 'live' ? <Radio className="size-3.5" /> : <Sparkles className="size-3.5" />}{m === 'live' ? t('Live data') : t('Demo data')}
             </button>
           ))}
-        </div>
+        </div>}
         <button onClick={() => setPaused(!paused)} title={t('Pause (space)')} className="grid size-9 place-items-center rounded-xl bg-white/5 text-slate-200 ring-1 ring-white/10 hover:bg-white/10">
           {paused ? <Play className="size-4" /> : <Pause className="size-4" />}
         </button>
-        {can.admin(user) && !full && (
+        {isAdmin && !full && (<>
+          <button onClick={() => setSharing(true)} title={t('Public links')} className="grid size-9 place-items-center rounded-xl bg-white/5 text-slate-200 ring-1 ring-white/10 hover:bg-white/10">
+            <Link2 className="size-4" />
+          </button>
           <button onClick={() => setEditing(true)} title={t('Firewall locations')} className="grid size-9 place-items-center rounded-xl bg-white/5 text-slate-200 ring-1 ring-white/10 hover:bg-white/10">
             <Settings2 className="size-4" />
           </button>
-        )}
+        </>)}
         <button onClick={toggleFull} title={t('Fullscreen (F)')} className="flex h-9 items-center gap-2 rounded-xl bg-white/5 px-3 text-xs font-medium text-slate-200 ring-1 ring-white/10 hover:bg-white/10">
           {full ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}{full ? t('Exit fullscreen') : t('Fullscreen')}
         </button>
@@ -337,7 +359,7 @@ export default function AttackMap() {
               <button onClick={() => setMode('demo')} className="mt-2 rounded-lg bg-gradient-to-r from-indigo-500 to-cyan-500 px-3 py-1.5 text-xs font-medium text-white">{t('Show demo data')}</button>
             </div>
           )}
-          {firewalls && !firewalls.length && can.admin(user) && !full && !quiet && (
+          {firewalls && !firewalls.length && isAdmin && !full && !quiet && (
             <button onClick={() => setEditing(true)} className="absolute bottom-4 right-4 flex items-center gap-2 rounded-xl bg-slate-900/80 px-3 py-2 text-xs text-cyan-200 ring-1 ring-cyan-400/30 backdrop-blur hover:bg-slate-900">
               <ShieldCheck className="size-4" />{t('Set where your firewalls are')}
             </button>
@@ -367,18 +389,19 @@ export default function AttackMap() {
           <Section title={t('Live feed')} grow>
             <div className="scroll-thin -mr-2 h-full space-y-1 overflow-y-auto pr-2">
               {stats.feed.map((e) => (
-                <Link key={e.id} to={`/logs?q=${encodeURIComponent('src_ip:' + e.ip)}`} className="feed-row flex items-center gap-2 rounded-lg px-2 py-1.5 text-[11px] hover:bg-white/5">
+                <FeedRow key={e.id} to={share ? undefined : `/logs?q=${encodeURIComponent('src_ip:' + e.ip)}`}>
                   <span className="size-1.5 shrink-0 rounded-full" style={{ background: KIND_COLOR[e.kind], boxShadow: `0 0 8px ${KIND_COLOR[e.kind]}` }} />
-                  <span className="shrink-0 whitespace-nowrap font-mono text-slate-500">{new Date(e.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}</span>
+                  <span className="shrink-0 whitespace-nowrap font-mono text-slate-500">{time24(e.ts)}</span>
                   <span className="shrink-0">{flag(e.cc)}</span>
                   <span className="min-w-0 flex-1 truncate font-mono text-slate-200" title={e.rule}>{e.ip}</span>
                   <span className="shrink-0 rounded bg-white/5 px-1.5 py-0.5 text-slate-300">{service(e.port)}</span>
-                </Link>
+                </FeedRow>
               ))}
             </div>
           </Section>
         </aside>
       </div>
+      {sharing && <ShareManager onClose={() => setSharing(false)} />}
       {editing && countries && <FirewallEditor countries={countries} value={firewalls ?? []} onClose={() => setEditing(false)} onSaved={(f) => { setFirewalls(f); setEditing(false) }} />}
     </div>
   )
@@ -430,6 +453,81 @@ function FirewallEditor({ countries, value, onClose, onSaved }: { countries: Cou
   )
 }
 
+function FeedRow({ to, children }: { to?: string; children: React.ReactNode }) {
+  const c = 'feed-row flex items-center gap-2 rounded-lg px-2 py-1.5 text-[11px]'
+  return to ? <Link to={to} className={cx(c, 'hover:bg-white/5')}>{children}</Link> : <div className={c}>{children}</div>
+}
+
+interface Share { id: string; name: string; token: string; sites: string[]; created: number; created_by: string }
+
+function ShareManager({ onClose }: { onClose: () => void }) {
+  const toast = useToast()
+  const [list, setList] = useState<Share[] | null>(null)
+  const [sites, setSites] = useState<string[]>([])
+  const [name, setName] = useState('')
+  const [pick, setPick] = useState<string[]>([])
+  const [busy, setBusy] = useState(false)
+  const [copied, setCopied] = useState('')
+  const load = () => api.get<Share[]>('/settings/attack-map/shares').then(setList).catch((e) => toast('err', (e as Error).message))
+  useEffect(() => { load(); api.get<string[]>('/sites').then(setSites).catch(() => {}) }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  const url = (s: Share) => `${window.location.origin}/public/attack-map/${s.token}`
+  const create = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setBusy(true)
+    try {
+      await api.post('/settings/attack-map/shares', { name, sites: pick })
+      setName(''); setPick([]); load()
+    } catch (err) { toast('err', (err as Error).message) } finally { setBusy(false) }
+  }
+  const revoke = async (s: Share) => {
+    if (!confirm(t('Revoke "{name}"? The link stops working immediately.', { name: s.name }))) return
+    try { await api.del(`/settings/attack-map/shares/${s.id}`); load() } catch (err) { toast('err', (err as Error).message) }
+  }
+  const copy = async (s: Share) => {
+    try { await navigator.clipboard.writeText(url(s)); setCopied(s.id); setTimeout(() => setCopied(''), 1500) } catch { /* ignore */ }
+  }
+  return (
+    <Modal open onClose={onClose} wide title={t('Public links')} footer={<Button onClick={onClose}>{t('Close')}</Button>}>
+      <p className="mb-4 text-sm text-muted">{t('Publish the attack map on its own page, for example on a TV or a lobby screen, without signing in. Anyone with the link sees the map, so revoke a link you no longer use. Public pages do not show site names, internal addresses or firewall rule names.')}</p>
+      <form onSubmit={create} className="mb-4 space-y-3 rounded-2xl p-3 panel-2">
+        <div className="flex flex-wrap items-end gap-3">
+          <Field label={t('Name')} className="min-w-56 flex-1"><Input value={name} placeholder={t('Reception TV')} onChange={(e) => setName(e.target.value)} /></Field>
+          <Button variant="primary" loading={busy} disabled={!name.trim()} icon={<Plus className="size-4" />}>{t('Create link')}</Button>
+        </div>
+        {sites.length > 0 && (
+          <div>
+            <div className="mb-1.5 text-xs text-muted">{t('Sites (none selected = all sites)')}</div>
+            <div className="flex flex-wrap gap-1.5">
+              {sites.map((x) => (
+                <button type="button" key={x} onClick={() => setPick((p) => (p.includes(x) ? p.filter((y) => y !== x) : [...p, x]))}
+                  className={cx('rounded-lg px-2.5 py-1 text-xs ring-1', pick.includes(x) ? 'bg-indigo-500/20 text-indigo-200 ring-indigo-400/50' : 'ring-[var(--border)] hover:ring-indigo-400/40')}>{x}</button>
+              ))}
+            </div>
+          </div>
+        )}
+      </form>
+      {!list ? <Spinner /> : !list.length ? <div className="py-6 text-center text-sm text-muted">{t('No public links yet.')}</div> : (
+        <div className="space-y-2">
+          {list.map((s) => (
+            <div key={s.id} className="rounded-2xl p-3 ring-1 ring-[var(--border)]">
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="mr-auto min-w-0">
+                  <div className="font-medium">{s.name}</div>
+                  <div className="text-xs text-muted">{s.sites.length ? s.sites.join(', ') : t('All sites')} · {t('created by {user} on {date}', { user: s.created_by, date: new Date(s.created * 1000).toLocaleDateString() })}</div>
+                </div>
+                <a href={url(s)} target="_blank" rel="noreferrer" className="text-xs text-indigo-400 hover:underline">{t('Open')}</a>
+                <Button onClick={() => copy(s)} icon={copied === s.id ? <Check className="size-4" /> : <Copy className="size-4" />}>{copied === s.id ? t('Copied') : t('Copy link')}</Button>
+                <Button variant="danger" onClick={() => revoke(s)} icon={<Trash2 className="size-4" />}>{t('Revoke')}</Button>
+              </div>
+              <div className="mt-2 truncate rounded-lg px-2 py-1 font-mono text-[11px] panel-2">{url(s)}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </Modal>
+  )
+}
+
 function Counter({ label, value, accent, big }: { label: string; value: string; accent?: string; big?: boolean }) {
   return (
     <div className="rounded-2xl bg-slate-950/55 px-4 py-2.5 ring-1 ring-white/10 backdrop-blur">
@@ -470,7 +568,10 @@ function Spark({ bins }: { bins: number[] }) {
 
 // ---------------------------------------------------------------- map + animation
 
-interface Flight { a: Attack; home: number; p0: [number, number]; c: [number, number]; p1: [number, number]; start: number; dur: number }
+interface View { k: number; x: number; y: number }
+const MAX_ZOOM = 8
+
+interface Flight { a: Attack; home: number; hc: [number, number]; p0: [number, number]; c: [number, number]; p1: [number, number]; start: number; dur: number }
 interface Impact { x: number; y: number; start: number; color: string }
 interface Ping { x: number; y: number; start: number; color: string }
 
@@ -479,7 +580,7 @@ function MapStage({ countries, homes, queue, counts, paused }: {
 }) {
   const wrap = useRef<HTMLDivElement>(null)
   const canvas = useRef<HTMLCanvasElement>(null)
-  const [box, setBox] = useState({ w: W, h: H, x: 0, y: 0 })
+  const [box, setBox] = useState({ w: W, h: H, x: 0, y: 0, sc: 1 })
   const [hover, setHover] = useState<{ cc: string; x: number; y: number } | null>(null)
 
   const projection = useMemo(() => geoNaturalEarth1().fitExtent([[10, 30], [W - 10, H - 10]], { type: 'FeatureCollection', features: countries }), [countries])
@@ -495,21 +596,90 @@ function MapStage({ countries, homes, queue, counts, paused }: {
   }, [homes])
   const max = Math.max(1, ...counts.values())
 
-  // Fit the W×H stage into the container (letterboxed) and size the canvas.
+  // The W×H stage is fitted (letterboxed) into the container; the canvas
+  // and SVG cover the whole container so a zoomed map uses all of it.
   useEffect(() => {
     const el = wrap.current
     if (!el) return
     const ro = new ResizeObserver(() => {
       const { width, height } = el.getBoundingClientRect()
       const s = Math.min(width / W, height / H)
-      setBox({ w: W * s, h: H * s, x: (width - W * s) / 2, y: (height - H * s) / 2 })
+      setBox({ w: width, h: height, x: (width - W * s) / 2, y: (height - H * s) / 2, sc: s || 1 })
     })
     ro.observe(el)
     return () => ro.disconnect()
   }, [])
 
+  const boxRef = useRef(box)
+  boxRef.current = box
   const pausedRef = useRef(paused)
   pausedRef.current = paused
+
+  // Zoom: a stage point p is drawn at p * k + (x, y).
+  const [view, setView] = useState<View>({ k: 1, x: 0, y: 0 })
+  const viewRef = useRef(view)
+  viewRef.current = view
+  // Keep the map filling the container: centred while it is smaller, and
+  // no empty margin on a side while it is larger.
+  const clampView = (v: View): View => {
+    const k = Math.min(MAX_ZOOM, Math.max(1, v.k))
+    const b = boxRef.current
+    const axis = (pos: number, size: number, cont: number, off: number) =>
+      size * k <= cont ? (cont - size * k) / 2 - off : Math.min(-off, Math.max(cont - size * k - off, pos))
+    return { k, x: axis(v.x, W, b.w / b.sc, b.x / b.sc), y: axis(v.y, H, b.h / b.sc, b.y / b.sc) }
+  }
+  // Zoom by factor f around stage point (px, py), which stays in place.
+  const zoomAt = (f: number, px: number, py: number) => setView((v) => {
+    const k = Math.min(MAX_ZOOM, Math.max(1, v.k * f))
+    return clampView({ k, x: px - ((px - v.x) / v.k) * k, y: py - ((py - v.y) / v.k) * k })
+  })
+  const toStage = (clientX: number, clientY: number): [number, number] => {
+    const r = wrap.current!.getBoundingClientRect()
+    return [(clientX - r.left - box.x) / box.sc, (clientY - r.top - box.y) / box.sc]
+  }
+  useEffect(() => {
+    const el = wrap.current
+    if (!el) return
+    const wheel = (e: WheelEvent) => {
+      e.preventDefault()
+      const r = el.getBoundingClientRect(), b = boxRef.current, sc = b.sc
+      zoomAt(Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0025)), (e.clientX - r.left - b.x) / sc, (e.clientY - r.top - b.y) / sc)
+    }
+    el.addEventListener('wheel', wheel, { passive: false })
+    return () => el.removeEventListener('wheel', wheel)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Drag to pan, two fingers to pinch.
+  const pointers = useRef(new Map<number, [number, number]>())
+  const gesture = useRef<{ dist: number } | null>(null)
+  const onPointerDown = (e: React.PointerEvent) => {
+    if (e.button !== 0) return
+    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+    pointers.current.set(e.pointerId, [e.clientX, e.clientY])
+    gesture.current = null
+  }
+  const onPointerMove = (e: React.PointerEvent) => {
+    const prev = pointers.current.get(e.pointerId)
+    if (!prev) return
+    pointers.current.set(e.pointerId, [e.clientX, e.clientY])
+    const sc = box.sc
+    if (pointers.current.size === 1) {
+      setView((v) => clampView({ ...v, x: v.x + (e.clientX - prev[0]) / sc, y: v.y + (e.clientY - prev[1]) / sc }))
+    } else if (pointers.current.size === 2) {
+      const [a, b] = [...pointers.current.values()]
+      const dist = Math.hypot(a[0] - b[0], a[1] - b[1])
+      if (gesture.current) {
+        const [mx, my] = toStage((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)
+        zoomAt(dist / gesture.current.dist, mx, my)
+      }
+      gesture.current = { dist }
+    }
+  }
+  const onPointerUp = (e: React.PointerEvent) => { pointers.current.delete(e.pointerId); gesture.current = null }
+  const zoomCenter = (f: number) => setView((v) => {
+    const k = Math.min(MAX_ZOOM, Math.max(1, v.k * f))
+    return clampView({ k, x: W / 2 - ((W / 2 - v.x) / v.k) * k, y: H / 2 - ((H / 2 - v.y) / v.k) * k })
+  })
 
   useEffect(() => {
     const cv = canvas.current
@@ -517,7 +687,7 @@ function MapStage({ countries, homes, queue, counts, paused }: {
     const dpr = window.devicePixelRatio || 1
     cv.width = box.w * dpr; cv.height = box.h * dpr
     const ctx = cv.getContext('2d')!
-    const s = (box.w / W) * dpr
+    const s = box.sc * dpr, ox = box.x * dpr, oy = box.y * dpr
     const flights: Flight[] = []
     const impacts: Impact[] = []
     const pings: Ping[] = []
@@ -545,7 +715,7 @@ function MapStage({ countries, homes, queue, counts, paused }: {
       // Stop on the shield edge instead of the centre.
       const ux = hx - c[0], uy = hy - c[1], ul = Math.hypot(ux, uy)
       const p1: [number, number] = [hx - (ux / ul) * R, hy - (uy / ul) * R]
-      flights.push({ a, home: hi, p0: src, c, p1, start: now, dur: 1500 + d * 3 })
+      flights.push({ a, home: hi, hc: [hx, hy], p0: src, c, p1, start: now, dur: 1500 + d * 3 })
       pings.push({ x: src[0], y: src[1], start: now, color: KIND_COLOR[a.kind] })
     }
 
@@ -570,16 +740,19 @@ function MapStage({ countries, homes, queue, counts, paused }: {
 
       ctx.setTransform(1, 0, 0, 1, 0, 0)
       ctx.clearRect(0, 0, cv.width, cv.height)
-      ctx.setTransform(s, 0, 0, s, 0, 0)
+      const z = viewRef.current
+      ctx.setTransform(s * z.k, 0, 0, s * z.k, ox + s * z.x, oy + s * z.y)
+      // Marks keep their size on screen while zooming.
+      const u = 1 / z.k
       ctx.globalCompositeOperation = 'lighter'
 
       // Source pings
       for (let i = pings.length - 1; i >= 0; i--) {
         const p = pings[i], k = (now - p.start) / 900
         if (k >= 1) { pings.splice(i, 1); continue }
-        ctx.beginPath(); ctx.arc(p.x, p.y, 2 + k * 9, 0, Math.PI * 2)
-        ctx.strokeStyle = rgba(p.color, 0.7 * (1 - k)); ctx.lineWidth = 1.2; ctx.stroke()
-        ctx.beginPath(); ctx.arc(p.x, p.y, 1.8, 0, Math.PI * 2); ctx.fillStyle = rgba(p.color, 1 - k); ctx.fill()
+        ctx.beginPath(); ctx.arc(p.x, p.y, (2 + k * 9) * u, 0, Math.PI * 2)
+        ctx.strokeStyle = rgba(p.color, 0.7 * (1 - k)); ctx.lineWidth = 1.2 * u; ctx.stroke()
+        ctx.beginPath(); ctx.arc(p.x, p.y, 1.8 * u, 0, Math.PI * 2); ctx.fillStyle = rgba(p.color, 1 - k); ctx.fill()
       }
 
       // Flights
@@ -593,10 +766,13 @@ function MapStage({ countries, homes, queue, counts, paused }: {
           heat[f.home] = Math.min(1, heat[f.home] + 0.18)
           continue
         }
+        // End on the shield edge, whose size depends on the zoom.
+        const ex = f.hc[0] - f.c[0], ey = f.hc[1] - f.c[1], el = Math.hypot(ex, ey) || 1
+        f.p1 = [f.hc[0] - (ex / el) * R * u, f.hc[1] - (ey / el) * R * u]
         const t = ease(raw)
         // Faint full route
         ctx.beginPath(); ctx.moveTo(f.p0[0], f.p0[1]); ctx.quadraticCurveTo(f.c[0], f.c[1], f.p1[0], f.p1[1])
-        ctx.strokeStyle = rgba(col, 0.07); ctx.lineWidth = 0.8; ctx.stroke()
+        ctx.strokeStyle = rgba(col, 0.07); ctx.lineWidth = 0.8 * u; ctx.stroke()
         // Tail: segments with rising opacity and width
         const tail = 0.28, steps = 14, t0 = Math.max(0, t - tail)
         let prev = bez(f, t0)
@@ -605,7 +781,7 @@ function MapStage({ countries, homes, queue, counts, paused }: {
           const p = bez(f, tj)
           const k = j / steps
           ctx.beginPath(); ctx.moveTo(prev[0], prev[1]); ctx.lineTo(p[0], p[1])
-          ctx.strokeStyle = rgba(col, 0.85 * k * k); ctx.lineWidth = 0.4 + 1.8 * k; ctx.lineCap = 'round'; ctx.stroke()
+          ctx.strokeStyle = rgba(col, 0.85 * k * k); ctx.lineWidth = (0.4 + 1.8 * k) * u; ctx.lineCap = 'round'; ctx.stroke()
           prev = p
         }
         // Arrow head along the tangent
@@ -614,7 +790,7 @@ function MapStage({ countries, homes, queue, counts, paused }: {
         const ang = Math.atan2(y - y2, x - x2)
         ctx.save(); ctx.translate(x, y); ctx.rotate(ang)
         ctx.shadowColor = col; ctx.shadowBlur = 10 * s
-        ctx.beginPath(); ctx.moveTo(4.5, 0); ctx.lineTo(-3, -2.8); ctx.lineTo(-1.6, 0); ctx.lineTo(-3, 2.8); ctx.closePath()
+        ctx.scale(u, u); ctx.beginPath(); ctx.moveTo(4.5, 0); ctx.lineTo(-3, -2.8); ctx.lineTo(-1.6, 0); ctx.lineTo(-3, 2.8); ctx.closePath()
         ctx.fillStyle = rgba('#ffffff', 0.95); ctx.fill()
         ctx.restore()
       }
@@ -623,11 +799,11 @@ function MapStage({ countries, homes, queue, counts, paused }: {
       for (let i = impacts.length - 1; i >= 0; i--) {
         const m = impacts[i], k = (now - m.start) / 700
         if (k >= 1) { impacts.splice(i, 1); continue }
-        ctx.beginPath(); ctx.arc(m.x, m.y, 2 + k * 10, 0, Math.PI * 2)
-        ctx.strokeStyle = rgba(m.color, 0.9 * (1 - k)); ctx.lineWidth = 1.5 * (1 - k) + 0.3; ctx.stroke()
+        ctx.beginPath(); ctx.arc(m.x, m.y, (2 + k * 10) * u, 0, Math.PI * 2)
+        ctx.strokeStyle = rgba(m.color, 0.9 * (1 - k)); ctx.lineWidth = (1.5 * (1 - k) + 0.3) * u; ctx.stroke()
         for (let j = 0; j < 4; j++) {
           const a = (j / 4) * Math.PI * 2 + m.start
-          ctx.beginPath(); ctx.arc(m.x + Math.cos(a) * k * 12, m.y + Math.sin(a) * k * 12, 0.9 * (1 - k), 0, Math.PI * 2)
+          ctx.beginPath(); ctx.arc(m.x + Math.cos(a) * k * 12 * u, m.y + Math.sin(a) * k * 12 * u, 0.9 * (1 - k) * u, 0, Math.PI * 2)
           ctx.fillStyle = rgba(m.color, 1 - k); ctx.fill()
         }
       }
@@ -636,13 +812,13 @@ function MapStage({ countries, homes, queue, counts, paused }: {
       const pulse = (now % 2400) / 2400
       homeXY.forEach(([hx, hy], i) => {
         const h = (heat[i] *= 0.965)
-        ctx.beginPath(); ctx.arc(hx, hy, R + pulse * 22, 0, Math.PI * 2)
-        ctx.strokeStyle = rgba(SHIELD, 0.35 * (1 - pulse)); ctx.lineWidth = 1; ctx.stroke()
-        const g = ctx.createRadialGradient(hx, hy, 0, hx, hy, R + 6)
+        ctx.beginPath(); ctx.arc(hx, hy, (R + pulse * 22) * u, 0, Math.PI * 2)
+        ctx.strokeStyle = rgba(SHIELD, 0.35 * (1 - pulse)); ctx.lineWidth = u; ctx.stroke()
+        const g = ctx.createRadialGradient(hx, hy, 0, hx, hy, (R + 6) * u)
         g.addColorStop(0, rgba(SHIELD, 0.05 + h * 0.15)); g.addColorStop(0.75, rgba(SHIELD, 0.12 + h * 0.35)); g.addColorStop(1, rgba(SHIELD, 0))
-        ctx.beginPath(); ctx.arc(hx, hy, R + 6, 0, Math.PI * 2); ctx.fillStyle = g; ctx.fill()
-        ctx.beginPath(); ctx.arc(hx, hy, R, 0, Math.PI * 2)
-        ctx.strokeStyle = rgba(SHIELD, 0.55 + h * 0.45); ctx.lineWidth = 1.2 + h * 1.5
+        ctx.beginPath(); ctx.arc(hx, hy, (R + 6) * u, 0, Math.PI * 2); ctx.fillStyle = g; ctx.fill()
+        ctx.beginPath(); ctx.arc(hx, hy, R * u, 0, Math.PI * 2)
+        ctx.strokeStyle = rgba(SHIELD, 0.55 + h * 0.45); ctx.lineWidth = (1.2 + h * 1.5) * u
         ctx.shadowColor = SHIELD; ctx.shadowBlur = (6 + h * 18) * s; ctx.stroke(); ctx.shadowBlur = 0
       })
     }
@@ -654,9 +830,11 @@ function MapStage({ countries, homes, queue, counts, paused }: {
   const graticule = useMemo(() => path(geoGraticule10()) ?? '', [path])
 
   return (
-    <div ref={wrap} className="absolute inset-0" onMouseLeave={() => setHover(null)}>
-      <div className="absolute" style={{ left: box.x, top: box.y, width: box.w, height: box.h }}>
-        <svg viewBox={`0 0 ${W} ${H}`} className="absolute inset-0 h-full w-full">
+    <div ref={wrap} className={cx('absolute inset-0 touch-none select-none', view.k > 1 && 'cursor-grab active:cursor-grabbing')} onMouseLeave={() => setHover(null)}
+      onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}
+      onDoubleClick={(e) => { const [x, y] = toStage(e.clientX, e.clientY); zoomAt(2, x, y) }}>
+      <div className="absolute inset-0 overflow-hidden">
+        <svg viewBox={`${-box.x / box.sc} ${-box.y / box.sc} ${box.w / box.sc} ${box.h / box.sc}`} className="absolute inset-0 h-full w-full">
           <defs>
             <radialGradient id="am-glow" cx="50%" cy="45%" r="65%">
               <stop offset="0%" stopColor="#1e293b" stopOpacity="0.55" />
@@ -664,7 +842,8 @@ function MapStage({ countries, homes, queue, counts, paused }: {
             </radialGradient>
           </defs>
           <rect width={W} height={H} fill="url(#am-glow)" />
-          <path d={graticule} fill="none" stroke="#38bdf8" strokeOpacity={0.05} strokeWidth={0.5} />
+          <g transform={`translate(${view.x} ${view.y}) scale(${view.k})`}>
+          <path d={graticule} fill="none" stroke="#38bdf8" strokeOpacity={0.05} strokeWidth={0.5} vectorEffect="non-scaling-stroke" />
           {countries.map((c, i) => {
             const cc = alpha2(c)
             const n = counts.get(cc) ?? 0
@@ -674,22 +853,29 @@ function MapStage({ countries, homes, queue, counts, paused }: {
                 const r = wrap.current!.getBoundingClientRect()
                 setHover({ cc, x: e.clientX - r.left, y: e.clientY - r.top })
               }}>
-                <path d={d} fill="#1b2438" stroke="#2c3a55" strokeWidth={0.45} />
-                {n > 0 && <path d={d} fill="#f43f5e" fillOpacity={heatOpacity(n)} stroke="#fb7185" strokeOpacity={0.25} strokeWidth={0.45} className="transition-[fill-opacity] duration-700" />}
+                <path d={d} fill="#1b2438" stroke="#2c3a55" strokeWidth={0.45 * box.sc} vectorEffect="non-scaling-stroke" />
+                {n > 0 && <path d={d} fill="#f43f5e" fillOpacity={heatOpacity(n)} stroke="#fb7185" strokeOpacity={0.25} strokeWidth={0.45 * box.sc} vectorEffect="non-scaling-stroke" className="transition-[fill-opacity] duration-700" />}
               </g>
             )
           })}
+          </g>
         </svg>
         <canvas ref={canvas} className="pointer-events-none absolute inset-0 h-full w-full" />
         {/* Firewall markers */}
         {homes.map((h, i) => (
-          <div key={i} className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2" style={{ left: `${(homeXY[i][0] / W) * 100}%`, top: `${(homeXY[i][1] / H) * 100}%` }}>
+          <div key={i} className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2" style={{ left: box.x + (homeXY[i][0] * view.k + view.x) * box.sc, top: box.y + (homeXY[i][1] * view.k + view.y) * box.sc }}>
             <div className="grid size-6 place-items-center rounded-full bg-slate-950/90 text-cyan-300 ring-1 ring-cyan-400/60"><ShieldCheck className="size-3.5" /></div>
             <div className="absolute left-[calc(100%+18px)] top-1/2 -translate-y-1/2 whitespace-nowrap rounded-md bg-slate-950/80 px-2 py-0.5 text-[10px] font-medium text-cyan-200 ring-1 ring-cyan-400/30">
               {flag(h.country)} {h.label || h.site || countryName(h.country)}
             </div>
           </div>
         ))}
+      </div>
+      {/* Zoom controls */}
+      <div className="absolute bottom-4 right-4 z-10 flex flex-col overflow-hidden rounded-xl bg-slate-950/70 ring-1 ring-white/10 backdrop-blur" onPointerDown={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
+        <button onClick={() => zoomCenter(1.6)} disabled={view.k >= MAX_ZOOM} title={t('Zoom in')} className="grid size-9 place-items-center text-slate-200 hover:bg-white/10 disabled:opacity-40"><Plus className="size-4" /></button>
+        <button onClick={() => zoomCenter(1 / 1.6)} disabled={view.k <= 1} title={t('Zoom out')} className="grid size-9 place-items-center border-t border-white/10 text-slate-200 hover:bg-white/10 disabled:opacity-40"><Minus className="size-4" /></button>
+        <button onClick={() => setView({ k: 1, x: 0, y: 0 })} disabled={view.k <= 1} title={t('Reset zoom')} className="grid size-9 place-items-center border-t border-white/10 text-slate-200 hover:bg-white/10 disabled:opacity-40"><RotateCcw className="size-3.5" /></button>
       </div>
       {hover?.cc && (
         <div className="pointer-events-none absolute z-10 rounded-xl bg-slate-900/95 px-3 py-2 text-xs shadow-xl ring-1 ring-white/10" style={{ left: hover.x + 14, top: hover.y + 14 }}>
