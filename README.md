@@ -59,7 +59,7 @@ A central syslog server built specifically for UniFi. All UniFi sites send their
 - **Remote probes**: a small probe at each remote location receives syslog on port 514, buffers it on disk during outages and forwards it over HTTPS. Install it as a Proxmox LXC, on Debian 13 or from a Raspberry Pi image, and update it from the main server. See [below](#remote-probes).
 - **Monitoring**: Prometheus metrics, alert rules and Grafana dashboards, including a read-only Grafana data source for the logs. See [below](#scale-and-reliability).
 - **High availability**: two servers behind one virtual IP with keepalived, sharing one ClickHouse and one configuration. See [below](#scale-and-reliability).
-- **Deployment**: a Proxmox LXC script (Debian 13) and an installer for Debian 13 VMs and physical servers. The web interface runs on **port 8080**.
+- **Deployment**: a ready-made Proxmox container template, a Proxmox LXC script (Debian 13) and an installer for a bare Debian 13 on hardware, in a VM or in a container. After installation you only get the web address and the admin login; everything else is configured in the web interface on **port 8080**.
 
 See the [roadmap](ROADMAP.md) for what is planned next.
 
@@ -312,32 +312,74 @@ The screenshots show simulated UniFi traffic from five sites (`unify-syslog simu
 
 ## Installation
 
-### Proxmox LXC
+Every way of installing ends with the same three things and nothing else: the address of the web interface, the admin user and its generated password. All further configuration happens in the web interface. The login is also saved in `/root/unify-syslog.creds` and shown on the console above the login prompt and after an SSH login; delete that file once you have changed the password.
 
-Run this on the Proxmox host:
+```
+✔ UniFi Syslog Server is installed
+
+   Web interface:  http://192.168.1.50:8080
+   User:           admin
+   Password:       h7Kq2mXr9TbW4sLd
+```
+
+### Proxmox CT template (recommended for Proxmox)
+
+Every release has a ready-made container template: Debian 13 with ClickHouse and the server installed. The first boot of a container finishes the installation by itself.
+
+1. In Proxmox, open your template storage (for example **local**) → **CT Templates** → **Download from URL**.
+2. Paste this URL, click **Query URL** and then **Download**:
+
+   ```
+   https://github.com/rhisijmuiden/unifi-syslog-server/releases/latest/download/unify-syslog-server-lxc-debian-13_amd64.tar.zst
+   ```
+
+   The SHA-256 checksum is in `checksums.txt` of the same release, if you want Proxmox to verify it.
+3. **Create CT**, choose the template, and give it at least 2 CPU cores, 4 GB RAM and a 20 GB disk or more (roughly 1 GB per 10 million messages). Keep *Unprivileged container* and *Nesting* on; choose DHCP or a static IP under *Network*.
+4. Start the container and open its **Console**. After about a minute it shows the web address, the user and the password above the login prompt (press Enter to refresh). The root password is the one you entered when creating the container.
+
+From the Proxmox shell, the same in commands:
+
+```bash
+wget -O /var/lib/vz/template/cache/unify-syslog-server-lxc-debian-13_amd64.tar.zst \
+  https://github.com/rhisijmuiden/unifi-syslog-server/releases/latest/download/unify-syslog-server-lxc-debian-13_amd64.tar.zst
+pct create 120 local:vztmpl/unify-syslog-server-lxc-debian-13_amd64.tar.zst --hostname unifi-syslog \
+  --cores 4 --memory 4096 --rootfs local-lvm:40 --net0 name=eth0,bridge=vmbr0,ip=dhcp \
+  --unprivileged 1 --features nesting=1 --start 1
+sleep 60; pct exec 120 -- cat /root/unify-syslog.creds
+```
+
+The template needs Proxmox VE with support for Debian 13 containers (Proxmox VE 9; older versions may refuse Debian 13) and an x86-64 CPU with SSE4.2. It ships ClickHouse 26.3 LTS, which also runs on older CPUs without AVX2; on CPUs with AVX2 the first boot allows later upgrades to the current LTS. Updates of the server itself go through **Info & updates** in the web interface.
+
+### Proxmox LXC script
+
+Alternatively, run this on the Proxmox host:
 
 ```bash
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/rhisijmuiden/unifi-syslog-server/main/ct/unify-syslog-server.sh)"
 ```
 
-The script uses the community-scripts engine and creates an unprivileged Debian 13 container (by default 4 vCPU, 4 GB RAM and a 40 GB disk). Use *Advanced* to change this. Size the disk to your expected volume: with UniFi logs that is roughly 1 GB per 10 million messages after compression.
+The script uses the community-scripts engine and creates an unprivileged Debian 13 container (by default 4 vCPU, 4 GB RAM and a 40 GB disk). Use *Advanced* to change this. At the end it prints the web address, the user and the password.
 
 You can update the container later by running the same command inside the container, or with the **Info** button in the web interface.
 
-### Debian 13 (VM or physical server)
+### Bare Debian 13 (hardware, VM or container)
 
-Run this as root:
+On a fresh, minimal Debian 13 (trixie), run this as root. A minimal Debian often has `wget` but not `curl`; either works:
 
 ```bash
+wget -qO- https://raw.githubusercontent.com/rhisijmuiden/unifi-syslog-server/main/deploy/install.sh | bash
+# or
 curl -fsSL https://raw.githubusercontent.com/rhisijmuiden/unifi-syslog-server/main/deploy/install.sh | bash
 ```
 
+If that fails because neither is installed or certificates are missing: `apt-get update && apt-get install -y wget ca-certificates` first. Containers work as long as they run systemd (LXC, Incus, systemd-nspawn); plain Docker containers do not.
+
 The install script:
 
-1. installs and configures ClickHouse (reachable on localhost only, with its own user and password);
+1. installs the packages it needs and ClickHouse (reachable on localhost only, with its own user and password);
 2. downloads the latest release and verifies the checksum;
 3. installs a systemd service `unify-syslog`;
-4. creates an admin account and writes the credentials to `/root/unify-syslog.creds`.
+4. creates an admin account and shows the web address and the login.
 
 You can adjust its behavior with these environment variables:
 
@@ -347,9 +389,8 @@ You can adjust its behavior with these environment variables:
 | `USS_ADMIN_PASSWORD=...` | Sets the initial admin password (generated otherwise). |
 | `USS_NONINTERACTIVE=1` | Skips all prompts. |
 | `USS_CH_MEMORY_RATIO=0.5` | Sets the share of RAM that ClickHouse may use. |
+| `USS_HTTP_PORT=8080` | Sets the port of the web interface. |
 | `USS_CLICKHOUSE=external` | Uses an external ClickHouse server or cluster instead of installing one; see [docs/STORAGE.md](docs/STORAGE.md) for `USS_CH_ADDR` and the other settings. |
-
-Then open `http://<server>:8080`.
 
 ### Remote probe
 
@@ -508,6 +549,7 @@ make test
 make probe    # bin/unify-syslog-probe
 make dist     # release tarballs (server: amd64, arm64; probe: amd64, arm64, arm) with checksums.txt
 make rpi-image  # after make dist: the Raspberry Pi image (needs root)
+make lxc-template  # after make dist: the Proxmox CT template (needs Docker)
 ```
 
 Releases are made with the **release** workflow in GitHub Actions (*Run workflow*): enter the version and choose the channel. `production` needs a plain version (`v0.4.0`) and becomes the latest release; `test` needs a pre-release suffix (`v0.4.0-beta.1`) and is published as a GitHub pre-release, which only servers on the Test channel are offered. The install script and the updater use these releases.
