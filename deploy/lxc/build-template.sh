@@ -86,6 +86,8 @@ echo 'LANG=C.UTF-8' > "$R/etc/default/locale"
 chroot "$R" apt-get clean
 rm -rf "$R"/var/lib/apt/lists/* "$R"/var/cache/apt/*.bin "$R"/var/log/*.log "$R"/var/log/apt/* "$R"/tmp/* "$R"/var/tmp/*
 find "$R/var/log" -type f -exec truncate -s 0 {} +
+# Keep the journal across reboots, so a failed first boot can still be looked into.
+chroot "$R" install -d -m 2755 -g systemd-journal /var/log/journal
 echo "unify-syslog-server $VERSION, Proxmox LXC template built $(date -u +%Y-%m-%d)" > "$R/etc/unify-syslog-template"
 
 if [[ -n "${KEEP_ROOT:-}" ]]; then

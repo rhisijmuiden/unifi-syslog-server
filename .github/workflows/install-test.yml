@@ -144,7 +144,8 @@ jobs:
         run: |
           { echo '===== build'; tail -n 80 build-out.txt 2>/dev/null; echo '===== issue'; cat issue.txt 2>/dev/null
             echo '===== first boot'; sudo incus exec tpl -- journalctl -u unify-syslog-firstboot -u clickhouse-server -u unify-syslog -u networking --no-pager -n 150
-            sudo incus exec tpl -- tail -n 60 /var/log/unify-syslog-install.log; sudo incus exec tpl -- ip -4 addr; } > diag.txt 2>&1 || true
+            sudo incus exec tpl -- tail -n 60 /var/log/unify-syslog-install.log; sudo incus exec tpl -- ip -4 addr
+            sudo incus exec tpl -- systemctl list-jobs --no-pager; sudo incus exec tpl -- ps axf; } > diag.txt 2>&1 || true
           cat diag.txt
           git config user.name ci; git config user.email ci@localhost
           git checkout -q --orphan diag && git rm -rqf --cached . && git add -f diag.txt

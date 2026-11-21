@@ -516,7 +516,8 @@ systemctl restart unify-syslog
 sleep 2
 systemctl is-active -q unify-syslog || die "The service does not start; see journalctl -u unify-syslog"
 rm -f "$CONF_DIR/.firstboot"
-systemctl restart unify-syslog-banner.service 2>/dev/null || true
+# Written directly: on the first boot the banner unit waits for this script (restarting it would deadlock).
+"$LIB_DIR/banner" issue > /etc/issue.d/unify-syslog.issue || true
 
 IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
 [[ -n "$IP" ]] || IP="<this server's IP address>"
