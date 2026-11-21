@@ -5,7 +5,7 @@ DATE    ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 PKG     := github.com/rhisijmuiden/unify-syslog-server/internal/version
 LDFLAGS := -s -w -X $(PKG).Version=$(VERSION) -X $(PKG).Commit=$(COMMIT) -X $(PKG).BuildDate=$(DATE)
 
-.PHONY: all web build probe mcp test dist rpi-image clean
+.PHONY: all web build probe mcp test dist rpi-image lxc-template clean
 
 all: build
 
@@ -48,6 +48,12 @@ rpi-image:
 	mkdir -p dist/tool && tar -C dist/tool -xzf dist/unify-syslog-probe_linux_$(shell go env GOARCH).tar.gz
 	sudo rpi/build-image.sh dist/unify-syslog-probe_linux_arm64.tar.gz dist/tool/unify-syslog-probe dist/unify-syslog-probe-rpi-arm64.img.xz
 	rm -rf dist/tool
+
+# Proxmox LXC template (needs Docker; builds in a debian:trixie container).
+lxc-template:
+	docker run --rm --privileged -v "$(CURDIR):/src" -w /src debian:trixie bash -c '\
+	  apt-get update -qq && apt-get install -y -qq mmdebstrap zstd >/dev/null && \
+	  deploy/lxc/build-template.sh dist/unify-syslog-server_linux_amd64.tar.gz dist/unify-syslog-server-lxc-debian-13_amd64.tar.zst'
 
 clean:
 	rm -rf bin dist web/dist/assets

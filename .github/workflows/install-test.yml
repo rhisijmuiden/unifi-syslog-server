@@ -31,7 +31,8 @@ jobs:
         run: |
           sudo incus launch images:debian/13 ct -c security.privileged=false -c limits.memory=4GiB
           for i in $(seq 1 60); do sudo incus exec ct -- getent hosts deb.debian.org && break; sleep 2; done
-          sudo incus exec ct -- bash -c 'apt-get update -qq && apt-get install -y -qq curl ca-certificates'
+          # A bare Debian 13: no curl, no CA certificates; the installer brings what it needs.
+          ! sudo incus exec ct -- which curl
           sudo incus file push deploy/install.sh ct/root/install.sh
       - name: Run installer
         run: sudo incus exec ct --env USS_NONINTERACTIVE=1 -- bash /root/install.sh 2>&1 | tee install-out.txt; exit ${PIPESTATUS[0]}
@@ -47,6 +48,12 @@ jobs:
       - name: Check app
         run: |
           sudo incus exec ct -- bash -c 'for i in $(seq 1 30); do curl -fsS localhost:8080/api/health && exit 0; sleep 2; done; exit 1'
+          # The installer ends with the web address and the login, and the console shows them too.
+          grep -q 'Web interface:  .*http://[0-9.]*:8080' install-out.txt
+          grep -q 'User:           admin' install-out.txt
+          grep -q 'Password:       ' install-out.txt
+          sudo incus exec ct -- cat /etc/issue.d/unify-syslog.issue | tee -a install-out.txt | grep -q 'Password:'
+          sudo incus exec ct -- systemctl is-enabled unify-syslog-banner
           sudo incus exec ct -- systemctl is-active clickhouse-server unify-syslog
           # The server may write ClickHouse configuration (cold storage) and ClickHouse reads it.
           sudo incus exec ct -- runuser -u unify-syslog -- test -w /var/lib/unify-syslog-ch/storage.xml
@@ -61,6 +68,88 @@ jobs:
           git config user.name ci; git config user.email ci@localhost
           git checkout -q --orphan diag && git rm -rqf --cached . && git add -f diag.txt
           git commit -qm "diagnostics ${GITHUB_RUN_ID}" && git push -fq origin HEAD:refs/heads/ci-diagnostics-${{ matrix.scenario }}
+
+  # The Proxmox container template: built from this commit like the release does,
+  # started as an unprivileged container (Incus/LXC, like a Proxmox CT) without any
+  # further input. The first boot must finish the installation by itself.
+  template:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Build release tarballs
+        run: make dist VERSION=0.0.0-ci
+      - name: Build the LXC template
+        run: |
+          set -o pipefail
+          make lxc-template 2>&1 | tee build-out.txt
+          ls -lh dist/*.tar.zst
+      - name: Install Incus
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq incus zstd
+          sudo incus admin init --auto
+          sudo iptables -I DOCKER-USER -j ACCEPT || true
+      - name: Start a container from the template
+        run: |
+          # Wrap the root file system in an Incus image (Proxmox takes the .tar.zst as is).
+          sudo mkdir -p img/rootfs
+          sudo tar --numeric-owner --xattrs --xattrs-include='*' -I zstd -xf dist/unify-syslog-server-lxc-debian-13_amd64.tar.zst -C img/rootfs
+          printf 'architecture: x86_64\ncreation_date: %s\nproperties:\n  os: debian\n  release: "13"\n  description: UniFi Syslog Server template (CI)\n' "$(date +%s)" | sudo tee img/metadata.yaml
+          sudo tar --numeric-owner --xattrs -C img -I 'gzip -1' -cf uss-template.tar.gz metadata.yaml rootfs
+          sudo incus image import uss-template.tar.gz --alias uss-template
+          sudo incus launch uss-template tpl -c security.privileged=false -c limits.memory=4GiB
+      - name: First boot finishes the installation
+        run: |
+          for i in $(seq 1 150); do
+            s=$(sudo incus exec tpl -- systemctl show -p ActiveState --value unify-syslog-firstboot 2>/dev/null || true)
+            echo "first boot: $s"; [[ "$s" == active || "$s" == failed ]] && break; sleep 4
+          done
+          [[ "$s" == active ]]
+          sudo incus exec tpl -- test ! -e /etc/unify-syslog/.firstboot
+          sudo incus exec tpl -- bash -c 'for i in $(seq 1 30); do curl -fsS localhost:8080/api/health && exit 0; sleep 2; done; exit 1'
+          sudo incus exec tpl -- systemctl is-active clickhouse-server unify-syslog unify-syslog-banner
+          # Unique per container: passwords and machine id.
+          sudo incus exec tpl -- test -s /etc/machine-id
+          sudo incus exec tpl -- test -s /etc/unify-syslog/.clickhouse-password
+          sudo incus exec tpl -- cat /root/unify-syslog.creds
+      - name: Console shows the address and the login, and the login works
+        run: |
+          sudo incus exec tpl -- cat /etc/issue.d/unify-syslog.issue | tee issue.txt
+          grep -q 'Web interface:  http://\\4:8080' issue.txt
+          grep -q 'User:           admin' issue.txt
+          PW=$(sudo incus exec tpl -- sed -n 's/^Password: *//p' /root/unify-syslog.creds)
+          grep -qF "Password:       $PW" issue.txt
+          sudo incus exec tpl -- /usr/local/lib/unify-syslog/banner | tee motd.txt | grep -q 'http://[0-9.]*:8080'
+          sudo incus exec tpl -- curl -fsS -H "X-USS: 1" -H "Content-Type: application/json" \
+            -d "{\"username\":\"admin\",\"password\":\"$PW\"}" localhost:8080/api/auth/login > login.json
+          cat login.json
+          # Syslog is received and stored.
+          sudo incus exec tpl -- bash -c "echo '<14>Oct 19 10:00:00 U6-Pro,f4e2c6000001,v6.6.55 hostapd: ath0: STA aa:bb:cc:dd:ee:09 IEEE 802.11: associated (template)' > /dev/udp/127.0.0.1/514"
+          for i in $(seq 1 20); do
+            n=$(sudo incus exec tpl -- bash -c 'clickhouse-client --user unify --password "$(cat /etc/unify-syslog/.clickhouse-password)" -q "SELECT count() FROM unify_syslog.logs WHERE message LIKE '"'"'%(template)%'"'"'"')
+            [ "$n" -ge 1 ] && break; sleep 2
+          done
+          [ "$n" -ge 1 ]
+      - name: Diagnostics
+        if: always()
+        run: |
+          { echo '===== build'; tail -n 80 build-out.txt 2>/dev/null; echo '===== issue'; cat issue.txt 2>/dev/null
+            echo '===== first boot'; sudo incus exec tpl -- journalctl -u unify-syslog-firstboot -u clickhouse-server -u unify-syslog -u networking --no-pager -n 150
+            sudo incus exec tpl -- tail -n 60 /var/log/unify-syslog-install.log; sudo incus exec tpl -- ip -4 addr
+            sudo incus exec tpl -- systemctl list-jobs --no-pager; sudo incus exec tpl -- ps axf; } > diag.txt 2>&1 || true
+          cat diag.txt
+          git config user.name ci; git config user.email ci@localhost
+          git checkout -q --orphan diag && git rm -rqf --cached . && git add -f diag.txt
+          git commit -qm "diagnostics ${GITHUB_RUN_ID}" && git push -fq origin HEAD:refs/heads/ci-diagnostics-template
 
   # A standalone ClickHouse (deploy/install-clickhouse.sh) and two servers built
   # from this commit that store their logs there, paired for high availability

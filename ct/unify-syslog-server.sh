@@ -63,8 +63,9 @@ build_container
 description
 
 msg_ok "Completed successfully!\n"
-echo -e "${CREATING}${GN}${APP} setup has been successfully initialized!${CL}"
-echo -e "${INFO}${YW} Access it using the following URL:${CL}"
-echo -e "${TAB}${GATEWAY}${BGN}http://${IP}:8080${CL}"
-echo -e "${INFO}${YW} Send UniFi syslog to:${CL} ${BGN}${IP}:514 (UDP/TCP)${CL}"
-echo -e "${INFO}${YW} Admin credentials:${CL} pct exec ${CTID} -- cat /root/unify-syslog.creds"
+CREDS="$(pct exec "$CTID" -- cat /root/unify-syslog.creds 2>/dev/null || true)"
+ADMIN_USER="$(sed -n 's/^User: *//p' <<<"$CREDS")"
+ADMIN_PW="$(sed -n 's/^Password: *//p' <<<"$CREDS")"
+echo -e "${TAB}${GATEWAY}${YW}Web interface:${CL}  ${BGN}http://${IP}:8080${CL}"
+echo -e "${TAB}${INFO}${YW}User:${CL}           ${BGN}${ADMIN_USER:-admin}${CL}"
+echo -e "${TAB}${INFO}${YW}Password:${CL}       ${BGN}${ADMIN_PW:-see /root/unify-syslog.creds in the container}${CL}"
