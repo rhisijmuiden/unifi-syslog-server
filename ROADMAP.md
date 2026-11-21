@@ -137,15 +137,15 @@ Goal: dozens of sites and billions of log lines without data loss.
 | Monitoring | Prometheus metrics endpoint with alert rules, Grafana dashboards and a read-only Grafana data source for the logs | Shipped in v0.11.0 |
 | High availability | Two receivers behind a virtual IP (keepalived), sharing one ClickHouse; the standby copies all settings and scheduled jobs run once | Shipped in v0.11.0 |
 
-## 2.0.x Easier installation (in progress)
+## 2.0.x Easier installation (in test, v0.14.0-beta.3)
 
 Goal: a running server in a few clicks, with all configuration in the web interface.
 
 | Item | Description | Status |
 |---|---|---|
-| Bare Debian 13 | One installer for a minimal Debian 13 on hardware, in a VM or in an LXC container, without extra packages beforehand | In progress (PR #37) |
-| Proxmox CT template | A ready-made container template (`.tar.zst`) on every release, downloaded under *CT Templates → Download from URL*; the first boot finishes the installation | In progress (PR #37) |
-| Only the login | After installation only the web address, the admin user and the generated password are shown (installer, console and SSH login) | In progress (PR #37) |
+| Bare Debian 13 | One installer for a minimal Debian 13 on hardware, in a VM or in an LXC container, without extra packages beforehand | In test release v0.14.0-beta.3 |
+| Proxmox CT template | A ready-made container template (`.tar.zst`) on every release, downloaded under *CT Templates → Download from URL*; the first boot finishes the installation | In test release v0.14.0-beta.3 |
+| Only the login | After installation only the web address, the admin user and the generated password are shown (installer, console and SSH login) | In test release v0.14.0-beta.3 |
 
 ## 2.x Analytics and compliance
 
