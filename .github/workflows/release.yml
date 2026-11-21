@@ -62,6 +62,10 @@ jobs:
           sudo apt-get update -qq && sudo apt-get install -y -qq xz-utils file
           make rpi-image
           cd dist && sha256sum unify-syslog-probe-rpi-arm64.img.xz >> checksums.txt
+      - name: Build the Proxmox LXC template
+        run: |
+          make lxc-template
+          cd dist && sha256sum unify-syslog-server-lxc-debian-13_amd64.tar.zst >> checksums.txt
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.TAG }}
@@ -71,6 +75,7 @@ jobs:
           files: |
             dist/*.tar.gz
             dist/*.img.xz
+            dist/*.tar.zst
             dist/unify-syslog-mcp_*
             dist/checksums.txt
           generate_release_notes: true

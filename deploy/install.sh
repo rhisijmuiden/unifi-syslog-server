@@ -9,6 +9,14 @@
 #   USS_ADMIN_PASSWORD=..  initial admin password (default: generated)
 #   USS_NONINTERACTIVE=1   no prompts
 #   USS_CH_MEMORY_RATIO    ClickHouse share of RAM (default 0.5)
+#   USS_HTTP_PORT=8080     port of the web interface
+#
+# Stages (USS_MODE), used by the Proxmox LXC template (deploy/lxc/build-template.sh):
+#   full       everything below (default)
+#   image      only what goes into a template: packages, ClickHouse and the program,
+#              nothing that has to differ per server and no services started
+#   firstboot  the rest, run once by unify-syslog-firstboot.service on the first boot:
+#              passwords, configuration, admin account, start the services
 #
 # Logs on an external ClickHouse server or cluster instead of a local one
 # (for example one set up with deploy/install-clickhouse.sh):
@@ -29,6 +37,14 @@ SVC_USER="unify-syslog"
 VERSION="${USS_VERSION:-latest}"
 CH_MODE="${USS_CLICKHOUSE:-local}"
 MANAGED_DIR="/var/lib/unify-syslog-ch"
+MODE="${USS_MODE:-full}"
+HTTP_PORT="${USS_HTTP_PORT:-8080}"
+LIB_DIR="/usr/local/lib/unify-syslog"
+CREDS=/root/unify-syslog.creds
+case "$MODE" in full|image|firstboot) ;; *) echo "USS_MODE must be full, image or firstboot" >&2; exit 1 ;; esac
+# Stage helpers: "builds" = this run installs software, "configures" = this run sets up this server.
+builds()     { [[ "$MODE" != firstboot ]]; }
+configures() { [[ "$MODE" != image ]]; }
 
 c_ok="\e[32m"; c_info="\e[36m"; c_warn="\e[33m"; c_err="\e[31m"; c_off="\e[0m"
 info() { echo -e "${c_info}==>${c_off} $*"; }
@@ -50,6 +66,9 @@ run() {
 }
 
 [[ $EUID -eq 0 ]] || die "Run this script as root."
+if configures && [[ ! -d /run/systemd/system ]]; then
+  die "This system does not run systemd. Install on Debian 13 in a VM, on hardware or in an LXC container (Docker without systemd is not supported)."
+fi
 read -r OS_ID OS_VER OS_NAME < <(. /etc/os-release; echo "${ID:-} ${VERSION_ID:-} ${PRETTY_NAME:-unknown}")
 if [[ "${OS_ID}" != "debian" ]]; then
   die "This script is meant for Debian 13 (found: ${OS_NAME})."
@@ -67,6 +86,7 @@ esac
 export DEBIAN_FRONTEND=noninteractive
 : >"$LOG"
 
+if [[ "$MODE" == full ]]; then
 # ClickHouse needs about 2 GB on disk to install (the default Debian LXC disk is only 2 GB).
 FREE_MB=$(df -Pm / | awk 'NR==2 {print $4}')
 if [[ "$CH_MODE" == external ]]; then
@@ -81,13 +101,20 @@ if [[ "$CH_MODE" == local && "$ARCH" == amd64 ]] && ! grep -qw sse4_2 /proc/cpui
 fi
 TOTAL_MB=$(awk '/MemTotal/ {print int($2/1024)}' /proc/meminfo)
 (( TOTAL_MB >= 1800 )) || warn "Only ${TOTAL_MB} MB RAM. 4 GB or more is recommended."
+fi
 
 # ClickHouse 26.8 and later need AVX2 (Intel Haswell / AMD Zen or newer) and die with
 # "Illegal instruction" on older CPUs such as the Xeon E5 v1/v2. 26.3 LTS still runs there.
+# A template is built on one CPU and runs on another, so it always carries 26.3; the first
+# boot lifts the pin again when the CPU has AVX2, so later upgrades move to the current LTS.
 CH_PIN="${USS_CH_VERSION:-}"
-if [[ "$CH_MODE" == local && -z "$CH_PIN" && "$ARCH" == amd64 ]] && ! grep -qw avx2 /proc/cpuinfo; then
-  CH_PIN="26.3.*"
-  warn "CPU without AVX2 detected: pinning ClickHouse to 26.3 LTS."
+if [[ "$CH_MODE" == local && -z "$CH_PIN" && "$ARCH" == amd64 ]]; then
+  if [[ "$MODE" == image ]]; then
+    CH_PIN="26.3.*"
+  elif ! grep -qw avx2 /proc/cpuinfo; then
+    CH_PIN="26.3.*"
+    [[ "$MODE" == full ]] && warn "CPU without AVX2 detected: pinning ClickHouse to 26.3 LTS."
+  fi
 fi
 install -d /etc/apt/preferences.d
 if [[ -n "$CH_PIN" ]]; then
@@ -95,6 +122,11 @@ if [[ -n "$CH_PIN" ]]; then
 else
   rm -f /etc/apt/preferences.d/clickhouse
 fi
+if [[ "$MODE" == firstboot && "$CH_MODE" == local && "$ARCH" == amd64 ]] && ! grep -qw sse4_2 /proc/cpuinfo; then
+  die "The CPU does not support SSE4.2, which ClickHouse requires. In Proxmox, set the CPU type of the host or VM to one with SSE4.2."
+fi
+
+if builds; then
 
 # A ClickHouse package left half-configured by an earlier failed run blocks apt; remove it
 # (data and config stay) so it is reinstalled below.
@@ -108,6 +140,7 @@ info "Installing system packages"
 run apt-get update || die "apt-get update failed"
 run apt-get install -y curl ca-certificates gnupg apt-transport-https tar openssl tzdata libcap2-bin || die "Installing base packages failed"
 ok "Base packages installed"
+fi
 
 if ! id "$SVC_USER" >/dev/null 2>&1; then
   useradd --system --home "$DATA_DIR" --shell /usr/sbin/nologin "$SVC_USER"
@@ -115,6 +148,7 @@ fi
 
 # ---------------------------------------------------------------- ClickHouse
 if [[ "$CH_MODE" == local ]]; then
+if builds; then
 ch_works() { dpkg -s clickhouse-server 2>/dev/null | grep -q 'Status: install ok installed' && clickhouse local -q 'SELECT 1' >/dev/null 2>&1; }
 if ! ch_works; then
   info "Installing ClickHouse (official repository${CH_PIN:+, version $CH_PIN})"
@@ -136,7 +170,24 @@ if ! ch_works; then
 else
   ok "ClickHouse is already installed"
 fi
+fi
 
+if [[ "$MODE" == image ]]; then
+  # Configured and started on the first boot, with a password of its own.
+  systemctl disable -q clickhouse-server 2>/dev/null || true
+  # A template only ever runs in LXC (see the note on capabilities below).
+  install -d /etc/systemd/system/clickhouse-server.service.d
+  cat > /etc/systemd/system/clickhouse-server.service.d/lxc.conf <<'EOF2'
+[Service]
+AmbientCapabilities=
+CapabilityBoundingSet=
+ExecStartPre=-+/usr/sbin/setcap -r /usr/bin/clickhouse
+EOF2
+  setcap -r /usr/bin/clickhouse 2>/dev/null || true
+  install -d -m 2750 -o "$SVC_USER" -g clickhouse "$MANAGED_DIR"
+fi
+
+if configures; then
 CH_PASS_FILE="${CONF_DIR}/.clickhouse-password"
 install -d -m 0750 "$CONF_DIR"
 if [[ -s "$CH_PASS_FILE" ]]; then
@@ -216,13 +267,15 @@ for _ in $(seq 1 60); do
 done
 clickhouse-client --user unify --password "$CH_PASS" -q "SELECT 1" >/dev/null 2>&1 || die "ClickHouse does not start; see journalctl -u clickhouse-server"
 ok "ClickHouse is running (local access only)"
-else
+fi
+elif configures; then
   CH_ADDR="${USS_CH_ADDR:?USS_CH_ADDR is required with USS_CLICKHOUSE=external}"
   CH_PASS="${USS_CH_PASSWORD:-}"
   ok "Using the external ClickHouse at ${CH_ADDR}"
 fi
 
 # ---------------------------------------------------------------- application
+if builds; then
 install -d -m 0755 -o "$SVC_USER" -g "$SVC_USER" "$APP_DIR"
 install -d -m 0750 -o "$SVC_USER" -g "$SVC_USER" "$DATA_DIR" "$DATA_DIR/backups"
 
@@ -252,9 +305,10 @@ chmod 0755 "$APP_DIR/unify-syslog"
 chown "$SVC_USER:$SVC_USER" "$APP_DIR/unify-syslog"
 ln -sf "$APP_DIR/unify-syslog" /usr/local/bin/unify-syslog
 ok "Program installed in $APP_DIR ($("$APP_DIR/unify-syslog" version))"
+fi
 
 install -d -m 0750 "$CONF_DIR"
-if [[ ! -f "$CONF_DIR/config.yaml" ]]; then
+if configures && [[ ! -f "$CONF_DIR/config.yaml" ]]; then
   if [[ "$CH_MODE" == local ]]; then
     CH_YAML="  addr: \"127.0.0.1:9000\"
   http_url: \"http://127.0.0.1:8123\"
@@ -285,7 +339,7 @@ if [[ ! -f "$CONF_DIR/config.yaml" ]]; then
   cat > "$CONF_DIR/config.yaml" <<EOF
 # UniFi Syslog Server - bootstrap configuration.
 # All other settings are managed in the web interface.
-http_listen: ":8080"
+http_listen: ":${HTTP_PORT}"
 data_dir: ${DATA_DIR}
 syslog:
   udp: ":514"
@@ -300,15 +354,23 @@ ingest:
   flush_interval_ms: 1000
 EOF
 fi
-chown root:"$SVC_USER" "$CONF_DIR" "$CONF_DIR/config.yaml"
-chmod 0640 "$CONF_DIR/config.yaml"
+chown root:"$SVC_USER" "$CONF_DIR"
+if [[ -f "$CONF_DIR/config.yaml" ]]; then
+  chown root:"$SVC_USER" "$CONF_DIR/config.yaml"
+  chmod 0640 "$CONF_DIR/config.yaml"
+  # The port the web interface really listens on (the file may predate USS_HTTP_PORT).
+  p="$(sed -n 's/^http_listen: *"\{0,1\}[^:"]*:\([0-9][0-9]*\)"\{0,1\}.*/\1/p' "$CONF_DIR/config.yaml" | head -n1)"
+  [[ -n "$p" ]] && HTTP_PORT="$p"
+fi
 
 # Larger socket buffers so bursts from many sites are not dropped by the kernel.
 cat > /etc/sysctl.d/90-unify-syslog.conf <<EOF
 net.core.rmem_max = 33554432
 net.core.rmem_default = 8388608
 EOF
-sysctl -q -p /etc/sysctl.d/90-unify-syslog.conf 2>/dev/null || warn "sysctl not applied (normal in an unprivileged LXC)"
+if configures; then
+  sysctl -q -p /etc/sysctl.d/90-unify-syslog.conf 2>/dev/null || warn "sysctl not applied (normal in an unprivileged LXC)"
+fi
 
 UNIT_CH=""
 [[ "$CH_MODE" == local ]] && UNIT_CH=" clickhouse-server.service"
@@ -337,7 +399,100 @@ LimitNOFILE=65536
 [Install]
 WantedBy=multi-user.target
 EOF
+
+# ---------------------------------------------------------------- console banner
+# The console (and the Proxmox console of a container) shows the web address and the
+# initial login above the login prompt; so does the message after an SSH login.
+install -d -m 0755 "$LIB_DIR" /etc/issue.d /etc/update-motd.d
+cat > "$LIB_DIR/banner" <<'EOF'
+#!/bin/sh
+# Prints the web address and the initial login of the UniFi Syslog Server.
+#   banner         for the message after login (current IP address)
+#   banner issue   for /etc/issue.d (getty fills in the IP address with \4)
+CREDS=/root/unify-syslog.creds
+say() { printf '%s\n' "$*"; }
+port="$(sed -n 's/^http_listen: *"\{0,1\}[^:"]*:\([0-9][0-9]*\)"\{0,1\}.*/\1/p' /etc/unify-syslog/config.yaml 2>/dev/null | head -n1)"
+[ -n "$port" ] || port=8080
+if [ "$1" = issue ]; then
+  host='\4'
+else
+  host="$(hostname -I 2>/dev/null | awk '{print $1}')"
+  [ -n "$host" ] || host="<this server's IP address>"
+fi
+say ""
+say "  UniFi Syslog Server"
+if [ -f /etc/unify-syslog/.firstboot ]; then
+  if systemctl is-failed -q unify-syslog-firstboot.service 2>/dev/null; then
+    say "  Setup failed. Details: journalctl -u unify-syslog-firstboot"
+  else
+    say "  Setting up; this takes a minute. Press Enter to refresh."
+  fi
+  say ""
+  exit 0
+fi
+say "  Web interface:  http://$host:$port"
+if [ -r "$CREDS" ]; then
+  user="$(sed -n 's/^User: *//p' "$CREDS")"
+  pass="$(sed -n 's/^Password: *//p' "$CREDS")"
+  # getty reads backslashes as escapes.
+  [ "$1" = issue ] && pass="$(printf '%s' "$pass" | sed 's/\\/\\\\/g')"
+  say "  User:           $user"
+  say "  Password:       $pass"
+fi
+say ""
+EOF
+chmod 0755 "$LIB_DIR/banner"
+cat > /etc/update-motd.d/90-unify-syslog <<EOF
+#!/bin/sh
+exec $LIB_DIR/banner
+EOF
+chmod 0755 /etc/update-motd.d/90-unify-syslog
+cat > /etc/systemd/system/unify-syslog-banner.service <<EOF
+[Unit]
+Description=UniFi Syslog Server console banner
+After=unify-syslog-firstboot.service
+Before=getty.target getty@tty1.service console-getty.service container-getty@1.service
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -c '${LIB_DIR}/banner issue > /etc/issue.d/unify-syslog.issue'
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+if [[ "$MODE" == image ]]; then
+  # The first boot finishes the installation with this same script.
+  install -m 0755 "$0" "$LIB_DIR/install.sh"
+  install -d -m 0750 "$CONF_DIR"
+  touch "$CONF_DIR/.firstboot"
+  printf '\n  UniFi Syslog Server\n  Setting up; this takes a minute. Press Enter to refresh.\n\n' > /etc/issue.d/unify-syslog.issue
+  cat > /etc/systemd/system/unify-syslog-firstboot.service <<EOF
+[Unit]
+Description=UniFi Syslog Server first-boot setup
+ConditionPathExists=${CONF_DIR}/.firstboot
+After=local-fs.target network.target
+Before=unify-syslog-banner.service getty.target
+
+[Service]
+Type=oneshot
+Environment=USS_MODE=firstboot USS_NONINTERACTIVE=1
+ExecStart=/bin/bash ${LIB_DIR}/install.sh
+RemainAfterExit=yes
+TimeoutStartSec=15min
+StandardOutput=journal+console
+
+[Install]
+WantedBy=multi-user.target
+EOF
+  systemctl enable -q unify-syslog-firstboot.service unify-syslog-banner.service
+  ok "Template stage done; the first boot finishes the installation"
+  exit 0
+fi
+
 systemctl daemon-reload
+systemctl enable -q unify-syslog-banner.service
 
 FIRST_RUN=0
 if [[ ! -f "$DATA_DIR/meta.db" ]]; then
@@ -345,26 +500,34 @@ if [[ ! -f "$DATA_DIR/meta.db" ]]; then
   ADMIN_PW="${USS_ADMIN_PASSWORD:-$(openssl rand -base64 18 | tr -d '/+=' | cut -c1-16)}"
   sudo_u() { runuser -u "$SVC_USER" -- "$@"; }
   echo "$ADMIN_PW" | sudo_u "$APP_DIR/unify-syslog" -c "$CONF_DIR/config.yaml" user add admin --admin
-  cat > /root/unify-syslog.creds <<EOF
+  IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
+  [[ -n "$IP" ]] || IP="<this server's IP address>"
+  cat > "$CREDS" <<EOF
 UniFi Syslog Server
-Web:        http://$(hostname -I | awk '{print $1}'):8080
+Web:        http://${IP}:${HTTP_PORT}
 User:       admin
 Password:   ${ADMIN_PW}
 EOF
-  chmod 0600 /root/unify-syslog.creds
+  chmod 0600 "$CREDS"
 fi
 
 systemctl enable -q unify-syslog
 systemctl restart unify-syslog
 sleep 2
 systemctl is-active -q unify-syslog || die "The service does not start; see journalctl -u unify-syslog"
+rm -f "$CONF_DIR/.firstboot"
+systemctl restart unify-syslog-banner.service 2>/dev/null || true
 
-IP="$(hostname -I | awk '{print $1}')"
+IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
+[[ -n "$IP" ]] || IP="<this server's IP address>"
 echo
-ok "Installation complete!"
-echo -e "   Web interface: ${c_info}http://${IP}:8080${c_off}"
-echo -e "   Syslog:        UDP/TCP ${IP}:514"
+ok "UniFi Syslog Server is installed"
+echo
+echo -e "   Web interface:  ${c_info}http://${IP}:${HTTP_PORT}${c_off}"
 if [[ $FIRST_RUN -eq 1 ]]; then
-  echo -e "   Login:         admin / ${c_ok}${ADMIN_PW}${c_off}   (also saved in /root/unify-syslog.creds)"
+  echo -e "   User:           admin"
+  echo -e "   Password:       ${c_ok}${ADMIN_PW}${c_off}"
+else
+  echo -e "   Login:          unchanged (the initial one is in ${CREDS})"
 fi
-echo -e "   Update:        via Info & updates in the web interface, or: unify-syslog update && systemctl restart unify-syslog"
+echo
