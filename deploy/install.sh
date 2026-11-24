@@ -344,7 +344,7 @@ data_dir: ${DATA_DIR}
 syslog:
   udp: ":514"
   tcp: ":514"
-  udp_read_buffer: 8388608
+  udp_read_buffer: 33554432
 clickhouse:
 ${CH_YAML}
 ingest:
@@ -369,7 +369,7 @@ net.core.rmem_max = 33554432
 net.core.rmem_default = 8388608
 EOF
 if configures; then
-  sysctl -q -p /etc/sysctl.d/90-unify-syslog.conf 2>/dev/null || warn "sysctl not applied (normal in an unprivileged LXC)"
+  sysctl -q -p /etc/sysctl.d/90-unify-syslog.conf 2>/dev/null || warn "sysctl not applied (normal in an unprivileged LXC): run \"echo net.core.rmem_max = 33554432 > /etc/sysctl.d/90-unify-syslog.conf && sysctl --system\" on the Proxmox host"
 fi
 
 UNIT_CH=""

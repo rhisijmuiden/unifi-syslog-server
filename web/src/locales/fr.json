@@ -1680,5 +1680,11 @@
   "Zoom in": "Zoom avant",
   "Zoom out": "Zoom arrière",
   "created by {user} on {date}": "créé par {user} le {date}",
-  "Publish the attack map on its own page, for example on a TV or a lobby screen, without signing in. Anyone with the link sees the map, so revoke a link you no longer use. Public pages do not show site names, internal addresses or firewall rule names.": "Publie la carte des attaques sur sa propre page, par exemple sur une télé ou un écran d'accueil, sans connexion. Toute personne ayant le lien voit la carte : révoque donc les liens que tu n'utilises plus. Les pages publiques n'affichent ni noms de sites, ni adresses internes, ni noms de règles de pare-feu."
+  "Publish the attack map on its own page, for example on a TV or a lobby screen, without signing in. Anyone with the link sees the map, so revoke a link you no longer use. Public pages do not show site names, internal addresses or firewall rule names.": "Publie la carte des attaques sur sa propre page, par exemple sur une télé ou un écran d'accueil, sans connexion. Toute personne ayant le lien voit la carte : révoque donc les liens que tu n'utilises plus. Les pages publiques n'affichent ni noms de sites, ni adresses internes, ni noms de règles de pare-feu.",
+  "UDP receive buffer": "Tampon de réception UDP",
+  "{effective} of {requested}": "{effective} sur {requested}",
+  "The UDP receive buffer is smaller than configured": "Le tampon de réception UDP est plus petit que configuré",
+  "The server asked for {requested} but the kernel allows {effective} (net.core.rmem_max). Bursts that do not fit are dropped before the server sees them. Run this as root on the host:": "Le serveur a demandé {requested}, mais le noyau autorise {effective} (net.core.rmem_max). Les pics qui ne tiennent pas sont rejetés avant que le serveur ne les voie. Exécutez ceci en root sur l’hôte :",
+  "In a Proxmox LXC container this is the Proxmox host, not the container. Then restart the server in the container: systemctl restart unify-syslog": "Dans un conteneur LXC Proxmox, il s’agit de l’hôte Proxmox, pas du conteneur. Redémarrez ensuite le serveur dans le conteneur : systemctl restart unify-syslog",
+  "The kernel dropped {n} syslog packets in the last 5 minutes: the UDP receive buffer is {effective} instead of {requested} because net.core.rmem_max on the host is too low": "Le noyau a rejeté {n} paquets syslog au cours des 5 dernières minutes : le tampon de réception UDP est de {effective} au lieu de {requested} car net.core.rmem_max est trop bas sur l’hôte"
 }

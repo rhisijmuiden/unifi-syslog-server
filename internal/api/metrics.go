@@ -108,6 +108,12 @@ func (s *Server) metrics(w http.ResponseWriter, r *http.Request) {
 	if v, ok := in.Kernel["RcvbufErrors"]; ok {
 		p.counter("uss_kernel_udp_receive_buffer_errors_total", "UDP packets the kernel dropped (receive buffer full), for the whole host.", float64(v))
 	}
+	if in.UDPBuffer.Effective > 0 {
+		p.gauge("uss_syslog_udp_receive_buffer_bytes", "Receive buffer of the syslog UDP socket that the kernel granted.", float64(in.UDPBuffer.Effective))
+	}
+	if in.UDPBuffer.Requested > 0 {
+		p.gauge("uss_syslog_udp_receive_buffer_requested_bytes", "Receive buffer of the syslog UDP socket that the server asked for (udp_read_buffer).", float64(in.UDPBuffer.Requested))
+	}
 	p.counter("uss_ingest_parsed_total", "Messages parsed, probes included.", float64(in.Parsed))
 	p.counter("uss_ingest_stored_total", "Messages stored in ClickHouse.", float64(in.Inserted))
 	p.counter("uss_ingest_insert_errors_total", "Failed ClickHouse inserts.", float64(in.InsertErrs))

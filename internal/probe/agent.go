@@ -214,7 +214,7 @@ func (a *Agent) receive(ctx context.Context) {
 			continue
 		}
 		lctx, cancel := context.WithCancel(ctx)
-		srv := &syslogd.Server{UDPAddr: s.UDP, TCPAddr: s.TCP, ReadBuf: 4 << 20, Out: a.msgs, Stats: &a.sysStat, Log: a.Log}
+		srv := &syslogd.Server{UDPAddr: s.UDP, TCPAddr: s.TCP, ReadBuf: 8 << 20, Out: a.msgs, Stats: &a.sysStat, Log: a.Log}
 		a.statMu.Lock()
 		a.listen = fmt.Sprintf("udp %s, tcp %s", or(s.UDP, "off"), or(s.TCP, "off"))
 		a.statMu.Unlock()

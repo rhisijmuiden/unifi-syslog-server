@@ -59,6 +59,17 @@ function update_script() {
 }
 
 start
+
+# The kernel caps the UDP receive buffer of the syslog socket at net.core.rmem_max.
+# That setting is not per container and cannot be changed from an unprivileged
+# container, so raise it here on the Proxmox host (only ever upwards).
+if [[ "$(sysctl -n net.core.rmem_max 2>/dev/null || echo 0)" -lt 33554432 ]]; then
+  msg_info "Raising net.core.rmem_max on the Proxmox host to 32 MiB (syslog bursts)"
+  echo "net.core.rmem_max = 33554432" >/etc/sysctl.d/90-unify-syslog.conf
+  sysctl -q -p /etc/sysctl.d/90-unify-syslog.conf >/dev/null 2>&1 || true
+  msg_ok "Raised net.core.rmem_max on the Proxmox host"
+fi
+
 build_container
 description
 

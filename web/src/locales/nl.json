@@ -1680,5 +1680,11 @@
   "Zoom in": "Inzoomen",
   "Zoom out": "Uitzoomen",
   "created by {user} on {date}": "gemaakt door {user} op {date}",
-  "Publish the attack map on its own page, for example on a TV or a lobby screen, without signing in. Anyone with the link sees the map, so revoke a link you no longer use. Public pages do not show site names, internal addresses or firewall rule names.": "Publiceer de aanvallenkaart op een eigen pagina, bijvoorbeeld op een tv of een scherm in de hal, zonder in te loggen. Iedereen met de link ziet de kaart, dus trek een link in die je niet meer gebruikt. Publieke pagina's tonen geen locatienamen, interne adressen of namen van firewallregels."
+  "Publish the attack map on its own page, for example on a TV or a lobby screen, without signing in. Anyone with the link sees the map, so revoke a link you no longer use. Public pages do not show site names, internal addresses or firewall rule names.": "Publiceer de aanvallenkaart op een eigen pagina, bijvoorbeeld op een tv of een scherm in de hal, zonder in te loggen. Iedereen met de link ziet de kaart, dus trek een link in die je niet meer gebruikt. Publieke pagina's tonen geen locatienamen, interne adressen of namen van firewallregels.",
+  "UDP receive buffer": "UDP-ontvangstbuffer",
+  "{effective} of {requested}": "{effective} van {requested}",
+  "The UDP receive buffer is smaller than configured": "De UDP-ontvangstbuffer is kleiner dan ingesteld",
+  "The server asked for {requested} but the kernel allows {effective} (net.core.rmem_max). Bursts that do not fit are dropped before the server sees them. Run this as root on the host:": "De server vroeg om {requested}, maar de kernel staat {effective} toe (net.core.rmem_max). Pieken die niet passen worden weggegooid voordat de server ze ziet. Voer dit als root uit op de host:",
+  "In a Proxmox LXC container this is the Proxmox host, not the container. Then restart the server in the container: systemctl restart unify-syslog": "In een Proxmox LXC-container is dat de Proxmox-host, niet de container. Herstart daarna de server in de container: systemctl restart unify-syslog",
+  "The kernel dropped {n} syslog packets in the last 5 minutes: the UDP receive buffer is {effective} instead of {requested} because net.core.rmem_max on the host is too low": "De kernel heeft in de laatste 5 minuten {n} syslog-pakketten weggegooid: de UDP-ontvangstbuffer is {effective} in plaats van {requested} omdat net.core.rmem_max op de host te laag is"
 }

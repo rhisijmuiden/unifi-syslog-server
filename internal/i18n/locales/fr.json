@@ -63,5 +63,6 @@
   "Storing logs fails": "L'enregistrement des journaux échoue",
   "Resolved: %s": "Résolu : %s",
   "This problem is over:": "Ce problème est terminé :",
-  "System status: %s": "État du système : %s"
+  "System status: %s": "État du système : %s",
+  "The kernel dropped {n} syslog packets in the last 5 minutes: the UDP receive buffer is {effective} instead of {requested} because net.core.rmem_max on the host is too low": "Le noyau a rejeté {n} paquets syslog au cours des 5 dernières minutes : le tampon de réception UDP est de {effective} au lieu de {requested} car net.core.rmem_max est trop bas sur l’hôte"
 }

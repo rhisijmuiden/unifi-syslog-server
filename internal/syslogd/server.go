@@ -14,6 +14,9 @@ import (
 	"strconv"
 	"sync/atomic"
 	"time"
+
+	"golang.org/x/net/ipv4"
+	"golang.org/x/net/ipv6"
 )
 
 type Message struct {
@@ -30,6 +33,12 @@ type Stats struct {
 	TCPMsgs    atomic.Uint64
 	TCPConns   atomic.Int64
 	Dropped    atomic.Uint64
+	// UDPBufRequested is the receive buffer the server asked for and
+	// UDPBufEffective what the kernel granted (0 when unknown).
+	UDPBufRequested atomic.Int64
+	UDPBufEffective atomic.Int64
+	// UDPBufForced is set when SO_RCVBUFFORCE bypassed net.core.rmem_max.
+	UDPBufForced atomic.Bool
 }
 
 type Server struct {
@@ -45,6 +54,9 @@ type Server struct {
 
 const maxMsg = 64 * 1024
 
+// batchSize is how many datagrams one recvmmsg call can return.
+const batchSize = 32
+
 func (s *Server) Run(ctx context.Context) error {
 	errc := make(chan error, 2)
 	if s.UDPAddr != "" {
@@ -52,12 +64,20 @@ func (s *Server) Run(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		if uc, ok := pc.(*net.UDPConn); ok && s.ReadBuf > 0 {
-			uc.SetReadBuffer(s.ReadBuf)
+		uc := pc.(*net.UDPConn)
+		if s.ReadBuf > 0 {
+			eff, forced := setRecvBuffer(uc, s.ReadBuf)
+			s.Stats.UDPBufRequested.Store(int64(s.ReadBuf))
+			s.Stats.UDPBufEffective.Store(int64(eff))
+			s.Stats.UDPBufForced.Store(forced)
+			if eff > 0 && eff < s.ReadBuf {
+				s.Log.Warn("UDP receive buffer is smaller than configured; raise net.core.rmem_max on the host (the Proxmox host for an LXC container)",
+					"requested", s.ReadBuf, "effective", eff, "rmem_max", RmemMax())
+			}
 		}
-		s.Log.Info("syslog UDP listening", "addr", s.UDPAddr)
+		s.Log.Info("syslog UDP listening", "addr", s.UDPAddr, "receive_buffer", s.Stats.UDPBufEffective.Load())
 		go func() { <-ctx.Done(); pc.Close() }()
-		go func() { errc <- s.serveUDP(pc) }()
+		go func() { errc <- s.serveUDP(uc) }()
 	}
 	if s.TCPAddr != "" {
 		ln, err := net.Listen("tcp", s.TCPAddr)
@@ -88,25 +108,45 @@ func (s *Server) emit(data []byte, ip string) {
 	}
 }
 
-func (s *Server) serveUDP(pc net.PacketConn) error {
-	buf := make([]byte, maxMsg)
+// serveUDP drains the socket in batches (recvmmsg on Linux) so a burst
+// costs one system call per batch instead of one per packet.
+func (s *Server) serveUDP(uc *net.UDPConn) error {
+	var br interface {
+		ReadBatch([]ipv4.Message, int) (int, error)
+	}
+	if a, ok := uc.LocalAddr().(*net.UDPAddr); ok && a.IP.To4() != nil {
+		br = ipv4.NewPacketConn(uc)
+	} else {
+		br = ipv6.NewPacketConn(uc)
+	}
+	ms := make([]ipv4.Message, batchSize)
+	for i := range ms {
+		ms[i].Buffers = [][]byte{make([]byte, maxMsg)}
+	}
 	for {
-		n, addr, err := pc.ReadFrom(buf)
+		n, err := br.ReadBatch(ms, 0)
 		if err != nil {
 			if errors.Is(err, net.ErrClosed) {
 				return nil
 			}
 			s.Log.Warn("udp read", "err", err)
+			time.Sleep(10 * time.Millisecond)
 			continue
 		}
-		s.Stats.UDPPackets.Add(1)
-		ip := addrIP(addr)
-		if !s.Filter.Allow(ip, "udp") {
-			continue
+		s.Stats.UDPPackets.Add(uint64(n))
+		for i := range ms[:n] {
+			m := &ms[i]
+			if m.Addr == nil {
+				continue
+			}
+			ip := addrIP(m.Addr)
+			if !s.Filter.Allow(ip, "udp") {
+				continue
+			}
+			data := make([]byte, m.N)
+			copy(data, m.Buffers[0][:m.N])
+			s.emit(data, ip)
 		}
-		data := make([]byte, n)
-		copy(data, buf[:n])
-		s.emit(data, ip)
 	}
 }
 

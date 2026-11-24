@@ -58,6 +58,9 @@ type Monitor struct {
 	health  store.LogHealth
 	checked time.Time
 	issues  map[string]Issue
+	// base holds the kernel UDP counters when the server started: the
+	// kernel counts since the host (or container) booted.
+	base map[string]uint64
 }
 
 // sample is a snapshot of the cumulative counters.
@@ -91,6 +94,11 @@ func (m *Monitor) take() sample {
 	}
 	if u, err := readUDP(); err == nil {
 		s.kernel, s.kernelKnown = u["RcvbufErrors"], true
+		m.mu.Lock()
+		if m.base == nil {
+			m.base = u
+		}
+		m.mu.Unlock()
 	}
 	return s
 }
@@ -246,7 +254,13 @@ func (m *Monitor) findIssues(h store.LogHealth, now time.Time) []Issue {
 	}
 	if a, b, ok := m.since(recent); ok {
 		if b.kernelKnown && a.kernelKnown && b.kernel > a.kernel {
-			add("udp_drops", "udp_drops", store.SevWarning, "The kernel dropped {n} syslog packets in the last 5 minutes (UDP receive buffer full)", map[string]string{"n": strconv.FormatUint(b.kernel-a.kernel, 10)})
+			n := strconv.FormatUint(b.kernel-a.kernel, 10)
+			if buf := m.udpBuffer(); buf.Small() {
+				add("udp_drops", "udp_drops", store.SevWarning, "The kernel dropped {n} syslog packets in the last 5 minutes: the UDP receive buffer is {effective} instead of {requested} because net.core.rmem_max on the host is too low",
+					map[string]string{"n": n, "effective": fmtBytes(buf.Effective), "requested": fmtBytes(buf.Requested)})
+			} else {
+				add("udp_drops", "udp_drops", store.SevWarning, "The kernel dropped {n} syslog packets in the last 5 minutes (UDP receive buffer full)", map[string]string{"n": n})
+			}
 		}
 		if b.dropped > a.dropped {
 			add("queue_full", "queue_full", store.SevWarning, "{n} messages were dropped in the last 5 minutes because the ingest queue was full", map[string]string{"n": strconv.FormatUint(b.dropped-a.dropped, 10)})
@@ -379,8 +393,43 @@ type Ingest struct {
 	// Kernel are the UDP counters of the network stack (/proc/net/snmp):
 	// RcvbufErrors counts packets dropped because the socket buffer was full.
 	Kernel map[string]uint64 `json:"kernel"`
+	// KernelDrops and KernelErrors are RcvbufErrors and InErrors since the
+	// server started.
+	KernelDrops  uint64 `json:"kernel_drops"`
+	KernelErrors uint64 `json:"kernel_errors"`
 	// DroppedHour are dropped messages (queue and kernel) in the last hour.
-	DroppedHour uint64 `json:"dropped_hour"`
+	DroppedHour uint64    `json:"dropped_hour"`
+	UDPBuffer   UDPBuffer `json:"udp_buffer"`
+}
+
+// UDPBuffer is the receive buffer of the syslog UDP socket.
+type UDPBuffer struct {
+	Requested int64 `json:"requested"`
+	Effective int64 `json:"effective"` // 0 when unknown
+	Forced    bool  `json:"forced"`    // SO_RCVBUFFORCE bypassed rmem_max
+	RmemMax   int64 `json:"rmem_max"`  // net.core.rmem_max, 0 when unknown
+}
+
+// Small reports whether the kernel granted less than was asked for.
+func (b UDPBuffer) Small() bool { return b.Effective > 0 && b.Effective < b.Requested }
+
+func (m *Monitor) udpBuffer() UDPBuffer {
+	if m.Sys == nil {
+		return UDPBuffer{}
+	}
+	return UDPBuffer{Requested: m.Sys.UDPBufRequested.Load(), Effective: m.Sys.UDPBufEffective.Load(),
+		Forced: m.Sys.UDPBufForced.Load(), RmemMax: int64(syslogd.RmemMax())}
+}
+
+func fmtBytes(n int64) string {
+	switch {
+	case n >= 1<<20 && n%(1<<20) == 0:
+		return fmt.Sprintf("%d MiB", n>>20)
+	case n >= 1<<20:
+		return fmt.Sprintf("%.1f MiB", float64(n)/(1<<20))
+	default:
+		return fmt.Sprintf("%d KiB", n>>10)
+	}
 }
 
 type Process struct {
@@ -454,7 +503,15 @@ func (m *Monitor) Status(ctx context.Context) Status {
 	}
 	if u, err := readUDP(); err == nil {
 		in.Kernel = u
+		m.mu.Lock()
+		base := m.base
+		m.mu.Unlock()
+		if base != nil {
+			in.KernelDrops = sub(u["RcvbufErrors"], base["RcvbufErrors"])
+			in.KernelErrors = sub(u["InErrors"], base["InErrors"])
+		}
 	}
+	in.UDPBuffer = m.udpBuffer()
 	for _, p := range in.Series {
 		in.Peak = max(in.Peak, p.Received)
 	}
@@ -483,6 +540,13 @@ func (m *Monitor) Status(ctx context.Context) Status {
 		}
 	}
 	return st
+}
+
+func sub(a, b uint64) uint64 {
+	if a < b {
+		return 0
+	}
+	return a - b
 }
 
 // readUDP parses the Udp lines of /proc/net/snmp.

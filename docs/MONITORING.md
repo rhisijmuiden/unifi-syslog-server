@@ -42,6 +42,8 @@ With [high availability](HA.md), scrape both nodes by their own address, not the
 | `uss_syslog_rejected_total` | Messages from sources not on the allowlist. |
 | `uss_syslog_tcp_connections` | Open syslog TCP connections. |
 | `uss_kernel_udp_receive_buffer_errors_total` | UDP packets the kernel dropped because the receive buffer was full. |
+| `uss_syslog_udp_receive_buffer_bytes` | Receive buffer of the syslog UDP socket that the kernel granted; lower than `uss_syslog_udp_receive_buffer_requested_bytes` means `net.core.rmem_max` on the host is too low. |
+| `uss_syslog_udp_receive_buffer_requested_bytes` | Receive buffer the server asked for (`udp_read_buffer`). |
 | `uss_ingest_parsed_total`, `uss_ingest_stored_total` | Messages parsed and stored. |
 | `uss_ingest_dropped_total`, `uss_ingest_discarded_total`, `uss_ingest_insert_errors_total` | Messages lost because the queue was full, or because inserts kept failing; failed inserts. |
 | `uss_ingest_queue_length`, `uss_ingest_queue_capacity`, `uss_ingest_pending` | Ingest queue. |
