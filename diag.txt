@@ -1,0 +1,72 @@
+===== build
+docker run --rm --privileged -v "/home/runner/work/unifi-syslog-server/unifi-syslog-server:/src" -w /src debian:trixie bash -c '\
+  apt-get update -qq && apt-get install -y -qq mmdebstrap zstd >/dev/null && \
+  deploy/lxc/build-template.sh dist/unify-syslog-server_linux_amd64.tar.gz dist/unify-syslog-server-lxc-debian-13_amd64.tar.zst'
+Unable to find image 'debian:trixie' locally
+trixie: Pulling from library/debian
+133e21d3e00f: Pulling fs layer
+133e21d3e00f: Verifying Checksum
+133e21d3e00f: Download complete
+133e21d3e00f: Pull complete
+Digest: sha256:3cda3ca472ce45507a5109c6a3907093e24d9ae67d55954c9a07a45665dafba2
+Status: Downloaded newer image for debian:trixie
+debconf: unable to initialize frontend: Dialog
+debconf: (TERM is not set, so the dialog frontend is not usable.)
+debconf: falling back to frontend: Readline
+debconf: unable to initialize frontend: Readline
+debconf: (Can't locate Term/ReadLine.pm in @INC (you may need to install the Term::ReadLine module) (@INC entries checked: /etc/perl /usr/local/lib/x86_64-linux-gnu/perl/5.40.1 /usr/local/share/perl/5.40.1 /usr/lib/x86_64-linux-gnu/perl5/5.40 /usr/share/perl5 /usr/lib/x86_64-linux-gnu/perl-base /usr/lib/x86_64-linux-gnu/perl/5.40 /usr/share/perl/5.40 /usr/local/lib/site_perl) at /usr/share/perl5/Debconf/FrontEnd/Readline.pm line 8, <STDIN> line 62.)
+debconf: falling back to frontend: Teletype
+debconf: unable to initialize frontend: Teletype
+debconf: (This frontend requires a controlling tty.)
+debconf: falling back to frontend: Noninteractive
+==> Debian 13 base system
+I: automatically chosen mode: root
+I: chroot architecture amd64 is equal to the host's architecture
+I: finding correct signed-by value...
+W: Download is performed unsandboxed as root as file /var/tmp/uss-lxc.EuFaHy/rootfs/var/lib/apt/lists/partial couldn't be accessed by user _apt
+I: running apt-get update...
+I: downloading packages with apt...
+I: extracting archives...
+I: installing essential packages...
+I: installing remaining packages inside the chroot...
+I: cleaning package lists and apt cache...
+I: success in 14.1631 seconds
+==> UniFi Syslog Server
+[36m==>[0m Installing system packages
+[32m✔[0m Base packages installed
+[36m==>[0m Installing ClickHouse (official repository, version 26.3.*)
+[32m✔[0m ClickHouse installed
+[32m✔[0m Program installed in /opt/unify-syslog (unify-syslog 0.0.0-ci (commit 406b722, built 2026-11-24T14:34:59Z)
+License AGPL-3.0-or-later, source code: https://github.com/rhisijmuiden/unifi-syslog-server/tree/v0.0.0-ci)
+[32m✔[0m Template stage done; the first boot finishes the installation
+==> Clean-up
+==> Packing /src/dist/unify-syslog-server-lxc-debian-13_amd64.tar.zst
+-rw-r--r-- 1 root root 215M Nov 24 14:41 /src/dist/unify-syslog-server-lxc-debian-13_amd64.tar.zst
+394b1724e9ecd5792461c9fe46da4974d066d73a4181d38abfdfac2996ff4529  unify-syslog-server-lxc-debian-13_amd64.tar.zst
+===== issue
+
+  UniFi Syslog Server
+  Web interface:  http://\4:8080
+  User:           admin
+  Password:       OyGkpESpZocP3T9E
+
+===== first boot
+-- No entries --
+No journal files were found.
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000
+    inet 127.0.0.1/8 scope host lo
+       valid_lft forever preferred_lft forever
+7: eth0@if8: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP group default qlen 1000 link-netnsid 0
+    inet 10.106.217.204/24 brd 10.106.217.255 scope global dynamic eth0
+       valid_lft 3594sec preferred_lft 3594sec
+No jobs running.
+    PID TTY      STAT   TIME COMMAND
+   1113 ?        R      0:00 ps axf
+      1 ?        Ss     0:00 /sbin/init
+     87 ?        Ss     0:00 dhclient -4 -v -i -pf /run/dhclient.eth0.pid -lf /var/lib/dhcp/dhclient.eth0.leases -I -df /var/lib/dhcp/dhclient6.eth0.leases eth0
+    118 ?        Ss     0:00 /usr/sbin/cron -f
+    119 ?        Ss     0:00 /usr/bin/dbus-daemon --system --address=systemd: --nofork --nopidfile --systemd-activation --syslog-only
+    120 ?        Ss     0:00 /usr/lib/systemd/systemd-logind
+    231 ?        Ssl    0:00 clickhouse-watchdog        --config=/etc/clickhouse-server/config.xml --pid-file=/run/clickhouse-server/clickhouse-server.pid
+    238 ?        Sl     0:00  \_ /usr/bin/clickhouse-server --config=/etc/clickhouse-server/config.xml --pid-file=/run/clickhouse-server/clickhouse-server.pid
+   1017 ?        Ssl    0:00 /opt/unify-syslog/unify-syslog -c /etc/unify-syslog/config.yaml serve
