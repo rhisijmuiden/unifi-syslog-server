@@ -22,6 +22,7 @@ interface Status {
     rate: number; rate_stored: number; peak: number; series: Point[]; received: number; udp_packets: number; tcp_messages: number; tcp_connections: number
     parsed: number; inserted: number; dropped: number; rejected: number; insert_errors: number; discarded: number; pending: number
     queue_length: number; queue_capacity: number; last_insert: number; last_error: string; kernel?: Record<string, number>; dropped_hour: number
+    kernel_drops?: number; kernel_errors?: number; udp_buffer?: { requested: number; effective: number; forced: boolean; rmem_max: number }
   }
   disks: Disk[]
   clickhouse: { ok: boolean; error?: string; latency_ms: number; version: string; uptime_sec: number; parts: number; max_parts_per_partition: number; merges: number; mutations: number; memory_bytes: number }
@@ -55,7 +56,10 @@ export default function SystemStatus() {
   const h = healthStyle[st.health]
   const ing = st.ingest
   const ch = st.clickhouse
-  const kernelDrops = ing.kernel?.RcvbufErrors ?? 0
+  const kernelDrops = ing.kernel_drops ?? ing.kernel?.RcvbufErrors ?? 0
+  const kernelErrors = ing.kernel_errors ?? ing.kernel?.InErrors ?? 0
+  const buf = ing.udp_buffer
+  const bufSmall = !!buf && buf.effective > 0 && buf.effective < buf.requested
   const minFree = st.disks.length ? Math.min(...st.disks.map((d) => (d.total ? (d.free / d.total) * 100 : 100))) : 100
   const ratio = st.storage.bytes_on_disk ? st.storage.bytes_uncompressed / st.storage.bytes_on_disk : 0
 
@@ -106,13 +110,15 @@ export default function SystemStatus() {
           <Rows rows={[
             [t('Dropped: ingest queue full'), <Num n={ing.dropped} bad />],
             [t('Dropped by the kernel: UDP receive buffer full'), ing.kernel ? <Num n={kernelDrops} bad /> : t('Unknown')],
-            [t('UDP receive errors (kernel)'), ing.kernel ? <Num n={ing.kernel.InErrors ?? 0} bad /> : t('Unknown')],
+            [t('UDP receive errors (kernel)'), ing.kernel ? <Num n={kernelErrors} bad /> : t('Unknown')],
+            [t('UDP receive buffer'), !buf?.effective ? t('Unknown') : <span className={cx(bufSmall && 'text-amber-500')}>{t('{effective} of {requested}', { effective: fmtBytes(buf.effective), requested: fmtBytes(buf.requested) })}</span>],
             [t('Rejected by the source allowlist'), <Link to="/allowlist" className="text-indigo-400 hover:underline">{fmtNum(ing.rejected)}</Link>],
             [t('Failed inserts'), <Num n={ing.insert_errors} bad />],
             [t('Discarded after failed inserts'), <Num n={ing.discarded} bad />],
           ]} />
           {ing.last_error && <p className="mt-3 break-words rounded-lg bg-red-500/10 px-3 py-2 font-mono text-xs text-red-500">{ing.last_error}</p>}
-          {kernelDrops > 0 && <p className="mt-3 text-xs text-muted">{t('Kernel drops mean bursts arrive faster than the server reads them. Raise udp_read_buffer in the configuration and net.core.rmem_max on the host.')}</p>}
+          {bufSmall ? <BufferFix requested={buf!.requested} effective={buf!.effective} />
+            : kernelDrops > 0 && <p className="mt-3 text-xs text-muted">{t('Kernel drops mean bursts arrive faster than the server reads them. Raise udp_read_buffer in the configuration and net.core.rmem_max on the host.')}</p>}
         </Card>
 
         <Card title={t('Disk space')}>
@@ -224,6 +230,20 @@ function RateChart({ points }: { points: Point[] }) {
       <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-muted">
         {series.map(([k, l, c]) => <span key={k} className="flex items-center gap-1.5"><span className="size-2.5 rounded-sm" style={{ background: c }} />{l}</span>)}
       </div>
+    </div>
+  )
+}
+
+// BufferFix explains how to raise net.core.rmem_max when the kernel granted
+// a smaller UDP receive buffer than udp_read_buffer asks for.
+function BufferFix({ requested, effective }: { requested: number; effective: number }) {
+  const cmd = `echo "net.core.rmem_max = ${requested}" > /etc/sysctl.d/90-unify-syslog.conf\nsysctl --system`
+  return (
+    <div className="mt-3 rounded-xl bg-amber-500/10 px-4 py-3 text-sm ring-1 ring-amber-500/30">
+      <div className="flex items-center gap-2 font-medium text-amber-500"><AlertTriangle className="size-4 shrink-0" />{t('The UDP receive buffer is smaller than configured')}</div>
+      <p className="mt-1.5 text-xs text-muted">{t('The server asked for {requested} but the kernel allows {effective} (net.core.rmem_max). Bursts that do not fit are dropped before the server sees them. Run this as root on the host:', { requested: fmtBytes(requested), effective: fmtBytes(effective) })}</p>
+      <pre className="mt-2 overflow-x-auto rounded-lg bg-[var(--panel-2)] px-3 py-2 font-mono text-xs">{cmd}</pre>
+      <p className="mt-2 text-xs text-muted">{t('In a Proxmox LXC container this is the Proxmox host, not the container. Then restart the server in the container: systemctl restart unify-syslog')}</p>
     </div>
   )
 }

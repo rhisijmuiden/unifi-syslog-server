@@ -106,7 +106,7 @@ func Default() *Config {
 	return &Config{
 		HTTPListen: ":8080",
 		DataDir:    "/var/lib/unify-syslog",
-		Syslog:     Syslog{UDP: ":514", TCP: ":514", UDPReadBuffer: 8 << 20},
+		Syslog:     Syslog{UDP: ":514", TCP: ":514", UDPReadBuffer: 32 << 20},
 		ClickHouse: ClickHouse{
 			Addr:     "127.0.0.1:9000",
 			HTTPURL:  "http://127.0.0.1:8123",

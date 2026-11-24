@@ -63,5 +63,6 @@
   "Storing logs fails": "Speichern der Logs schlägt fehl",
   "Resolved: %s": "Behoben: %s",
   "This problem is over:": "Dieses Problem ist behoben:",
-  "System status: %s": "Systemstatus: %s"
+  "System status: %s": "Systemstatus: %s",
+  "The kernel dropped {n} syslog packets in the last 5 minutes: the UDP receive buffer is {effective} instead of {requested} because net.core.rmem_max on the host is too low": "Der Kernel hat in den letzten 5 Minuten {n} Syslog-Pakete verworfen: Der UDP-Empfangspuffer ist {effective} statt {requested}, weil net.core.rmem_max auf dem Host zu niedrig ist"
 }

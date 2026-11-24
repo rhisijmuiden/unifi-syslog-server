@@ -63,5 +63,6 @@
   "Storing logs fails": "Logs opslaan mislukt",
   "Resolved: %s": "Opgelost: %s",
   "This problem is over:": "Dit probleem is voorbij:",
-  "System status: %s": "Systeemstatus: %s"
+  "System status: %s": "Systeemstatus: %s",
+  "The kernel dropped {n} syslog packets in the last 5 minutes: the UDP receive buffer is {effective} instead of {requested} because net.core.rmem_max on the host is too low": "De kernel heeft in de laatste 5 minuten {n} syslog-pakketten weggegooid: de UDP-ontvangstbuffer is {effective} in plaats van {requested} omdat net.core.rmem_max op de host te laag is"
 }

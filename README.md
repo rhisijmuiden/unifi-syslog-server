@@ -145,7 +145,7 @@ Under **Administration → Settings**, *Retention per category* keeps some categ
 **Administration → System status** shows the health of the server itself and refreshes every few seconds:
 
 - **Messages per second** received and stored, with a chart of the last hour and the peak.
-- **Dropped and rejected**: messages dropped because the ingest queue was full, packets the kernel dropped because the UDP receive buffer was full (`/proc/net/snmp`), senders rejected by the allowlist and failed inserts.
+- **Dropped and rejected**: messages dropped because the ingest queue was full, packets the kernel dropped because the UDP receive buffer was full (`/proc/net/snmp`, counted from the start of the server), senders rejected by the allowlist and failed inserts. It also shows the UDP receive buffer the kernel granted next to the one the server asked for, with the commands to fix it when it is too small (see [UDP receive buffer](#udp-receive-buffer-kernel-drops)).
 - **Disk space** of every ClickHouse disk and the server's data directory.
 - **ClickHouse**: response time, version, uptime, stored rows, size and compression, data parts, merges, mutations and memory.
 - **Components**: remote probes, forwarding destinations, notification channels and the last backup.
@@ -335,7 +335,8 @@ Every release has a ready-made container template: Debian 13 with ClickHouse and
 
    The SHA-256 checksum is in `checksums.txt` of the same release, if you want Proxmox to verify it.
 3. **Create CT**, choose the template, and give it at least 2 CPU cores, 4 GB RAM and a 20 GB disk or more (roughly 1 GB per 10 million messages). Keep *Unprivileged container* and *Nesting* on; choose DHCP or a static IP under *Network*.
-4. Start the container and open its **Console**. After about a minute it shows the web address, the user and the password above the login prompt (press Enter to refresh). The root password is the one you entered when creating the container.
+4. Once per Proxmox host, raise the UDP receive buffer limit so bursts of syslog are not dropped (see [UDP receive buffer](#udp-receive-buffer-kernel-drops)): `echo "net.core.rmem_max = 33554432" > /etc/sysctl.d/90-unify-syslog.conf && sysctl --system`.
+5. Start the container and open its **Console**. After about a minute it shows the web address, the user and the password above the login prompt (press Enter to refresh). The root password is the one you entered when creating the container.
 
 From the Proxmox shell, the same in commands:
 
@@ -391,6 +392,26 @@ You can adjust its behavior with these environment variables:
 | `USS_CH_MEMORY_RATIO=0.5` | Sets the share of RAM that ClickHouse may use. |
 | `USS_HTTP_PORT=8080` | Sets the port of the web interface. |
 | `USS_CLICKHOUSE=external` | Uses an external ClickHouse server or cluster instead of installing one; see [docs/STORAGE.md](docs/STORAGE.md) for `USS_CH_ADDR` and the other settings. |
+
+### UDP receive buffer (kernel drops)
+
+Syslog over UDP arrives in bursts. Packets wait in the receive buffer of the socket until the server reads them; when a burst does not fit, the kernel drops packets before the server ever sees them. *System status* then shows them under **Dropped by the kernel: UDP receive buffer full**.
+
+The server asks for a 32 MiB buffer (`udp_read_buffer` in `config.yaml`), but Linux caps every socket at `net.core.rmem_max`, which is only about 208 KiB by default. The installer raises it, except where it cannot:
+
+- **Debian VM or hardware**: the installer writes `/etc/sysctl.d/90-unify-syslog.conf`; nothing to do.
+- **Proxmox LXC script**: the script raises `net.core.rmem_max` on the Proxmox host before it creates the container.
+- **Proxmox CT template, or an existing container**: `net.core.rmem_max` is not per container and an unprivileged container cannot change it. Run this once on the **Proxmox host**, then restart the server in the container:
+
+  ```bash
+  # on the Proxmox host
+  echo "net.core.rmem_max = 33554432" > /etc/sysctl.d/90-unify-syslog.conf
+  sysctl --system
+  # in the container
+  systemctl restart unify-syslog
+  ```
+
+*System status* shows the buffer the kernel granted under **UDP receive buffer**; it should read 32 MiB of 32 MiB. Prometheus has it as `uss_syslog_udp_receive_buffer_bytes`. The server drains the socket in batches (`recvmmsg`), one system call for up to 32 packets.
 
 ### Remote probe
 

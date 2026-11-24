@@ -126,7 +126,7 @@ cat > /etc/sysctl.d/90-unify-syslog-probe.conf <<EOF
 net.core.rmem_max = 8388608
 net.core.rmem_default = 4194304
 EOF
-sysctl -q -p /etc/sysctl.d/90-unify-syslog-probe.conf 2>/dev/null || warn "sysctl not applied (normal in an unprivileged LXC)"
+sysctl -q -p /etc/sysctl.d/90-unify-syslog-probe.conf 2>/dev/null || warn "sysctl not applied (normal in an unprivileged LXC): run \"echo net.core.rmem_max = 8388608 > /etc/sysctl.d/90-unify-syslog-probe.conf && sysctl --system\" on the Proxmox host"
 
 systemctl daemon-reload
 systemctl enable -q unify-syslog-probe

@@ -56,6 +56,17 @@ fi
 export USS_PROBE_KEY="${USS_PROBE_KEY:-}"
 
 start
+
+# The kernel caps the UDP receive buffer of the syslog socket at net.core.rmem_max.
+# That setting is not per container and cannot be changed from an unprivileged
+# container, so raise it here on the Proxmox host (only ever upwards).
+if [[ "$(sysctl -n net.core.rmem_max 2>/dev/null || echo 0)" -lt 8388608 ]]; then
+  msg_info "Raising net.core.rmem_max on the Proxmox host to 8 MiB (syslog bursts)"
+  echo "net.core.rmem_max = 8388608" >/etc/sysctl.d/90-unify-syslog-probe.conf
+  sysctl -q -p /etc/sysctl.d/90-unify-syslog-probe.conf >/dev/null 2>&1 || true
+  msg_ok "Raised net.core.rmem_max on the Proxmox host"
+fi
+
 build_container
 description
 
