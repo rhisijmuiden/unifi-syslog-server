@@ -1,0 +1,133 @@
+===== main installer
+[36m==>[0m Installing system packages
+[32m✔[0m Base packages installed
+[36m==>[0m Installing ClickHouse (official repository)
+[32m✔[0m ClickHouse installed
+[32m✔[0m ClickHouse is running (local access only)
+[32m✔[0m Program installed in /opt/unify-syslog (unify-syslog 0.0.0-ci (commit 406b722, built 2026-11-24T14:35:02Z)
+License AGPL-3.0-or-later, source code: https://github.com/rhisijmuiden/unifi-syslog-server/tree/v0.0.0-ci)
+
+[32m✔[0m UniFi Syslog Server is installed
+
+   Web interface:  [36mhttp://10.125.137.121:8080[0m
+   User:           admin
+   Password:       [32mci-admin-password[0m
+
+===== probe installer and status
+[36m==>[0m Installing system packages
+[32m✔[0m Base packages installed
+[36m==>[0m Downloading the probe from the main server https://10.125.137.121:8080
+[32m✔[0m Program installed in /opt/unify-syslog-probe (unify-syslog-probe 0.0.0-ci (commit 406b722, built 2026-11-24T14:35:02Z))
+[32m✔[0m Probe service running
+[36m==>[0m Enrolling with the main server
+Enrolled as "CI probe" (site ci-site) with https://10.125.137.121:8080
+[32m✔[0m Enrolled
+
+[32m✔[0m Installation complete!
+   Syslog:      UDP/TCP [36m10.125.137.241:514[0m  (point the UniFi devices here)
+   Probe page:  [36mhttp://10.125.137.241:8080[0m
+   Status:      unify-syslog-probe status
+   Updates:     come from the main server (Probes page)
+Probe:      CI probe (site ci-site)
+State:      connected
+Server:     https://10.125.137.121:8080
+Version:    0.0.0-ci
+Listening:  udp :514, tcp :514
+Received:   0 (0.0/s), sent 0
+Buffered:   0 messages, 0 bytes
+Devices:    0 in the last 24 hours
+Probe:      CI probe (site ci-site)
+State:      connected
+Server:     https://10.125.137.121:8080
+Version:    0.0.0-ci
+Listening:  udp :514, tcp :514
+Received:   300 (5.1/s), sent 100
+Buffered:   200 messages, 38092 bytes
+Devices:    1 in the last 24 hours
+Last error: Post "https://10.125.137.121:8080/api/probe/v1/ingest": dial tcp 10.125.137.121:8080: connect: connection refused
+unify-syslog-probe 0.0.0-ci (commit 406b722, built 2026-11-24T14:35:02Z)
+===== main journal
+Nov 24 14:38:23 main systemd[1]: Started unify-syslog.service - UniFi Syslog Server.
+Nov 24 14:38:23 main unify-syslog[2357]: time=2026-11-24T14:38:23.570Z level=INFO msg=starting version=0.0.0-ci config=/etc/unify-syslog/config.yaml
+Nov 24 14:38:23 main unify-syslog[2357]: time=2026-11-24T14:38:23.584Z level=WARN msg="UDP receive buffer is smaller than configured; raise net.core.rmem_max on the host (the Proxmox host for an LXC container)" requested=33554432 effective=4194304 rmem_max=4194304
+Nov 24 14:38:23 main unify-syslog[2357]: time=2026-11-24T14:38:23.584Z level=INFO msg="syslog UDP listening" addr=:514 receive_buffer=4194304
+Nov 24 14:38:23 main unify-syslog[2357]: time=2026-11-24T14:38:23.584Z level=INFO msg="syslog TCP listening" addr=:514
+Nov 24 14:38:23 main unify-syslog[2357]: time=2026-11-24T14:38:23.585Z level=INFO msg="web interface listening" addr=:8080 https=true pin="4Q0BRZvOv0QTh0ODCDm5R8OQC5M7rZyXSF5IfL2xSDA="
+Nov 24 14:38:26 main unify-syslog[2357]: 2026/11/24 14:38:26 http: TLS handshake error from 10.125.137.241:53492: local error: tls: bad record MAC
+Nov 24 14:38:28 main unify-syslog[2357]: time=2026-11-24T14:38:28.280Z level=INFO msg="probe enrolled" probe="CI probe" host=probe ip=10.125.137.241
+Nov 24 14:38:31 main systemd[1]: Stopping unify-syslog.service - UniFi Syslog Server...
+Nov 24 14:38:31 main unify-syslog[2357]: time=2026-11-24T14:38:31.690Z level=INFO msg=stopped
+Nov 24 14:38:31 main systemd[1]: unify-syslog.service: Deactivated successfully.
+Nov 24 14:38:31 main systemd[1]: Stopped unify-syslog.service - UniFi Syslog Server.
+Nov 24 14:38:36 main systemd[1]: Started unify-syslog.service - UniFi Syslog Server.
+Nov 24 14:38:36 main unify-syslog[2421]: time=2026-11-24T14:38:36.811Z level=INFO msg=starting version=0.0.0-ci config=/etc/unify-syslog/config.yaml
+Nov 24 14:38:36 main unify-syslog[2421]: time=2026-11-24T14:38:36.820Z level=WARN msg="UDP receive buffer is smaller than configured; raise net.core.rmem_max on the host (the Proxmox host for an LXC container)" requested=33554432 effective=4194304 rmem_max=4194304
+Nov 24 14:38:36 main unify-syslog[2421]: time=2026-11-24T14:38:36.820Z level=INFO msg="syslog UDP listening" addr=:514 receive_buffer=4194304
+Nov 24 14:38:36 main unify-syslog[2421]: time=2026-11-24T14:38:36.820Z level=INFO msg="syslog TCP listening" addr=:514
+Nov 24 14:38:36 main unify-syslog[2421]: time=2026-11-24T14:38:36.820Z level=INFO msg="web interface listening" addr=:8080 https=true pin="4Q0BRZvOv0QTh0ODCDm5R8OQC5M7rZyXSF5IfL2xSDA="
+===== probe journal
+Nov 24 14:38:27 probe systemd[1]: Starting unify-syslog-probe.service - UniFi Syslog probe...
+Nov 24 14:38:27 probe systemd[1]: Started unify-syslog-probe.service - UniFi Syslog probe.
+Nov 24 14:38:27 probe unify-syslog-probe[502]: time=2026-11-24T14:38:27.286Z level=INFO msg="probe starting" version=0.0.0-ci data=/var/lib/unify-syslog-probe enrolled=false
+Nov 24 14:38:27 probe unify-syslog-probe[502]: time=2026-11-24T14:38:27.286Z level=WARN msg="UDP receive buffer is smaller than configured; raise net.core.rmem_max on the host (the Proxmox host for an LXC container)" requested=8388608 effective=4194304 rmem_max=4194304
+Nov 24 14:38:27 probe unify-syslog-probe[502]: time=2026-11-24T14:38:27.286Z level=INFO msg="syslog UDP listening" addr=:514 receive_buffer=4194304
+Nov 24 14:38:27 probe unify-syslog-probe[502]: time=2026-11-24T14:38:27.286Z level=INFO msg="syslog TCP listening" addr=:514
+Nov 24 14:38:28 probe unify-syslog-probe[502]: time=2026-11-24T14:38:28.280Z level=INFO msg=enrolled server=https://10.125.137.121:8080 name="CI probe" site=ci-site
+Nov 24 14:38:31 probe unify-syslog-probe[502]: time=2026-11-24T14:38:31.890Z level=WARN msg="delivery failed, retrying" in=1s err="Post \"https://10.125.137.121:8080/api/probe/v1/ingest\": dial tcp 10.125.137.121:8080: connect: connection refused"
+Nov 24 14:38:32 probe unify-syslog-probe[502]: time=2026-11-24T14:38:32.892Z level=WARN msg="delivery failed, retrying" in=2s err="Post \"https://10.125.137.121:8080/api/probe/v1/ingest\": dial tcp 10.125.137.121:8080: connect: connection refused"
+Nov 24 14:38:34 probe unify-syslog-probe[502]: time=2026-11-24T14:38:34.893Z level=WARN msg="delivery failed, retrying" in=4s err="Post \"https://10.125.137.121:8080/api/probe/v1/ingest\": dial tcp 10.125.137.121:8080: connect: connection refused"
+Nov 24 14:38:39 probe systemd[1]: Stopping unify-syslog-probe.service - UniFi Syslog probe...
+Nov 24 14:38:39 probe unify-syslog-probe[502]: time=2026-11-24T14:38:39.993Z level=INFO msg="probe stopped"
+Nov 24 14:38:39 probe systemd[1]: unify-syslog-probe.service: Deactivated successfully.
+Nov 24 14:38:39 probe systemd[1]: Stopped unify-syslog-probe.service - UniFi Syslog probe.
+Nov 24 14:38:39 probe systemd[1]: Starting unify-syslog-probe.service - UniFi Syslog probe...
+Nov 24 14:38:40 probe systemd[1]: Started unify-syslog-probe.service - UniFi Syslog probe.
+Nov 24 14:38:40 probe unify-syslog-probe[582]: time=2026-11-24T14:38:40.031Z level=INFO msg="probe starting" version=0.0.0-old data=/var/lib/unify-syslog-probe enrolled=true
+Nov 24 14:38:40 probe unify-syslog-probe[582]: time=2026-11-24T14:38:40.032Z level=WARN msg="UDP receive buffer is smaller than configured; raise net.core.rmem_max on the host (the Proxmox host for an LXC container)" requested=8388608 effective=4194304 rmem_max=4194304
+Nov 24 14:38:40 probe unify-syslog-probe[582]: time=2026-11-24T14:38:40.032Z level=INFO msg="syslog UDP listening" addr=:514 receive_buffer=4194304
+Nov 24 14:38:40 probe unify-syslog-probe[582]: time=2026-11-24T14:38:40.032Z level=INFO msg="syslog TCP listening" addr=:514
+Nov 24 14:39:10 probe unify-syslog-probe[582]: time=2026-11-24T14:39:10.036Z level=INFO msg="installing update from main server" from=0.0.0-old to=0.0.0-ci
+Nov 24 14:39:10 probe unify-syslog-probe[582]: time=2026-11-24T14:39:10.092Z level=INFO msg="update installed, restarting" version=0.0.0-ci
+Nov 24 14:39:10 probe unify-syslog-probe[582]: time=2026-11-24T14:39:10.092Z level=INFO msg="probe stopped"
+Nov 24 14:39:10 probe systemd[1]: unify-syslog-probe.service: Deactivated successfully.
+Nov 24 14:39:13 probe systemd[1]: unify-syslog-probe.service: Scheduled restart job, restart counter is at 1.
+Nov 24 14:39:13 probe systemd[1]: Starting unify-syslog-probe.service - UniFi Syslog probe...
+Nov 24 14:39:13 probe systemd[1]: Started unify-syslog-probe.service - UniFi Syslog probe.
+Nov 24 14:39:13 probe unify-syslog-probe[671]: time=2026-11-24T14:39:13.167Z level=INFO msg="probe starting" version=0.0.0-ci data=/var/lib/unify-syslog-probe enrolled=true
+Nov 24 14:39:13 probe unify-syslog-probe[671]: time=2026-11-24T14:39:13.168Z level=WARN msg="UDP receive buffer is smaller than configured; raise net.core.rmem_max on the host (the Proxmox host for an LXC container)" requested=8388608 effective=4194304 rmem_max=4194304
+Nov 24 14:39:13 probe unify-syslog-probe[671]: time=2026-11-24T14:39:13.168Z level=INFO msg="syslog UDP listening" addr=:514 receive_buffer=4194304
+Nov 24 14:39:13 probe unify-syslog-probe[671]: time=2026-11-24T14:39:13.168Z level=INFO msg="syslog TCP listening" addr=:514
+Nov 24 14:39:13 probe unify-syslog-probe[671]: time=2026-11-24T14:39:13.171Z level=INFO msg="update confirmed" version=0.0.0-ci
+===== probe install log
++ apt-get update
+Hit:1 http://deb.debian.org/debian trixie InRelease
+Hit:2 http://deb.debian.org/debian trixie-updates InRelease
+Hit:3 http://deb.debian.org/debian-security trixie-security InRelease
+Reading package lists...
++ apt-get install -y curl ca-certificates tar
+Reading package lists...
+Building dependency tree...
+Reading state information...
+curl is already the newest version (8.14.1-2+deb13u7).
+ca-certificates is already the newest version (20250419+deb13u1).
+tar is already the newest version (1.35+dfsg-3.1).
+0 upgraded, 0 newly installed, 0 to remove and 15 not upgraded.
+curl: (60) SSL certificate problem: self-signed certificate
+More details here: https://curl.se/docs/sslcerts.html
+
+curl failed to verify the legitimacy of the server and therefore could not
+establish a secure connection to it. To learn more about this situation and
+how to fix it, please visit the webpage mentioned above.
+/etc/profile.d/unify-syslog-probe.sh
+/etc/systemd/system/unify-syslog-probe.service
+/usr/lib/sysusers.d/unify-syslog-probe.conf
+/usr/lib/tmpfiles.d/unify-syslog-probe.conf
+/etc/issue.d/unify-syslog-probe.issue
+/etc/systemd/system/multi-user.target.wants/unify-syslog-probe.service
++ systemd-sysusers
+Creating group 'unify-probe' with GID 989.
+Creating user 'unify-probe' (UniFi Syslog probe) with UID 989 and GID 989.
++ systemd-tmpfiles --create
+/usr/lib/tmpfiles.d/legacy.conf:14: Duplicate line for path "/run/lock", ignoring.
+===== probes
+{"pin":"4Q0BRZvOv0QTh0ODCDm5R8OQC5M7rZyXSF5IfL2xSDA=","probes":[{"id":1,"name":"CI probe","site":"ci-site","settings":{"udp":":514","tcp":":514","buffer_mb":64,"buffer_hours":24,"log_level":"info"},"status":{"version":"0.0.0-ci","arch":"amd64","os":"Debian GNU/Linux 13 (trixie)","hostname":"probe","ips":["10.125.137.241","fd42:7483:6de2:1545:216:3eff:febd:74bf"],"uptime":0,"received":0,"rate":0,"sent":0,"buffer_records":0,"buffer_bytes":0,"buffer_max":67108864,"dropped":0,"expired":0,"oldest":0,"devices":0,"cpu":0,"load1":1.47,"mem_used":32358400,"mem_total":1073741824,"disk_used":65518592000,"disk_total":154894188544,"listen":"udp :514, tcp :514"},"version":"0.0.0-ci","hostname":"probe","remote_ip":"10.125.137.241","target_version":"","update_state":"","update_error":"","enrolled":true,"code_expires":0,"enrolled_at":1795531108,"last_seen":1795531153,"created_at":1795531106,"online":true,"outdated":false,"ingested":200}],"repo":"rhisijmuiden/unifi-syslog-server","server_url":"https://localhost:8080","server_version":"0.0.0-ci","settings":{"auto_update":true,"offline_minutes":5,"buffer_alert_percent":80,"notify":true,"recipients":"","server_url":""}}
